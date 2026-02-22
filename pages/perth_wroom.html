@@ -1,0 +1,2065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perth WROOM Test Table -- 5-Sensor T/H</title>
+
+<!-- Chart.js + Luxon date adapter -->
+<script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+
+<style>
+/* ===================================================================
+   CSS -- Dark monitoring dashboard theme (self-contained)
+   =================================================================== */
+:root {
+  --bg:          #0f172a;
+  --bg-card:     #1e293b;
+  --bg-card-alt: #1a2332;
+  --bg-hover:    #334155;
+  --text:        #f1f5f9;
+  --text-sec:    #94a3b8;
+  --text-muted:  #64748b;
+  --accent:      #0ea5e9;
+  --accent-dim:  #0284c7;
+  --success:     #22c55e;
+  --success-dim: #166534;
+  --warning:     #f59e0b;
+  --warning-dim: #92400e;
+  --danger:      #ef4444;
+  --danger-dim:  #991b1b;
+  --border:      #334155;
+  --radius:      10px;
+  --shadow:      0 4px 12px rgba(0,0,0,0.3);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* -- Header --------------------------------------------------------- */
+.header {
+  background: linear-gradient(135deg, #1a3a2a 0%, #1e293b 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 240px;
+}
+.header-left h1 { font-size: 1.3rem; font-weight: 600; letter-spacing: -0.02em; }
+.header-left .sub { font-size: 0.75rem; color: var(--text-sec); margin-top: -2px; }
+.header-left .icon { font-size: 1.5rem; }
+.header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.header-meta {
+  font-size: 0.78rem;
+  color: var(--text-sec);
+  width: 100%;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+.header-meta .label { color: var(--text-muted); }
+.temp-tag {
+  display: inline-block;
+  background: #f59e0b22;
+  color: #f59e0b;
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+/* -- Buttons -------------------------------------------------------- */
+.btn {
+  padding: 7px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg-hover); border-color: var(--accent); }
+.btn-primary { background: var(--accent-dim); border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent); }
+.btn-green { background: #166534; border-color: #22c55e; }
+.btn-green:hover { background: #22c55e; color: #000; }
+.btn-sm { padding: 4px 12px; font-size: 0.75rem; }
+.btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* -- Main container ------------------------------------------------- */
+.main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* -- Freshness banner ---------------------------------------------- */
+.freshness-banner {
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+.freshness-banner.show { display: flex; }
+.freshness-banner.fresh { background: var(--success-dim); border: 1px solid var(--success); }
+.freshness-banner.stale { background: var(--warning-dim); border: 1px solid var(--warning); }
+.freshness-banner.old   { background: var(--danger-dim);  border: 1px solid var(--danger); }
+
+/* -- Date range bar ------------------------------------------------ */
+.date-range-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 16px;
+}
+.date-range-label { font-size: 0.8rem; font-weight: 600; color: var(--text-sec); }
+.date-range-sep { font-size: 0.8rem; color: var(--text-muted); }
+.date-range-bar input[type="date"] {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 8px; color: var(--text); font-size: 0.82rem; width: 145px;
+}
+.date-range-bar input[type="date"]:focus { outline: none; border-color: var(--accent); }
+
+/* -- Status cards grid --------------------------------------------- */
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+}
+.status-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.status-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--border);
+}
+.status-card.ok::before    { background: var(--success); }
+.status-card.warn::before  { background: var(--warning); }
+.status-card.error::before { background: var(--danger); }
+.status-card.nc::before    { background: var(--text-muted); }
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.card-header h3 {
+  font-size: 0.85rem; color: var(--text-sec);
+  text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;
+}
+.card-badge {
+  font-size: 0.65rem; padding: 2px 8px; border-radius: 10px;
+  text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em;
+}
+.badge-ok    { background: var(--success-dim); color: var(--success); }
+.badge-warn  { background: var(--warning-dim); color: var(--warning); }
+.badge-error { background: var(--danger-dim);  color: var(--danger); }
+.badge-nc    { background: #1e293b; color: var(--text-muted); border: 1px solid var(--border); }
+
+.sensor-readings { display: flex; gap: 16px; align-items: baseline; }
+.big-number { font-size: 2rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.big-label  { font-size: 0.7rem; color: var(--text-muted); }
+.reading-block { text-align: center; }
+
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-top: 10px; }
+.detail-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.detail-value { font-size: 0.85rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* -- Chart panels -------------------------------------------------- */
+.chart-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.chart-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 4px; flex-wrap: wrap; gap: 8px;
+}
+.chart-header h3 { font-size: 1rem; font-weight: 600; }
+.chart-subhead { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px; }
+.time-btns { display: flex; gap: 4px; }
+.chart-wrap { position: relative; height: 340px; }
+.chart-empty {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); font-size: 0.9rem;
+  pointer-events: none; text-align: center; padding: 20px;
+}
+
+/* -- Peaks table --------------------------------------------------- */
+.peaks-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+}
+.peaks-panel h3 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+.peaks-panel .peaks-sub { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px; }
+.peaks-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.peaks-table th, .peaks-table td {
+  padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.peaks-table th {
+  color: var(--text-muted); font-weight: 500; text-transform: uppercase;
+  font-size: 0.7rem; letter-spacing: 0.04em; position: sticky; top: 0; background: var(--bg-card);
+}
+.peaks-table td:first-child, .peaks-table th:first-child { text-align: left; }
+.peaks-table tbody tr:hover { background: var(--bg-hover); }
+.peaks-nc { color: var(--text-muted); font-style: italic; }
+
+/* -- Loading / empty state ----------------------------------------- */
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-sec); }
+.empty-state h2 { font-size: 1.3rem; margin-bottom: 8px; color: var(--text); }
+.empty-state p { font-size: 0.9rem; margin-bottom: 20px; max-width: 520px; margin-left: auto; margin-right: auto; }
+.spinner {
+  display: inline-block; width: 18px; height: 18px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* -- Two-column charts --------------------------------------------- */
+.two-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+/* ── Tides & Moon Phase ────────────────────────────────── */
+.tide-moon-row { display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:12px 0; }
+#moonInfo { display:flex; align-items:center; gap:10px; }
+#moonDetails { display:flex; gap:12px; flex-wrap:wrap; }
+.moon-next { display:flex; flex-direction:column; gap:1px; background:var(--card); padding:6px 12px; border-radius:8px; font-size:0.8rem; }
+.mn-label { color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; }
+.mn-date { font-weight:600; }
+.harvest-info { display:flex; align-items:center; gap:10px; border-radius:8px; padding:10px 14px; font-size:0.85rem; color:var(--text-sec); margin:6px 0 10px; }
+.harvest-info.harvest-active { background:#22c55e18; border:1px solid #22c55e44; }
+.harvest-info.harvest-upcoming { background:#3b82f610; border:1px solid #3b82f633; }
+.harvest-icon { font-size:1.5rem; }
+.harvest-calendar { display:flex; gap:16px; flex-wrap:wrap; padding:4px 0; }
+.cal-month { flex:1; min-width:230px; }
+.cal-title { font-weight:700; font-size:0.85rem; margin-bottom:6px; color:var(--text); }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.cal-dow { font-size:0.65rem; color:var(--text-muted); text-align:center; padding:2px 0; font-weight:600; }
+.cal-day { font-size:0.75rem; text-align:center; padding:5px 2px; border-radius:4px; cursor:default; color:var(--text-sec); position:relative; }
+.cal-day.harvest { background:rgba(34,197,94,0.18); color:#22c55e; font-weight:700; }
+.cal-day.today { outline:2px solid var(--accent); outline-offset:-1px; font-weight:700; color:var(--text); }
+.cal-day.moon { color:#fbbf24; }
+.cal-day .moon-icon { font-size:0.55rem; position:absolute; top:-1px; right:1px; line-height:1; }
+.cal-day.empty { background:transparent; }
+.low-tide-table { width:100%; border-collapse:collapse; font-size:0.8rem; margin-top:6px; }
+.low-tide-table th { text-align:left; color:var(--text-muted); font-weight:600; padding:5px 8px; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.5px; }
+.low-tide-table td { padding:5px 8px; border-bottom:1px solid var(--border); }
+
+/* -- Table Configuration ------------------------------------------- */
+.config-section { margin-top: 30px; }
+.config-section h2 { font-size: 1.1rem; color: var(--text-primary); margin-bottom: 12px; }
+.config-table-wrap { overflow-x: auto; }
+.config-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.config-table th { text-align: left; color: var(--text-muted); font-weight: 600; padding: 8px 10px; border-bottom: 2px solid var(--border); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+.config-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.config-table tr.cfg-active { background: rgba(34,197,94,0.06); }
+.config-table .cfg-dates { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.config-table .cfg-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; }
+.cfg-badge.open   { background: #166534; color: #bbf7d0; }
+.cfg-badge.closed  { background: #7f1d1d; color: #fecaca; }
+.cfg-badge.mid     { background: #78350f; color: #fde68a; }
+.cfg-badge.full    { background: #166534; color: #bbf7d0; }
+.cfg-badge.ongoing { background: #1e3a5f; color: #93c5fd; font-style: italic; }
+.config-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 14px; padding: 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; }
+.config-form label { display: flex; flex-direction: column; gap: 3px; font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.config-form select,
+.config-form input[type="text"],
+.config-form input[type="date"] { padding: 6px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-secondary); color: var(--text-primary); font-size: 0.82rem; }
+.config-form select { min-width: 120px; }
+.config-form input[type="text"] { min-width: 180px; }
+.config-form input[type="date"] { min-width: 130px; }
+.config-form .cfg-btn-row { display: flex; gap: 6px; align-items: flex-end; }
+.config-table .cfg-actions { white-space: nowrap; }
+.cfg-actions button { padding: 3px 8px; font-size: 0.72rem; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-muted); cursor: pointer; margin-right: 3px; }
+.cfg-actions button:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.cfg-actions button.cfg-del { color: #f87171; }
+.cfg-actions button.cfg-del:hover { background: #7f1d1d; color: #fecaca; }
+
+/* -- Footer -------------------------------------------------------- */
+.footer { text-align: center; padding: 20px; font-size: 0.75rem; color: var(--text-muted); }
+
+/* -- Responsive ---------------------------------------------------- */
+@media (max-width: 900px) { .two-charts { grid-template-columns: 1fr; } }
+@media (max-width: 768px) {
+  .header { padding: 12px 16px; }
+  .header-left h1 { font-size: 1.05rem; }
+  .main { padding: 12px; gap: 12px; }
+  .status-grid { grid-template-columns: 1fr 1fr; }
+  .chart-wrap { height: 260px; }
+  .big-number { font-size: 1.6rem; }
+  .harvest-calendar { flex-direction:column; }
+}
+@media (max-width: 480px) {
+  .status-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===================================================================
+     HEADER
+     =================================================================== -->
+<header class="header">
+  <div class="header-left">
+    <span class="icon">&#9879;</span>
+    <div>
+      <h1>Perth WROOM Test Table <span class="temp-tag">TEMPORARY</span></h1>
+      <div class="sub">ESP32-WROOM-32E &mdash; 5-Sensor Temperature / Humidity</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <a class="btn btn-sm" href="../index.html" title="Back to overview">&#9664; Overview</a>
+    <a class="btn btn-sm" href="battery_estimator.html" title="Battery Estimator" style="font-size:0.95rem">&#128267; Battery</a>
+    <button class="btn btn-primary" id="btnFetchTS" onclick="fetchThingSpeak()">Fetch ThingSpeak</button>
+    <button class="btn btn-green" id="btnLoadCSV" onclick="document.getElementById('csvInput').click()">Load CSV</button>
+    <input type="file" id="csvInput" multiple accept=".csv,.txt" style="display:none"
+           onchange="handleCSVUpload(this.files)">
+    <button class="btn" id="btnExportCSV" onclick="exportCSV()" title="Export merged data as CSV" style="display:none">Export CSV</button>
+  </div>
+  <div class="header-meta">
+    <span><span class="label">Source:</span> <span id="dataSourceLabel">No data loaded</span></span>
+    <span><span class="label">Entries:</span> <span id="entryCountLabel">0</span></span>
+    <span><span class="label">Range:</span> <span id="dateRangeLabel">--</span></span>
+    <span><span class="label">Temp Ch:</span> 3246116</span>
+    <span><span class="label">Hum Ch:</span> 3256756</span>
+  </div>
+</header>
+
+<!-- ===================================================================
+     MAIN CONTENT
+     =================================================================== -->
+<main class="main">
+
+  <!-- Freshness banner -->
+  <div class="freshness-banner" id="freshnessBanner">
+    <span id="freshnessIcon"></span>
+    <span id="freshnessText"></span>
+  </div>
+
+  <!-- Empty state -->
+  <div class="empty-state" id="emptyState">
+    <h2>No Data Loaded</h2>
+    <p>Click <strong>Fetch ThingSpeak</strong> to pull temperature &amp; humidity
+       from channels 3246116 / 3256756, or <strong>Load CSV</strong> to import
+       raw data files downloaded from the device at
+       <code>http://192.168.1.101/</code>.</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px">
+      <button class="btn btn-primary" onclick="fetchThingSpeak()">Fetch ThingSpeak</button>
+      <button class="btn btn-green" onclick="document.getElementById('csvInput').click()">Load CSV Files</button>
+    </div>
+  </div>
+
+  <!-- Dashboard content (hidden until data loaded) -->
+  <div id="dashboardContent" style="display:none">
+
+    <!-- Date Range Filter -->
+    <section class="date-range-bar">
+      <span class="date-range-label">Date Range:</span>
+      <input type="date" id="dateStart" title="Start date">
+      <span class="date-range-sep">to</span>
+      <input type="date" id="dateEnd" title="End date">
+      <button class="btn btn-sm" onclick="applyDateRange()">Apply</button>
+      <button class="btn btn-sm" onclick="clearDateRange()">Clear</button>
+    </section>
+
+    <!-- 5 Sensor Status Cards -->
+    <section class="status-grid" id="sensorCards">
+      <!-- Generated by JS -->
+    </section>
+
+    <!-- Sensor Chart Overlay Controls -->
+    <div style="display:flex;align-items:center;gap:16px;padding:8px 14px;margin-bottom:8px;background:#0a1628;border-radius:8px;border:1px solid #1e293b;flex-wrap:wrap">
+      <span style="color:#475569;font-size:0.75rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">Chart overlays:</span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="ovNight" checked style="accent-color:#94a3b8;width:14px;height:14px" onchange="onSensorOptsChange()">
+        <span style="color:#94a3b8;font-size:0.82rem">&#127769; Night/Day</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="ovHarvest" checked style="accent-color:#22c55e;width:14px;height:14px" onchange="onSensorOptsChange()">
+        <span style="color:#22c55e;font-size:0.82rem">&#127807; Harvest Windows</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="ovWx" style="accent-color:#f59e0b;width:14px;height:14px" onchange="onSensorOptsChange()">
+        <span style="color:#f59e0b;font-size:0.82rem">&#9729; Open-Meteo overlay</span>
+      </label>
+    </div>
+
+    <!-- Temperature Chart -->
+    <section class="chart-panel">
+      <div class="chart-header">
+        <h3>Temperature (&#176;C)</h3>
+        <div class="time-btns">
+          <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
+          <button class="btn btn-sm" data-range="week" onclick="setTimeRange('week')">Week</button>
+          <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
+          <button class="btn btn-sm active" data-range="all" onclick="setTimeRange('all')">All</button>
+        </div>
+      </div>
+      <div class="chart-subhead" id="tempSubhead">Showing: All data</div>
+      <div class="chart-wrap">
+        <canvas id="tempChart"></canvas>
+        <div class="chart-empty" id="tempEmpty">No temperature data yet</div>
+      </div>
+    </section>
+
+    <!-- Humidity Chart -->
+    <section class="chart-panel">
+      <div class="chart-header">
+        <h3>Humidity (%RH)</h3>
+        <div class="time-btns">
+          <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
+          <button class="btn btn-sm" data-range="week" onclick="setTimeRange('week')">Week</button>
+          <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
+          <button class="btn btn-sm active" data-range="all" onclick="setTimeRange('all')">All</button>
+        </div>
+      </div>
+      <div class="chart-subhead" id="humSubhead">Showing: All data</div>
+      <div class="chart-wrap">
+        <canvas id="humChart"></canvas>
+        <div class="chart-empty" id="humEmpty">No humidity data yet</div>
+      </div>
+    </section>
+
+    <!-- Local Weather (Open-Meteo) -->
+    <section class="chart-panel" id="weatherSection" style="display:none">
+      <div class="chart-header">
+        <h3>&#127326; Local Weather (Open-Meteo)</h3>
+        <span class="chart-subhead" id="weatherLocation" style="margin:0"></span>
+      </div>
+      <div class="chart-subhead" id="weatherSubhead">Hourly weather from Open-Meteo &mdash; syncs with the selected time range above</div>
+      <div class="two-charts" style="margin-top:8px">
+        <div class="chart-wrap"><canvas id="weatherTempChart"></canvas></div>
+        <div class="chart-wrap"><canvas id="weatherHumChart"></canvas></div>
+      </div>
+      <div class="two-charts" style="margin-top:8px">
+        <div class="chart-wrap" style="height:200px"><canvas id="weatherPrecipChart"></canvas></div>
+        <div class="chart-wrap" style="height:200px"><canvas id="weatherUVChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- Daily Summary Table -->
+    <section class="peaks-panel" id="peaksPanel">
+      <h3>Daily Summary</h3>
+      <div class="peaks-sub">Sensor min / avg / max per day &mdash; most recent first</div>
+      <table class="peaks-table">
+        <thead id="peaksHead"></thead>
+        <tbody id="peaksBody"></tbody>
+      </table>
+    </section>
+
+  </div> <!-- /dashboardContent -->
+
+  <!-- =================================================================
+       TIDES & MOON PHASE (always visible -- pure astronomical prediction)
+       ================================================================= -->
+  <section class="chart-panel" id="tidesSection" style="display:none">
+    <div class="chart-header">
+      <h3>&#127754; Tides &amp; Moon Phase</h3>
+      <span class="chart-subhead" id="tideStation" style="margin:0"></span>
+    </div>
+
+    <!-- Harvest threshold control -->
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;margin-bottom:12px;background:#0a1628;border-radius:8px;border:1px solid #1e293b;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="harvestThreshEnabled" checked style="accent-color:#22c55e;width:15px;height:15px" onchange="onHarvestCtrlChange()">
+        <span style="color:#22c55e;font-weight:600;font-size:0.85rem">&#127807; Show harvest</span>
+      </label>
+      <span style="color:#64748b;font-size:0.82rem">when tide is below</span>
+      <input type="number" id="harvestThreshHeight" value="0.50" min="0" max="5" step="0.05"
+        style="width:64px;background:#1e293b;color:#f1f5f9;border:1px solid #334155;border-radius:6px;padding:3px 8px;font-size:0.85rem"
+        oninput="onHarvestCtrlChange()" onchange="onHarvestCtrlChange()">
+      <span style="color:#64748b;font-size:0.82rem">m</span>
+    </div>
+
+    <!-- Moon info -->
+    <div class="tide-moon-row">
+      <div id="moonInfo"></div>
+      <div id="moonDetails"></div>
+    </div>
+
+    <!-- Harvest window banner -->
+    <div id="harvestInfo" class="harvest-info"></div>
+
+    <!-- 7-day detailed tide chart -->
+    <div class="chart-subhead">7-Day Tide Forecast <span style="color:#22c55e">&#9632;</span> = harvest window</div>
+    <div class="chart-wrap" style="height:290px">
+      <canvas id="tideChartDetail"></canvas>
+    </div>
+
+    <!-- 60-day overview -->
+    <div class="chart-subhead" style="margin-top:16px">60-Day Tide Overview &amp; Harvest Windows</div>
+    <div class="chart-wrap" style="height:250px">
+      <canvas id="tideChartOverview"></canvas>
+    </div>
+
+    <!-- Upcoming low tides table -->
+    <div class="chart-subhead" id="tideTableSubhead" style="margin-top:16px">Upcoming Low Tides (next 14 days)</div>
+    <table class="low-tide-table">
+      <thead><tr><th>Date</th><th>Time</th><th>Height</th><th></th></tr></thead>
+      <tbody id="lowTideTable"></tbody>
+    </table>
+    <button class="btn btn-sm" style="margin-top:10px;width:100%;color:#64748b;border-color:#1e293b"
+      onclick="if(window.SeaweedTides)window.SeaweedTides.loadMoreTides()">Load next 14 days &darr;</button>
+
+    <!-- Harvest calendar -->
+    <div class="chart-subhead" style="margin-top:16px">Harvest Calendar (3 months)</div>
+    <div id="harvestCalendar" class="harvest-calendar"></div>
+  </section>
+
+<!-- ================================================================= -->
+<!-- TABLE CONFIGURATION                                               -->
+<!-- ================================================================= -->
+<section class="config-section">
+  <h2>&#9881; Table Configuration Log</h2>
+
+  <!-- New-row form -->
+  <div class="config-form" id="cfgForm">
+    <label>Front Panel
+      <select id="cfgFront">
+        <option value="Open">Open</option>
+        <option value="Closed" selected>Closed</option>
+      </select>
+    </label>
+    <label>Rear Panel
+      <select id="cfgRear">
+        <option value="Closed" selected>Closed</option>
+        <option value="Mid">Mid</option>
+        <option value="Full Open">Full Open</option>
+      </select>
+    </label>
+    <label>Other Notes
+      <input type="text" id="cfgOther" placeholder="e.g. fan relocated, shade cloth added">
+    </label>
+    <label>Date Start
+      <input type="date" id="cfgStart">
+    </label>
+    <label>Date End <span style="font-size:0.65rem;color:var(--text-muted)">(blank = ongoing)</span>
+      <input type="date" id="cfgEnd">
+    </label>
+    <div class="cfg-btn-row">
+      <button class="btn btn-primary" onclick="cfgApply()" id="cfgApplyBtn">Apply</button>
+      <button class="btn" onclick="cfgCancelEdit()" id="cfgCancelBtn" style="display:none">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="config-table-wrap">
+    <table class="config-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Front Panel</th>
+          <th>Rear Panel</th>
+          <th>Other</th>
+          <th>Date Start</th>
+          <th>Date End</th>
+          <th>Applied</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="cfgTableBody"></tbody>
+    </table>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
+    <button class="btn btn-sm" onclick="cfgLinkCSV()" id="cfgLinkBtn" title="Pick a CSV file location — all future changes auto-save there">&#128206; Link CSV File</button>
+    <button class="btn btn-sm" onclick="cfgExportCSV()" title="One-off download">&#128190; Export CSV</button>
+    <span id="cfgFileStatus" style="font-size:0.7rem;color:var(--text-muted)">No file linked &mdash; click Link CSV to pick a save location.</span>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  Perth WROOM Test Table &mdash; ESP32-WROOM-32E &mdash; Temporary Dashboard
+</footer>
+
+<!-- Auto-load merged data from disk (dual-channel: tempFeeds + humFeeds) -->
+<script>(function(){
+  var _f='data_WROOM_PTT';
+  try{var _s=JSON.parse(localStorage.getItem('seaweed_dashboard_config')||'{}');var _c=(_s.channels||[]).find(function(c){return c.id==='wroom';});if(_c&&_c.dataFolder)_f=_c.dataFolder;}catch(e){}
+  document.write('<scr'+'ipt src="../data/'+_f+'/merged_data.js" onerror="console.log(\'[WROOM] No local merged_data.js\')"><\/scr'+'ipt>');
+})();</script>
+
+<!-- Tide prediction engine (shared) -->
+<script src="tides.js"></script>
+
+<!-- ===================================================================
+     MAIN JAVASCRIPT
+     =================================================================== -->
+<script>
+"use strict";
+
+// =====================================================================
+// HARD-CODED CONFIG (temporary page -- delete when done)
+// =====================================================================
+var TEMP_CHANNEL  = '3246116';
+var TEMP_API_KEY  = '7K00B1Y8DNOTEIM0';
+var HUM_CHANNEL   = '3256756';
+var HUM_API_KEY   = 'D8TXB5B33KPWRIHO';
+
+var SENSOR_COUNT = 5;
+var SENSOR_LABELS = ['Sensor 1', 'Sensor 2', 'Sensor 3', 'Sensor 4', 'Sensor 5'];
+var SENSOR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#a855f7', '#ef4444'];
+
+// =====================================================================
+// STATE
+// =====================================================================
+var state = {
+  allEntries:       [],   // [{timestamp, t1, rh1, ok1, t2, rh2, ok2, ... t5, rh5, ok5}]
+  filteredEntries:  [],
+  timeRange:        'all',
+  dateStart:        null,
+  dateEnd:          null,
+  dataSource:       '',
+  charts:           { temp: null, hum: null },
+};
+
+// =====================================================================
+// UTILITIES
+// =====================================================================
+function numParse(v) {
+  if (v === null || v === undefined || v === '' || v === 'null') return null;
+  var n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
+
+function fmtDate(d) {
+  if (!d) return '--';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+       + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function timeAgo(date) {
+  if (!date || isNaN(date.getTime())) return 'never';
+  var ms = Date.now() - date.getTime();
+  if (ms < 0) return 'just now';
+  var mins = Math.floor(ms / 60000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ' + (mins % 60) + 'm ago';
+  var days = Math.floor(hrs / 24);
+  return days + 'd ' + (hrs % 24) + 'h ago';
+}
+
+function timeRangeLabel() {
+  if (!state.filteredEntries.length) return 'No data';
+  var first = state.filteredEntries[0].timestamp;
+  var last  = state.filteredEntries[state.filteredEntries.length - 1].timestamp;
+  var rangeText = { day: 'Last 24 hours', week: 'Last 7 days', month: 'Last 30 days', all: 'All data' };
+  var label = rangeText[state.timeRange] || 'All data';
+  if (state.dateStart || state.dateEnd) label += ' (within date range)';
+  return label + ' | ' +
+    first.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' \u2013 ' +
+    last.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
+    ' (' + state.filteredEntries.length + ' pts)';
+}
+
+// =====================================================================
+// DATA PARSING: CSV FILES (from device)
+// =====================================================================
+// CSV header: epoch,tableRoller,rearPanel,fanOn,notes,
+//   t1,rh1,ok1,t2,rh2,ok2,t3,rh3,ok3,t4,rh4,ok4,t5,rh5,ok5,
+//   t6,rh6,ok6,t7,rh7,ok7,laser_mm,wind_mps
+function parseCSV(text) {
+  var lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+
+  var header = lines[0].split(',').map(function(h) { return h.trim(); });
+  var col = {};
+  header.forEach(function(h, i) { col[h] = i; });
+
+  var entries = [];
+  for (var i = 1; i < lines.length; i++) {
+    var parts = lines[i].split(',');
+    if (parts.length < 5) continue;
+
+    var epoch = parseInt(parts[col['epoch']]);
+    if (isNaN(epoch)) continue;
+
+    var e = { timestamp: new Date(epoch * 1000) };
+    if (isNaN(e.timestamp.getTime())) continue;
+
+    for (var s = 1; s <= 7; s++) {
+      var tKey = 't' + s, rhKey = 'rh' + s, okKey = 'ok' + s;
+      e['t' + s]  = (col[tKey]  !== undefined) ? numParse(parts[col[tKey]])  : null;
+      e['rh' + s] = (col[rhKey] !== undefined) ? numParse(parts[col[rhKey]]) : null;
+      e['ok' + s] = (col[okKey] !== undefined) ? parseInt(parts[col[okKey]]) || 0 : 0;
+    }
+
+    // Extra fields (for reference)
+    e.tableRoller = parseInt(parts[col['tableRoller']]) || 0;
+    e.fanOn       = parseInt(parts[col['fanOn']]) || 0;
+    e.laser_mm    = numParse(parts[col['laser_mm']]);
+    e.wind_mps    = numParse(parts[col['wind_mps']]);
+
+    entries.push(e);
+  }
+  return entries;
+}
+
+// =====================================================================
+// DATA PARSING: THINGSPEAK (two channels merged)
+// =====================================================================
+function parseThingSpeakMerge(tempFeeds, humFeeds) {
+  // Build a map keyed by timestamp rounded to the nearest minute
+  var entries = {};
+
+  function roundMin(ts) { return Math.round(ts.getTime() / 60000); }
+
+  if (tempFeeds && tempFeeds.length) {
+    tempFeeds.forEach(function(f) {
+      var ts = new Date(f.created_at);
+      if (isNaN(ts.getTime())) return;
+      var key = roundMin(ts);
+      if (!entries[key]) entries[key] = { timestamp: ts };
+      var e = entries[key];
+      for (var s = 1; s <= Math.min(SENSOR_COUNT, 8); s++) {
+        var val = numParse(f['field' + s]);
+        e['t' + s] = val;
+        // Mark ok if we got a reading
+        if (e['ok' + s] === undefined) e['ok' + s] = (val !== null && val !== 0) ? 1 : 0;
+      }
+    });
+  }
+
+  if (humFeeds && humFeeds.length) {
+    humFeeds.forEach(function(f) {
+      var ts = new Date(f.created_at);
+      if (isNaN(ts.getTime())) return;
+      var key = roundMin(ts);
+      if (!entries[key]) entries[key] = { timestamp: ts };
+      var e = entries[key];
+      for (var s = 1; s <= Math.min(SENSOR_COUNT, 8); s++) {
+        var val = numParse(f['field' + s]);
+        e['rh' + s] = val;
+        if (val !== null && val !== 0) e['ok' + s] = 1;
+      }
+    });
+  }
+
+  // Fill any missing sensor keys with null
+  return Object.values(entries).map(function(e) {
+    for (var s = 1; s <= SENSOR_COUNT; s++) {
+      if (e['t' + s]  === undefined) e['t' + s]  = null;
+      if (e['rh' + s] === undefined) e['rh' + s] = null;
+      if (e['ok' + s] === undefined) e['ok' + s] = 0;
+    }
+    return e;
+  }).filter(function(e) { return !isNaN(e.timestamp.getTime()); })
+    .sort(function(a, b) { return a.timestamp - b.timestamp; });
+}
+
+// =====================================================================
+// DATA LOADING + DEDUPLICATION
+// =====================================================================
+function mergeEntries(newEntries, sourceLabel) {
+  if (!newEntries || !newEntries.length) {
+    console.warn('[WROOM] No entries from:', sourceLabel);
+    return;
+  }
+
+  // Merge by timestamp (rounded to minute)
+  var map = {};
+  function key(e) { return Math.round(e.timestamp.getTime() / 60000); }
+
+  state.allEntries.forEach(function(e) { map[key(e)] = e; });
+  newEntries.forEach(function(e) {
+    var k = key(e);
+    if (map[k]) {
+      // Merge: new values overwrite only if not null
+      for (var s = 1; s <= 7; s++) {
+        if (e['t' + s]  !== null && e['t' + s]  !== undefined) map[k]['t' + s]  = e['t' + s];
+        if (e['rh' + s] !== null && e['rh' + s] !== undefined) map[k]['rh' + s] = e['rh' + s];
+        if (e['ok' + s]) map[k]['ok' + s] = e['ok' + s];
+      }
+    } else {
+      map[k] = e;
+    }
+  });
+
+  state.allEntries = Object.values(map).sort(function(a, b) { return a.timestamp - b.timestamp; });
+  state.dataSource = sourceLabel;
+
+  applyTimeRange();
+  renderDashboard();
+
+  // Persist to localStorage
+  try {
+    localStorage.setItem('seaweed_cache_wroom', JSON.stringify({
+      allEntries: state.allEntries,
+      savedAt:    Date.now()
+    }));
+  } catch (e) { console.warn('[Cache] save failed:', e); }
+}
+
+// =====================================================================
+// THINGSPEAK FETCH
+// =====================================================================
+async function fetchThingSpeak() {
+  var btn = document.getElementById('btnFetchTS');
+  btn.innerHTML = '<span class="spinner"></span> Fetching...';
+  btn.disabled = true;
+
+  try {
+    var [tempRes, humRes] = await Promise.all([
+      fetch('https://api.thingspeak.com/channels/' + TEMP_CHANNEL + '/feeds.json?api_key=' + TEMP_API_KEY + '&results=8000'),
+      fetch('https://api.thingspeak.com/channels/' + HUM_CHANNEL + '/feeds.json?api_key=' + HUM_API_KEY + '&results=8000'),
+    ]);
+
+    if (!tempRes.ok) throw new Error('Temp channel HTTP ' + tempRes.status);
+    if (!humRes.ok)  throw new Error('Hum channel HTTP ' + humRes.status);
+
+    var tempData = await tempRes.json();
+    var humData  = await humRes.json();
+
+    var tempFeeds = (tempData && tempData.feeds) ? tempData.feeds : [];
+    var humFeeds  = (humData && humData.feeds)   ? humData.feeds  : [];
+
+    console.log('[WROOM] ThingSpeak: ' + tempFeeds.length + ' temp + ' + humFeeds.length + ' hum entries');
+
+    var merged = parseThingSpeakMerge(tempFeeds, humFeeds);
+    mergeEntries(merged, 'ThingSpeak (' + new Date().toLocaleTimeString('en-GB') + ')');
+
+  } catch (err) {
+    console.error('[WROOM] ThingSpeak fetch failed:', err);
+    alert('Fetch failed: ' + err.message + '\n\nCheck internet access. If using file:// try Load CSV instead.');
+  } finally {
+    btn.innerHTML = 'Fetch ThingSpeak';
+    btn.disabled = false;
+  }
+}
+
+// =====================================================================
+// CSV FILE UPLOAD
+// =====================================================================
+function handleCSVUpload(files) {
+  var totalNew = 0;
+  var loaded = 0;
+  var count = files.length;
+
+  Array.from(files).forEach(function(file) {
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      try {
+        var entries = parseCSV(ev.target.result);
+        totalNew += entries.length;
+        mergeEntries(entries, 'CSV: ' + file.name + (count > 1 ? ' (+' + (count - 1) + ' more)' : ''));
+      } catch (err) {
+        alert('Error parsing ' + file.name + ': ' + err.message);
+      }
+      loaded++;
+      if (loaded === count) {
+        console.log('[WROOM] Loaded ' + totalNew + ' entries from ' + count + ' CSV file(s)');
+      }
+    };
+    reader.readAsText(file);
+  });
+  document.getElementById('csvInput').value = '';
+}
+
+// =====================================================================
+// CSV EXPORT
+// =====================================================================
+function exportCSV() {
+  var entries = state.filteredEntries.length ? state.filteredEntries : state.allEntries;
+  if (!entries.length) return;
+
+  var headers = ['Timestamp_UTC', 'Timestamp_Local'];
+  for (var s = 1; s <= SENSOR_COUNT; s++) {
+    headers.push('T' + s, 'RH' + s, 'OK' + s);
+  }
+
+  var rows = entries.map(function(e) {
+    function v(x) { return (x === null || x === undefined) ? '' : x; }
+    var row = [e.timestamp.toISOString(), e.timestamp.toLocaleString('en-GB')];
+    for (var s = 1; s <= SENSOR_COUNT; s++) {
+      row.push(v(e['t' + s]), v(e['rh' + s]), v(e['ok' + s]));
+    }
+    return row.join(',');
+  });
+
+  var csv  = headers.join(',') + '\n' + rows.join('\n');
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'perth_wroom_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// =====================================================================
+// TIME RANGE
+// =====================================================================
+function setTimeRange(range) {
+  state.timeRange = range;
+  applyTimeRange();
+  updateSensorCards();
+  updateCharts();
+  updatePeaksTable();
+  updateTimeButtons();
+  updateChartSubheads();
+  updateHeaderInfo();
+  renderWeatherCharts();
+  saveViewPrefs();
+}
+
+function applyDateRange() {
+  var startVal = document.getElementById('dateStart').value;
+  var endVal   = document.getElementById('dateEnd').value;
+  state.dateStart = startVal ? new Date(startVal + 'T00:00:00') : null;
+  state.dateEnd   = endVal   ? new Date(endVal   + 'T23:59:59') : null;
+  state.timeRange = 'all';
+  applyTimeRange();
+  updateSensorCards();
+  updateCharts();
+  updatePeaksTable();
+  updateTimeButtons();
+  updateChartSubheads();
+  updateHeaderInfo();
+  updateDateRangeIndicator();
+  fetchWeatherData();
+  saveViewPrefs();
+}
+
+function clearDateRange() {
+  document.getElementById('dateStart').value = '';
+  document.getElementById('dateEnd').value = '';
+  state.dateStart = null;
+  state.dateEnd = null;
+  updateDateRangeIndicator();
+  setTimeRange('all');
+}
+
+function updateDateRangeIndicator() {
+  var bar = document.querySelector('.date-range-bar');
+  if (state.dateStart || state.dateEnd) {
+    bar.style.borderColor = 'var(--accent)';
+    bar.style.boxShadow = '0 0 0 1px var(--accent)';
+  } else {
+    bar.style.borderColor = '';
+    bar.style.boxShadow = '';
+  }
+}
+
+// --- View-preference persistence ---
+var VIEW_PREFS_KEY = 'seaweed_view_wroom';
+function saveViewPrefs() {
+  try {
+    var prefs = {
+      timeRange: state.timeRange,
+      dateStart: document.getElementById('dateStart').value || '',
+      dateEnd:   document.getElementById('dateEnd').value   || '',
+    };
+    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify(prefs));
+  } catch (e) { /* ignore */ }
+}
+function restoreViewPrefs() {
+  try {
+    var raw = localStorage.getItem(VIEW_PREFS_KEY);
+    if (!raw) return;
+    var p = JSON.parse(raw);
+    if (p.dateStart) {
+      document.getElementById('dateStart').value = p.dateStart;
+      state.dateStart = new Date(p.dateStart + 'T00:00:00');
+    }
+    if (p.dateEnd) {
+      document.getElementById('dateEnd').value = p.dateEnd;
+      state.dateEnd = new Date(p.dateEnd + 'T23:59:59');
+    }
+    if (p.timeRange && p.timeRange !== 'custom') {
+      state.timeRange = p.timeRange;
+    }
+    updateDateRangeIndicator();
+  } catch (e) { /* ignore */ }
+}
+
+function applyTimeRange() {
+  if (!state.allEntries.length) { state.filteredEntries = []; return; }
+
+  // Step 1: Hard date-range filter (if set)
+  var base = state.allEntries;
+  if (state.dateStart || state.dateEnd) {
+    var rangeStart = state.dateStart || new Date(0);
+    var rangeEnd   = state.dateEnd   || new Date(9999, 0);
+    base = base.filter(function(e) {
+      return e.timestamp >= rangeStart && e.timestamp <= rangeEnd;
+    });
+  }
+  if (!base.length) { state.filteredEntries = []; return; }
+
+  // Step 2: Relative time range within the date-bounded base
+  var latest = base[base.length - 1].timestamp;
+  var start;
+  switch (state.timeRange) {
+    case 'day':   start = new Date(latest.getTime() - 24 * 3600000); break;
+    case 'week':  start = new Date(latest.getTime() - 7 * 24 * 3600000); break;
+    case 'month': start = new Date(latest.getTime() - 30 * 24 * 3600000); break;
+    default:      start = new Date(0);
+  }
+  state.filteredEntries = base.filter(function(e) {
+    return e.timestamp >= start;
+  });
+}
+
+function getTimeAxisConfig() {
+  var range = state.timeRange;
+  if (range === 'all' && state.filteredEntries.length >= 2) {
+    var spanDays = (state.filteredEntries[state.filteredEntries.length-1].timestamp - state.filteredEntries[0].timestamp) / 86400000;
+    if (spanDays <= 1.5)     range = 'day';
+    else if (spanDays <= 10) range = 'week';
+    else if (spanDays <= 45) range = 'month';
+  }
+  switch (range) {
+    case 'day':   return { unit: 'hour', displayFormats: { hour: 'HH:mm' }, tooltipFormat: 'ccc d LLL HH:mm' };
+    case 'week':  return { unit: 'day', displayFormats: { day: 'ccc' }, tooltipFormat: 'ccc d LLL HH:mm' };
+    case 'month': return { unit: 'day', displayFormats: { day: 'd' }, tooltipFormat: 'ccc d LLL HH:mm' };
+    default:      return { unit: undefined, displayFormats: {}, tooltipFormat: 'DDD HH:mm' };
+  }
+}
+
+function updateTimeButtons() {
+  document.querySelectorAll('.time-btns .btn-sm').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.range === state.timeRange);
+  });
+}
+
+function updateChartSubheads() {
+  var label = timeRangeLabel();
+  var el = document.getElementById('tempSubhead');
+  if (el) el.textContent = label;
+  var humSub = document.getElementById('humSubhead');
+  if (humSub) humSub.textContent = label;
+}
+
+// =====================================================================
+// RENDER: FULL DASHBOARD
+// =====================================================================
+function renderDashboard() {
+  var hasData = state.allEntries.length > 0;
+  document.getElementById('emptyState').style.display      = hasData ? 'none' : 'block';
+  document.getElementById('dashboardContent').style.display = hasData ? 'block' : 'none';
+  document.getElementById('btnExportCSV').style.display     = hasData ? '' : 'none';
+  if (!hasData) return;
+
+  updateHeaderInfo();
+  updateFreshnessBanner();
+  updateSensorCards();
+  createOrUpdateCharts();
+  updateChartSubheads();
+  updatePeaksTable();
+  updateTimeButtons();
+  fetchWeatherData();
+}
+
+// =====================================================================
+// RENDER: HEADER INFO
+// =====================================================================
+function updateHeaderInfo() {
+  var vis = state.filteredEntries.length ? state.filteredEntries : state.allEntries;
+  var total = state.allEntries.length;
+  document.getElementById('dataSourceLabel').textContent = state.dataSource;
+  var countLabel = vis.length.toLocaleString();
+  if ((state.dateStart || state.dateEnd) && vis.length !== total) {
+    countLabel += ' / ' + total.toLocaleString();
+  }
+  document.getElementById('entryCountLabel').textContent = countLabel;
+  if (vis.length) {
+    document.getElementById('dateRangeLabel').textContent =
+      fmtDate(vis[0].timestamp) + ' \u2192 ' + fmtDate(vis[vis.length - 1].timestamp);
+  }
+}
+
+// =====================================================================
+// RENDER: FRESHNESS BANNER
+// =====================================================================
+function updateFreshnessBanner() {
+  var banner = document.getElementById('freshnessBanner');
+  if (!state.allEntries.length) { banner.classList.remove('show'); return; }
+
+  var latest = state.allEntries[state.allEntries.length - 1].timestamp;
+  var ageHrs = (Date.now() - latest.getTime()) / 3600000;
+
+  banner.classList.add('show');
+  banner.classList.remove('fresh', 'stale', 'old');
+
+  var icon = document.getElementById('freshnessIcon');
+  var text = document.getElementById('freshnessText');
+
+  if (ageHrs < 2) {
+    banner.classList.add('fresh');
+    icon.textContent = '\u2705';
+    text.textContent = 'Data is fresh \u2014 latest entry ' + timeAgo(latest);
+  } else if (ageHrs < 24) {
+    banner.classList.add('stale');
+    icon.textContent = '\u26A0\uFE0F';
+    text.textContent = 'Data is ' + timeAgo(latest) + ' old';
+  } else {
+    banner.classList.add('old');
+    icon.textContent = '\uD83D\uDD34';
+    text.textContent = 'Data is ' + timeAgo(latest) + ' old \u2014 fetch new data or load CSV';
+  }
+}
+
+// =====================================================================
+// RENDER: SENSOR CARDS (5 cards)
+// =====================================================================
+function updateSensorCards() {
+  var e = state.filteredEntries.length ? state.filteredEntries : state.allEntries;
+  if (!e.length) return;
+  var latest = e[e.length - 1];
+
+  var html = '';
+  for (var s = 1; s <= SENSOR_COUNT; s++) {
+    var temp = latest['t' + s];
+    var hum  = latest['rh' + s];
+    var ok   = latest['ok' + s] || 0;
+
+    // Determine if sensor has ANY data in the visible dataset
+    var hasData = e.some(function(x) { return x['t' + s] !== null || x['rh' + s] !== null; });
+    var isOk    = hasData && ok;
+
+    // Compute range stats from filtered entries
+    var tMin = null, tMax = null, rhMin = null, rhMax = null;
+    state.filteredEntries.forEach(function(x) {
+      var t = x['t' + s], r = x['rh' + s];
+      if (t !== null) { if (tMin === null || t < tMin) tMin = t; if (tMax === null || t > tMax) tMax = t; }
+      if (r !== null) { if (rhMin === null || r < rhMin) rhMin = r; if (rhMax === null || r > rhMax) rhMax = r; }
+    });
+
+    var cardClass = !hasData ? 'nc' : isOk ? 'ok' : 'warn';
+    var badgeClass = !hasData ? 'badge-nc' : isOk ? 'badge-ok' : 'badge-warn';
+    var badgeText  = !hasData ? 'No Data' : isOk ? 'OK' : 'Check';
+
+    html += '<div class="status-card ' + cardClass + '">' +
+      '<div class="card-header">' +
+        '<h3 style="color:' + SENSOR_COLORS[s-1] + '">' + SENSOR_LABELS[s-1] + '</h3>' +
+        '<span class="card-badge ' + badgeClass + '">' + badgeText + '</span>' +
+      '</div>' +
+      '<div class="sensor-readings">' +
+        '<div class="reading-block">' +
+          '<div class="big-number" style="color:' + SENSOR_COLORS[s-1] + '">' +
+            (temp !== null ? temp.toFixed(1) + '\u00B0' : '--') +
+          '</div>' +
+          '<div class="big-label">Temperature</div>' +
+        '</div>' +
+        '<div class="reading-block">' +
+          '<div class="big-number" style="font-size:1.6rem">' +
+            (hum !== null ? hum.toFixed(1) + '%' : '--') +
+          '</div>' +
+          '<div class="big-label">Humidity</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="detail-grid">' +
+        '<div><div class="detail-label">Temp Range</div><div class="detail-value">' +
+          (tMin !== null ? tMin.toFixed(1) + ' \u2013 ' + tMax.toFixed(1) + '\u00B0C' : '--') +
+        '</div></div>' +
+        '<div><div class="detail-label">Hum Range</div><div class="detail-value">' +
+          (rhMin !== null ? rhMin.toFixed(1) + ' \u2013 ' + rhMax.toFixed(1) + '%' : '--') +
+        '</div></div>' +
+      '</div>' +
+    '</div>';
+  }
+  document.getElementById('sensorCards').innerHTML = html;
+}
+
+// =====================================================================
+// RENDER: CHARTS
+// =====================================================================
+function makeDataset(entries, key, label, color, dashed) {
+  var data = [];
+  entries.forEach(function(e) {
+    if (e[key] !== null && e[key] !== undefined) data.push({ x: e.timestamp, y: e[key] });
+  });
+  return {
+    label: label + (data.length === 0 ? ' (NC)' : ''),
+    data: data,
+    borderColor: color,
+    backgroundColor: color + '22',
+    borderWidth: 1.5,
+    borderDash: dashed ? [5, 3] : [],
+    pointRadius: 0,
+    pointHoverRadius: 4,
+    pointHoverBackgroundColor: color,
+    tension: 0.3,
+    fill: false,
+    hidden: data.length === 0,
+  };
+}
+
+function baseChartOptions(yLabel, yMin, yMax) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: {
+          color: '#94a3b8',
+          usePointStyle: true,
+          pointStyle: 'line',
+          padding: 14,
+          font: { size: 11 },
+        },
+      },
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+        backgroundColor: '#1e293bee',
+        titleColor: '#f1f5f9',
+        bodyColor: '#cbd5e1',
+        borderColor: '#334155',
+        borderWidth: 1,
+        padding: 10,
+        callbacks: {
+          title: function(items) {
+            if (!items.length) return '';
+            var d = new Date(items[0].parsed.x);
+            return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+                 + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+          },
+          label: function(ctx) {
+            var v = ctx.parsed.y;
+            return ' ' + ctx.dataset.label.split(' (')[0] + ': ' + (v !== null ? v.toFixed(1) : 'NC');
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        type: 'time',
+        grid: { color: '#1e293b', lineWidth: 0.5 },
+        ticks: { color: '#64748b', maxTicksLimit: 12, font: { size: 10 } },
+        time: getTimeAxisConfig(),
+      },
+      y: {
+        title: { display: true, text: yLabel, color: '#94a3b8', font: { size: 11 } },
+        grid: { color: '#1e293b', lineWidth: 0.5 },
+        ticks: { color: '#64748b', font: { size: 10 } },
+        min: yMin,
+        max: yMax,
+      },
+    },
+  };
+}
+
+// =====================================================================
+// SENSOR OVERLAY PLUGIN (night shading + harvest bands on T/H charts)
+// =====================================================================
+window._sensorOpts = { night: true, harvest: true, wx: false };
+
+var sensorBandsPlugin = {
+  id: 'sensorBands',
+  beforeDraw: function (chart) {
+    var opts = window._sensorOpts || { night: true, harvest: true, wx: false };
+    var xA = chart.scales.x, yA = chart.scales.y;
+    if (!xA || !yA) return;
+    var ctx = chart.ctx;
+    var top = yA.top, bot = yA.bottom, left = xA.left, right = xA.right;
+    var minX = xA.min, maxX = xA.max;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(left, top, right - left, bot - top); ctx.clip();
+
+    // Harvest window bands
+    if (opts.harvest) {
+      var wins = window._tideWindows || [];
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.10)';
+      for (var w = 0; w < wins.length; w++) {
+        var wx1 = xA.getPixelForValue(wins[w].start.getTime());
+        var wx2 = xA.getPixelForValue(wins[w].end.getTime());
+        if (wx2 < left || wx1 > right) continue;
+        ctx.fillRect(Math.max(wx1, left), top, Math.min(wx2, right) - Math.max(wx1, left), bot - top);
+      }
+    }
+
+    // Night shading
+    if (opts.night) {
+      var wd = weatherState ? weatherState.daily : null;
+      var sunEvents = [];
+      if (wd && wd.sunrise && wd.sunset) {
+        for (var si = 0; si < wd.sunrise.length; si++) {
+          sunEvents.push({ rise: new Date(wd.sunrise[si]).getTime(), set: new Date(wd.sunset[si]).getTime() });
+        }
+      }
+      if (sunEvents.length) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+        if (sunEvents[0].rise > minX) {
+          var x1 = Math.max(left, xA.getPixelForValue(minX));
+          var x2 = Math.min(right, xA.getPixelForValue(sunEvents[0].rise));
+          if (x2 > x1) ctx.fillRect(x1, top, x2 - x1, bot - top);
+        }
+        for (var i = 0; i < sunEvents.length; i++) {
+          var sx = Math.max(left, xA.getPixelForValue(sunEvents[i].set));
+          var nextRise = (i + 1 < sunEvents.length) ? sunEvents[i + 1].rise : maxX + 86400000;
+          var rx = Math.min(right, xA.getPixelForValue(Math.min(nextRise, maxX)));
+          if (rx > sx) ctx.fillRect(sx, top, rx - sx, bot - top);
+        }
+        for (var j = 0; j < sunEvents.length; j++) {
+          var rPx = xA.getPixelForValue(sunEvents[j].rise);
+          if (rPx >= left && rPx <= right) {
+            ctx.strokeStyle = 'rgba(251,191,36,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+            ctx.beginPath(); ctx.moveTo(rPx, top); ctx.lineTo(rPx, bot); ctx.stroke();
+          }
+          var sPx = xA.getPixelForValue(sunEvents[j].set);
+          if (sPx >= left && sPx <= right) {
+            ctx.strokeStyle = 'rgba(251,146,60,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+            ctx.beginPath(); ctx.moveTo(sPx, top); ctx.lineTo(sPx, bot); ctx.stroke();
+          }
+        }
+      }
+    }
+    ctx.restore();
+  }
+};
+
+function onSensorOptsChange() {
+  var n = document.getElementById('ovNight');
+  var h = document.getElementById('ovHarvest');
+  var w = document.getElementById('ovWx');
+  window._sensorOpts = {
+    night:   n ? n.checked : true,
+    harvest: h ? h.checked : true,
+    wx:      w ? w.checked : false,
+  };
+  createOrUpdateCharts();
+}
+
+function createOrUpdateCharts() {
+  var e = state.filteredEntries;
+  var timeCfg = getTimeAxisConfig();
+
+  // -- Temperature --
+  var tempDS = [];
+  for (var s = 1; s <= SENSOR_COUNT; s++) {
+    tempDS.push(makeDataset(e, 't' + s, SENSOR_LABELS[s-1], SENSOR_COLORS[s-1], false));
+  }
+  var hasTempData = tempDS.some(function(ds) { return ds.data.length > 0; });
+  document.getElementById('tempEmpty').style.display = hasTempData ? 'none' : 'flex';
+  // Weather overlay on temp chart
+  if ((window._sensorOpts || {}).wx && weatherState.tempPoints && weatherState.tempPoints.length) {
+    tempDS.push({ label: 'Open-Meteo Temp', data: weatherState.tempPoints,
+      borderColor: '#f59e0b99', backgroundColor: 'transparent', borderWidth: 1.5,
+      borderDash: [6, 4], pointRadius: 0, tension: 0.3, fill: false });
+  }
+
+  if (state.charts.temp) {
+    state.charts.temp.data.datasets = tempDS;
+    state.charts.temp.options.scales.x.time = timeCfg;
+    state.charts.temp.update();
+  } else {
+    state.charts.temp = new Chart(document.getElementById('tempChart'), {
+      type: 'line', data: { datasets: tempDS },
+      options: baseChartOptions('Temperature (\u00B0C)'),
+      plugins: [sensorBandsPlugin],
+    });
+  }
+
+  // -- Humidity --
+  var humDS = [];
+  for (var s = 1; s <= SENSOR_COUNT; s++) {
+    humDS.push(makeDataset(e, 'rh' + s, SENSOR_LABELS[s-1], SENSOR_COLORS[s-1], false));
+  }
+  var hasHumData = humDS.some(function(ds) { return ds.data.length > 0; });
+  document.getElementById('humEmpty').style.display = hasHumData ? 'none' : 'flex';
+  // Weather overlay on hum chart
+  if ((window._sensorOpts || {}).wx && weatherState.humPoints && weatherState.humPoints.length) {
+    humDS.push({ label: 'Open-Meteo Humidity', data: weatherState.humPoints,
+      borderColor: '#06b6d499', backgroundColor: 'transparent', borderWidth: 1.5,
+      borderDash: [6, 4], pointRadius: 0, tension: 0.3, fill: false });
+  }
+
+  if (state.charts.hum) {
+    state.charts.hum.data.datasets = humDS;
+    state.charts.hum.options.scales.x.time = timeCfg;
+    state.charts.hum.update();
+  } else {
+    state.charts.hum = new Chart(document.getElementById('humChart'), {
+      type: 'line', data: { datasets: humDS },
+      options: baseChartOptions('Humidity (%RH)', 0, 100),
+      plugins: [sensorBandsPlugin],
+    });
+  }
+}
+
+function updateCharts() {
+  if (!state.charts.temp) return;
+  createOrUpdateCharts();
+}
+
+// =====================================================================
+// RENDER: DAILY SUMMARY TABLE
+// =====================================================================
+function updatePeaksTable() {
+  var entries = state.filteredEntries;
+  if (!entries.length) return;
+
+  // Group by day
+  var byDay = {};
+  entries.forEach(function(e) {
+    var day = e.timestamp.toISOString().slice(0, 10);
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push(e);
+  });
+
+  function fieldStats(dayEntries, key) {
+    var vals = dayEntries.map(function(e) { return e[key]; }).filter(function(v) { return v !== null && v !== undefined; });
+    if (!vals.length) return null;
+    return {
+      min: Math.min.apply(null, vals),
+      max: Math.max.apply(null, vals),
+      avg: vals.reduce(function(a, b) { return a + b; }, 0) / vals.length,
+    };
+  }
+
+  // Determine which sensors have data
+  var activeSensors = [];
+  for (var s = 1; s <= SENSOR_COUNT; s++) {
+    var hasT  = entries.some(function(e) { return e['t' + s] !== null; });
+    var hasRH = entries.some(function(e) { return e['rh' + s] !== null; });
+    if (hasT || hasRH) activeSensors.push(s);
+  }
+
+  // Header
+  var headHtml = '<tr><th>Date</th><th>Pts</th>';
+  activeSensors.forEach(function(s) {
+    headHtml += '<th style="color:' + SENSOR_COLORS[s-1] + '">S' + s + ' Temp (min/avg/max)</th>';
+    headHtml += '<th style="color:' + SENSOR_COLORS[s-1] + '">S' + s + ' Hum (min/avg/max)</th>';
+  });
+  headHtml += '</tr>';
+  document.getElementById('peaksHead').innerHTML = headHtml;
+
+  // Body (most recent first)
+  var days = Object.keys(byDay).sort().reverse();
+  var bodyHtml = '';
+
+  for (var di = 0; di < days.length; di++) {
+    var day = days[di];
+    var de  = byDay[day];
+    var dl  = new Date(day + 'T00:00:00Z');
+    var dateLabel = dl.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
+
+    bodyHtml += '<tr><td>' + dateLabel + '</td><td>' + de.length + '</td>';
+
+    activeSensors.forEach(function(s) {
+      var tStats  = fieldStats(de, 't' + s);
+      var rhStats = fieldStats(de, 'rh' + s);
+
+      bodyHtml += '<td>' + (tStats
+        ? tStats.min.toFixed(1) + ' / ' + tStats.avg.toFixed(1) + ' / ' + tStats.max.toFixed(1)
+        : '<span class="peaks-nc">NC</span>') + '</td>';
+      bodyHtml += '<td>' + (rhStats
+        ? rhStats.min.toFixed(1) + ' / ' + rhStats.avg.toFixed(1) + ' / ' + rhStats.max.toFixed(1)
+        : '<span class="peaks-nc">NC</span>') + '</td>';
+    });
+
+    bodyHtml += '</tr>';
+  }
+
+  if (!activeSensors.length) {
+    bodyHtml = '<tr><td colspan="2" class="peaks-nc" style="text-align:center;padding:20px">' +
+      'No sensor data available</td></tr>';
+  }
+
+  document.getElementById('peaksBody').innerHTML = bodyHtml;
+}
+
+// =====================================================================
+// OPEN-METEO WEATHER HINDCAST
+// =====================================================================
+var WEATHER_LOCATION = { name: 'Perth / Noranda', lat: -31.87, lon: 115.90 };
+
+var weatherState = {
+  data: null,
+  daily: null,
+  tempPoints: [], humPoints: [],
+  charts: { temp: null, hum: null, precip: null, uv: null },
+  fetching: false,
+};
+
+async function fetchWeatherData() {
+  if (weatherState.fetching) return;
+  if (!state.filteredEntries.length) return;
+
+  var first = state.filteredEntries[0].timestamp;
+  var last  = state.filteredEntries[state.filteredEntries.length - 1].timestamp;
+
+  var startDate = new Date(first.getTime() - 86400000);
+  var endDate   = new Date(Math.min(last.getTime() + 86400000, Date.now()));
+  var startStr = startDate.toISOString().slice(0, 10);
+  var endStr   = endDate.toISOString().slice(0, 10);
+
+  var today = new Date().toISOString().slice(0, 10);
+  var apiBase = (endStr >= today)
+    ? 'https://api.open-meteo.com/v1/forecast'
+    : 'https://archive-api.open-meteo.com/v1/archive';
+
+  var url = apiBase + '?latitude=' + WEATHER_LOCATION.lat +
+    '&longitude=' + WEATHER_LOCATION.lon +
+    '&start_date=' + startStr +
+    '&end_date=' + endStr +
+    '&hourly=temperature_2m,relative_humidity_2m,precipitation,cloud_cover,weather_code,uv_index' +
+    '&daily=sunrise,sunset' +
+    '&timezone=auto';
+
+  weatherState.fetching = true;
+  console.log('[Weather] Fetching Open-Meteo data:', url);
+
+  try {
+    var resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var json = await resp.json();
+
+    if (json.hourly && json.hourly.time) {
+      weatherState.data = json.hourly;
+      weatherState.data._timezone = json.timezone || '';
+      weatherState.data._location = WEATHER_LOCATION.name;
+      if (json.daily) weatherState.daily = json.daily;
+      console.log('[Weather] Got ' + json.hourly.time.length + ' hourly points');
+      renderWeatherCharts();
+      // Re-render sensor charts so overlays update
+      createOrUpdateCharts();
+    }
+  } catch (err) {
+    console.warn('[Weather] Failed to fetch:', err);
+  } finally {
+    weatherState.fetching = false;
+  }
+}
+
+function renderWeatherCharts() {
+  var w = weatherState.data;
+  if (!w || !w.time || !w.time.length) return;
+
+  document.getElementById('weatherSection').style.display = '';
+  var locEl = document.getElementById('weatherLocation');
+  if (locEl) locEl.textContent = w._location + ' (' + w._timezone + ')';
+
+  var rangeStart = 0, rangeEnd = Infinity;
+  if (state.filteredEntries && state.filteredEntries.length >= 2) {
+    rangeStart = state.filteredEntries[0].timestamp.getTime() - 3600000;
+    rangeEnd   = state.filteredEntries[state.filteredEntries.length - 1].timestamp.getTime() + 3600000;
+  }
+
+  var tempPoints = [], humPoints = [], precipPoints = [], uvPoints = [];
+  for (var i = 0; i < w.time.length; i++) {
+    var t = new Date(w.time[i]).getTime();
+    if (t < rangeStart || t > rangeEnd) continue;
+    if (w.temperature_2m[i] !== null) tempPoints.push({ x: t, y: w.temperature_2m[i] });
+    if (w.relative_humidity_2m[i] !== null) humPoints.push({ x: t, y: w.relative_humidity_2m[i] });
+    if (w.precipitation[i] !== null) precipPoints.push({ x: t, y: w.precipitation[i] });
+    if (w.uv_index && w.uv_index[i] !== null && w.uv_index[i] !== undefined) uvPoints.push({ x: t, y: w.uv_index[i] });
+  }
+  weatherState.tempPoints = tempPoints;
+  weatherState.humPoints  = humPoints;
+
+  var timeCfg = getTimeAxisConfig();
+
+  // Night shading plugin for weather charts
+  var sunEvents = [];
+  var d = weatherState.daily;
+  if (d && d.sunrise && d.sunset) {
+    for (var si = 0; si < d.sunrise.length; si++) {
+      sunEvents.push({ rise: new Date(d.sunrise[si]).getTime(), set: new Date(d.sunset[si]).getTime() });
+    }
+  }
+
+  var nightShadingPlugin = {
+    id: 'nightShading',
+    beforeDraw: function(chart) {
+      if (!sunEvents.length) return;
+      var xScale = chart.scales.x, yScale = chart.scales.y;
+      if (!xScale || !yScale) return;
+      var ctx = chart.ctx;
+      var top = yScale.top, bot = yScale.bottom, left = xScale.left, right = xScale.right;
+      var minX = xScale.min, maxX = xScale.max;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(left, top, right - left, bot - top); ctx.clip();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+      if (sunEvents[0].rise > minX) {
+        var x1 = Math.max(left, xScale.getPixelForValue(minX));
+        var x2 = Math.min(right, xScale.getPixelForValue(sunEvents[0].rise));
+        if (x2 > x1) ctx.fillRect(x1, top, x2 - x1, bot - top);
+      }
+      for (var i = 0; i < sunEvents.length; i++) {
+        var sx = Math.max(left, xScale.getPixelForValue(sunEvents[i].set));
+        var nextRise = (i + 1 < sunEvents.length) ? sunEvents[i + 1].rise : maxX + 86400000;
+        var rx = Math.min(right, xScale.getPixelForValue(Math.min(nextRise, maxX)));
+        if (rx > sx) ctx.fillRect(sx, top, rx - sx, bot - top);
+      }
+      for (var j = 0; j < sunEvents.length; j++) {
+        var rPx = xScale.getPixelForValue(sunEvents[j].rise);
+        if (rPx >= left && rPx <= right) {
+          ctx.strokeStyle = 'rgba(251,191,36,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+          ctx.beginPath(); ctx.moveTo(rPx, top); ctx.lineTo(rPx, bot); ctx.stroke();
+        }
+        var sPx = xScale.getPixelForValue(sunEvents[j].set);
+        if (sPx >= left && sPx <= right) {
+          ctx.strokeStyle = 'rgba(251,146,60,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+          ctx.beginPath(); ctx.moveTo(sPx, top); ctx.lineTo(sPx, bot); ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+  };
+
+  function weatherChartOpts(label, yMin, yMax) {
+    var opts = baseChartOptions(label, yMin, yMax);
+    return opts;
+  }
+
+  // -- Weather Temperature Chart --
+  var tempDS = [{ label: 'Open-Meteo Temp', data: tempPoints,
+    borderColor: '#f59e0b', backgroundColor: '#f59e0b22', borderWidth: 1.5,
+    pointRadius: 0, tension: 0.3, fill: true }];
+  if (weatherState.charts.temp) {
+    weatherState.charts.temp.data.datasets = tempDS;
+    weatherState.charts.temp.options.scales.x.time = timeCfg;
+    weatherState.charts.temp.update('none');
+  } else {
+    weatherState.charts.temp = new Chart(document.getElementById('weatherTempChart'), {
+      type: 'line', data: { datasets: tempDS },
+      options: weatherChartOpts('Weather Temp (\u00B0C)'),
+      plugins: [nightShadingPlugin] });
+  }
+
+  // -- Weather Humidity Chart --
+  var humDS = [{ label: 'Open-Meteo Humidity', data: humPoints,
+    borderColor: '#06b6d4', backgroundColor: '#06b6d422', borderWidth: 1.5,
+    pointRadius: 0, tension: 0.3, fill: true }];
+  if (weatherState.charts.hum) {
+    weatherState.charts.hum.data.datasets = humDS;
+    weatherState.charts.hum.options.scales.x.time = timeCfg;
+    weatherState.charts.hum.update('none');
+  } else {
+    weatherState.charts.hum = new Chart(document.getElementById('weatherHumChart'), {
+      type: 'line', data: { datasets: humDS },
+      options: weatherChartOpts('Weather Humidity (%)', 0, 100),
+      plugins: [nightShadingPlugin] });
+  }
+
+  // -- Precipitation Bar Chart --
+  var precipDS = [{ label: 'Precipitation', data: precipPoints,
+    borderColor: '#3b82f688', backgroundColor: '#3b82f666', borderWidth: 1, pointRadius: 0, type: 'bar' }];
+  var precipOpts = weatherChartOpts('Precipitation (mm)');
+  precipOpts.plugins.legend = { display: false };
+  precipOpts.plugins.tooltip = {
+    mode: 'index', intersect: false,
+    backgroundColor: '#1e293bee', titleColor: '#f1f5f9', bodyColor: '#cbd5e1',
+    callbacks: { label: function(ctx) { return ' ' + ctx.parsed.y.toFixed(1) + ' mm'; } }
+  };
+  if (weatherState.charts.precip) {
+    weatherState.charts.precip.data.datasets = precipDS;
+    weatherState.charts.precip.options.scales.x.time = timeCfg;
+    weatherState.charts.precip.update('none');
+  } else {
+    weatherState.charts.precip = new Chart(document.getElementById('weatherPrecipChart'), {
+      type: 'bar', data: { datasets: precipDS },
+      options: precipOpts, plugins: [nightShadingPlugin] });
+  }
+
+  // -- UV Index Chart --
+  var uvDS = [{ label: 'UV Index', data: uvPoints,
+    borderColor: '#a855f7', backgroundColor: '#a855f722', borderWidth: 1.5,
+    pointRadius: 0, tension: 0.3, fill: true,
+    segment: { borderColor: function(ctx) {
+      var v = ctx.p1.parsed.y;
+      return v >= 11 ? '#dc2626' : v >= 8 ? '#ef4444' : v >= 6 ? '#f59e0b' : v >= 3 ? '#eab308' : '#22c55e';
+    } } }];
+  var uvOpts = weatherChartOpts('UV Index', 0);
+  uvOpts.plugins.legend = { display: false };
+  uvOpts.plugins.tooltip = {
+    mode: 'index', intersect: false,
+    backgroundColor: '#1e293bee', titleColor: '#f1f5f9', bodyColor: '#cbd5e1',
+    callbacks: { label: function(ctx) {
+      var v = ctx.parsed.y;
+      var cat = v >= 11 ? 'Extreme' : v >= 8 ? 'Very High' : v >= 6 ? 'High' : v >= 3 ? 'Moderate' : 'Low';
+      return ' UV ' + v.toFixed(1) + ' (' + cat + ')';
+    } }
+  };
+  if (weatherState.charts.uv) {
+    weatherState.charts.uv.data.datasets = uvDS;
+    weatherState.charts.uv.options.scales.x.time = timeCfg;
+    weatherState.charts.uv.update('none');
+  } else {
+    weatherState.charts.uv = new Chart(document.getElementById('weatherUVChart'), {
+      type: 'line', data: { datasets: uvDS },
+      options: uvOpts, plugins: [nightShadingPlugin] });
+  }
+}
+
+// =====================================================================
+// HARVEST THRESHOLD
+// =====================================================================
+function onHarvestCtrlChange() {
+  var enEl = document.getElementById('harvestThreshEnabled');
+  var hEl  = document.getElementById('harvestThreshHeight');
+  window._harvestOpts = {
+    enabled:   enEl ? enEl.checked : true,
+    maxHeight: hEl  ? (parseFloat(hEl.value) || 0.50) : 0.50
+  };
+  ['tideChartDetail', 'tideChartOverview'].forEach(function (id) {
+    var c = Chart.getChart(id); if (c) c.destroy();
+  });
+  if (window.SeaweedTides) SeaweedTides.init('perth');
+}
+
+// =====================================================================
+// TABLE CONFIGURATION LOG
+// =====================================================================
+var CFG_STORAGE_KEY = 'seaweed_cfg_wroom';
+var cfgRows = [];       // array of { id, front, rear, other, start, end, appliedAt }
+var cfgEditId = null;   // id being edited, or null
+
+function cfgLoad() {
+  try {
+    var raw = localStorage.getItem(CFG_STORAGE_KEY);
+    if (raw) cfgRows = JSON.parse(raw);
+  } catch (e) { cfgRows = []; }
+  // Always ensure latest-first order
+  cfgRows.sort(function(a, b) { return b.start.localeCompare(a.start); });
+}
+function cfgSave() {
+  localStorage.setItem(CFG_STORAGE_KEY, JSON.stringify(cfgRows));
+  cfgAutoSaveCSV();
+}
+function cfgNextId() {
+  var max = 0;
+  for (var i = 0; i < cfgRows.length; i++) { if (cfgRows[i].id > max) max = cfgRows[i].id; }
+  return max + 1;
+}
+
+function cfgNow() {
+  // ISO string in local time: "2026-02-22 14:35"
+  var d = new Date();
+  return d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0') + ' ' +
+    String(d.getHours()).padStart(2,'0') + ':' +
+    String(d.getMinutes()).padStart(2,'0');
+}
+
+function cfgApply() {
+  var front = document.getElementById('cfgFront').value;
+  var rear  = document.getElementById('cfgRear').value;
+  var other = document.getElementById('cfgOther').value.trim();
+  var start = document.getElementById('cfgStart').value;
+  var end   = document.getElementById('cfgEnd').value;
+
+  if (!start) { alert('Please set a Date Start.'); return; }
+
+  if (cfgEditId !== null) {
+    // update existing row
+    for (var i = 0; i < cfgRows.length; i++) {
+      if (cfgRows[i].id === cfgEditId) {
+        cfgRows[i].front = front;
+        cfgRows[i].rear  = rear;
+        cfgRows[i].other = other;
+        cfgRows[i].start = start;
+        cfgRows[i].end   = end;
+        cfgRows[i].appliedAt = cfgNow(); // update timestamp
+        break;
+      }
+    }
+    cfgEditId = null;
+    document.getElementById('cfgApplyBtn').textContent = 'Apply';
+    document.getElementById('cfgCancelBtn').style.display = 'none';
+  } else {
+    // Auto-close any open (ongoing) rows to the day before the new start
+    var prevDay = new Date(start);
+    prevDay.setDate(prevDay.getDate() - 1);
+    var prevDayStr = prevDay.toISOString().slice(0, 10);
+    for (var j = 0; j < cfgRows.length; j++) {
+      if (!cfgRows[j].end) {
+        cfgRows[j].end = prevDayStr;
+      }
+    }
+    cfgRows.push({ id: cfgNextId(), front: front, rear: rear, other: other, start: start, end: end, appliedAt: cfgNow() });
+  }
+
+  // Sort by start date descending (latest first)
+  cfgRows.sort(function(a, b) { return b.start.localeCompare(a.start); });
+  cfgSave();
+  cfgRender();
+  cfgResetForm();
+}
+
+function cfgEdit(id) {
+  var row = null;
+  for (var i = 0; i < cfgRows.length; i++) { if (cfgRows[i].id === id) { row = cfgRows[i]; break; } }
+  if (!row) return;
+  cfgEditId = id;
+  document.getElementById('cfgFront').value = row.front;
+  document.getElementById('cfgRear').value  = row.rear;
+  document.getElementById('cfgOther').value = row.other || '';
+  document.getElementById('cfgStart').value = row.start;
+  document.getElementById('cfgEnd').value   = row.end || '';
+  document.getElementById('cfgApplyBtn').textContent = 'Update';
+  document.getElementById('cfgCancelBtn').style.display = '';
+  document.getElementById('cfgForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function cfgCancelEdit() {
+  cfgEditId = null;
+  document.getElementById('cfgApplyBtn').textContent = 'Apply';
+  document.getElementById('cfgCancelBtn').style.display = 'none';
+  cfgResetForm();
+}
+
+function cfgDelete(id) {
+  if (!confirm('Delete this configuration row?')) return;
+  cfgRows = cfgRows.filter(function(r) { return r.id !== id; });
+  cfgSave();
+  cfgRender();
+}
+
+function cfgResetForm() {
+  document.getElementById('cfgFront').value = 'Closed';
+  document.getElementById('cfgRear').value  = 'Closed';
+  document.getElementById('cfgOther').value = '';
+  document.getElementById('cfgStart').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('cfgEnd').value   = '';
+}
+
+function cfgBadge(val, type) {
+  var cls = '';
+  if (type === 'front') cls = (val === 'Open') ? 'open' : 'closed';
+  else if (type === 'rear') cls = (val === 'Closed') ? 'closed' : (val === 'Mid') ? 'mid' : 'full';
+  return '<span class="cfg-badge ' + cls + '">' + val + '</span>';
+}
+
+function cfgFormatDate(d) {
+  if (!d) return '';
+  var dt = new Date(d + 'T00:00:00');
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return dt.getDate() + ' ' + months[dt.getMonth()] + ' ' + dt.getFullYear();
+}
+
+function cfgRender() {
+  var tbody = document.getElementById('cfgTableBody');
+  if (!tbody) return;
+  if (!cfgRows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">No configuration rows yet &mdash; fill in the form above and click Apply.</td></tr>';
+    return;
+  }
+  var today = new Date().toISOString().slice(0, 10);
+  // Rows are already sorted latest-first
+  var html = '';
+  for (var i = 0; i < cfgRows.length; i++) {
+    var r = cfgRows[i];
+    var isActive = (r.start <= today && (!r.end || r.end >= today));
+    html += '<tr' + (isActive ? ' class="cfg-active"' : '') + '>'
+      + '<td>' + (cfgRows.length - i) + '</td>'
+      + '<td>' + cfgBadge(r.front, 'front') + '</td>'
+      + '<td>' + cfgBadge(r.rear, 'rear') + '</td>'
+      + '<td>' + (r.other || '<span style="color:var(--text-muted)">&mdash;</span>') + '</td>'
+      + '<td class="cfg-dates">' + cfgFormatDate(r.start) + '</td>'
+      + '<td class="cfg-dates">' + (r.end ? cfgFormatDate(r.end) : '<span class="cfg-badge ongoing">Ongoing</span>') + '</td>'
+      + '<td class="cfg-dates" style="font-size:0.72rem;color:var(--text-sec)">' + (r.appliedAt || '--') + '</td>'
+      + '<td class="cfg-actions">'
+      +   '<button onclick="cfgEdit(' + r.id + ')" title="Edit">&#9998;</button>'
+      +   '<button class="cfg-del" onclick="cfgDelete(' + r.id + ')" title="Delete">&times;</button>'
+      + '</td>'
+      + '</tr>';
+  }
+  tbody.innerHTML = html;
+}
+
+// --- CSV Persistence (File System Access API) ---
+var _cfgFileHandle = null; // FileSystemFileHandle — persists for session
+
+function cfgBuildCSV() {
+  var header = 'id,front_panel,rear_panel,other,date_start,date_end,applied_at';
+  // Export in chronological order (oldest first) regardless of display
+  var sorted = cfgRows.slice().sort(function(a, b) { return a.start.localeCompare(b.start); });
+  var lines = [header];
+  for (var i = 0; i < sorted.length; i++) {
+    var r = sorted[i];
+    var other = (r.other || '').replace(/"/g, '""');
+    lines.push(
+      r.id + ',' +
+      r.front + ',' +
+      r.rear + ',' +
+      '"' + other + '",' +
+      r.start + ',' +
+      (r.end || '') + ',' +
+      (r.appliedAt || '')
+    );
+  }
+  return lines.join('\n');
+}
+
+// Pick a file on disk — all future saves go there silently
+async function cfgLinkCSV() {
+  if (!window.showSaveFilePicker) {
+    alert('Your browser does not support the File System Access API.\nUse Chrome or Edge for this feature.');
+    return;
+  }
+  try {
+    _cfgFileHandle = await window.showSaveFilePicker({
+      suggestedName: 'wroom_table_config.csv',
+      types: [{ description: 'CSV file', accept: { 'text/csv': ['.csv'] } }],
+    });
+    cfgUpdateFileStatus();
+    await cfgWriteToFile();  // write current data immediately
+  } catch (e) {
+    if (e.name !== 'AbortError') console.warn('[Config CSV] Link failed:', e);
+  }
+}
+
+// Write current config to the linked file
+async function cfgWriteToFile() {
+  if (!_cfgFileHandle) return;
+  try {
+    var writable = await _cfgFileHandle.createWritable();
+    await writable.write(cfgBuildCSV());
+    await writable.close();
+    cfgUpdateFileStatus();
+    console.log('[Config CSV] Written to', _cfgFileHandle.name);
+  } catch (e) {
+    console.warn('[Config CSV] Write failed:', e);
+    cfgUpdateFileStatus('Write failed — re-link the file.');
+  }
+}
+
+function cfgUpdateFileStatus(msg) {
+  var el = document.getElementById('cfgFileStatus');
+  if (!el) return;
+  if (msg) { el.textContent = msg; el.style.color = '#f87171'; return; }
+  if (_cfgFileHandle) {
+    el.innerHTML = '\u2705 Linked to <strong>' + _cfgFileHandle.name + '</strong> &mdash; auto-saves on every change.';
+    el.style.color = '#22c55e';
+    document.getElementById('cfgLinkBtn').textContent = '\uD83D\uDD17 Re-link CSV';
+  } else {
+    el.textContent = 'No file linked \u2014 click Link CSV to pick a save location.';
+    el.style.color = 'var(--text-muted)';
+  }
+}
+
+// Auto-save to linked file on every config change (debounced)
+var _cfgWriteTimer = null;
+function cfgAutoSaveCSV() {
+  if (!_cfgFileHandle) return;
+  clearTimeout(_cfgWriteTimer);
+  _cfgWriteTimer = setTimeout(function() { cfgWriteToFile(); }, 300);
+}
+
+// One-off download fallback
+function cfgExportCSV() {
+  var csv = cfgBuildCSV();
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'wroom_table_config.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// =====================================================================
+// INITIALIZATION
+// =====================================================================
+document.addEventListener('DOMContentLoaded', function() {
+  // Load & render config table
+  cfgLoad();
+  cfgResetForm();
+  cfgRender();
+
+  // Tides (always available -- no sensor data needed)
+  window._harvestOpts = { enabled: true, maxHeight: 0.50 };
+  if (window.SeaweedTides) {
+    SeaweedTides.init('perth');
+  }
+
+  // Restore saved date range / time range preference
+  restoreViewPrefs();
+
+  // Auto-load from merged_data.js on disk (dual-channel format)
+  if (window.THINGSPEAK_DATA) {
+    try {
+      var tsData = window.THINGSPEAK_DATA;
+      var tf = tsData.tempFeeds || tsData.feeds || [];
+      var hf = tsData.humFeeds || [];
+      if (tf.length || hf.length) {
+        var parsed = parseThingSpeakMerge(tf, hf);
+        if (parsed.length) {
+          mergeEntries(parsed, 'Local file (merged_data.js)');
+          console.log('[WROOM] Auto-loaded ' + parsed.length + ' entries from merged_data.js');
+        }
+      }
+    } catch (e) { console.warn('[WROOM] merged_data.js parse failed:', e); }
+  }
+
+  // Fall back to localStorage cache if no disk data loaded
+  if (!state.allEntries.length) {
+    try {
+      var raw = localStorage.getItem('seaweed_cache_wroom');
+      if (raw) {
+        var cached = JSON.parse(raw);
+        if (cached.allEntries && cached.allEntries.length) {
+          state.allEntries = cached.allEntries.map(function(e) {
+            e.timestamp = new Date(e.timestamp);
+            return e;
+          });
+          var ageMin = Math.round((Date.now() - cached.savedAt) / 60000);
+          var ageStr = ageMin < 60 ? ageMin + 'm' : Math.round(ageMin / 60) + 'h';
+          state.dataSource = 'Cached (' + ageStr + ' ago)';
+          applyTimeRange();
+          renderDashboard();
+          console.log('[WROOM] Restored ' + state.allEntries.length + ' entries from localStorage cache');
+        }
+      }
+    } catch (e) { console.warn('[Cache] restore failed:', e); }
+  }
+});
+</script>
+</body>
+</html>

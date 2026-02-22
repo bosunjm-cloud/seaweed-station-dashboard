@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seaweed Station Overview</title>
+<!-- Chart.js + Luxon date adapter -->
+<script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<style>
+/* -- CSS Variables ------------------------------------------------- */
+:root {
+  --bg: #0f172a; --bg-card: #1e293b; --bg-hover: #334155;
+  --text: #f1f5f9; --text-sec: #94a3b8; --text-muted: #64748b;
+  --border: #334155; --radius: 12px;
+  --accent: #3b82f6; --success: #22c55e; --warning: #f59e0b; --danger: #ef4444;
+  --success-dim: #052e16; --warning-dim: #431a03; --danger-dim: #450a0a;
+  --shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* -- Header -------------------------------------------------------- */
+.header {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  padding: 16px 24px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+}
+.header-left { display: flex; align-items: center; gap: 14px; }
+.header-left h1 { font-size: 1.3rem; font-weight: 700; }
+.header-left .sub { font-size: 0.8rem; color: var(--text-sec); }
+.wave { font-size: 1.8rem; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+
+/* -- Buttons ------------------------------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 16px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: 0.82rem; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+}
+.btn:hover { background: var(--bg-hover); border-color: var(--accent); }
+.btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+
+/* -- Main layout --------------------------------------------------- */
+.main { max-width: 1400px; margin: 0 auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 24px; }
+
+/* -- Table cards --------------------------------------------------- */
+.table-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; }
+.table-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px;
+  box-shadow: var(--shadow); transition: border-color 0.2s;
+  display: flex; flex-direction: column; gap: 14px;
+  cursor: pointer;
+}
+.table-card:hover { border-color: var(--accent); }
+.table-card-header { display: flex; align-items: center; justify-content: space-between; }
+.table-card-header h2 { font-size: 1.15rem; font-weight: 700; }
+.table-card-header .location { font-size: 0.78rem; color: var(--text-sec); }
+.table-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 12px;
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+}
+.badge-ok { background: var(--success-dim); color: var(--success); }
+.badge-warn { background: var(--warning-dim); color: var(--warning); }
+.badge-err { background: var(--danger-dim); color: var(--danger); }
+.badge-nc { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+
+/* -- Metrics grid -------------------------------------------------- */
+.metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.metric-box { background: var(--bg); border-radius: 8px; padding: 8px 10px; text-align: center; }
+.metric-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.metric-value { font-size: 1rem; font-weight: 700; margin-top: 1px; }
+.metric-sub { font-size: 0.65rem; color: var(--text-muted); }
+
+/* -- Node health row ----------------------------------------------- */
+.node-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.node-chip {
+  flex: 1; min-width: 100px; background: var(--bg); border-radius: 8px; padding: 6px 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.node-chip .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot-green { background: var(--success); }
+.dot-yellow { background: var(--warning); }
+.dot-red { background: var(--danger); }
+.dot-grey { background: var(--text-muted); }
+.node-chip .node-name { font-size: 0.72rem; font-weight: 600; }
+.node-chip .node-bat { font-size: 0.72rem; color: var(--text-sec); margin-left: auto; }
+
+/* -- Mini spark chart ---------------------------------------------- */
+.spark-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.spark-range-btns { display: flex; gap: 3px; }
+.spark-range-btn {
+  font-size: 0.6rem; padding: 2px 7px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-muted); border-radius: 4px;
+  cursor: pointer; line-height: 1.6;
+}
+.spark-range-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.spark-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.spark-box { background: var(--bg); border-radius: 8px; padding: 8px; min-width: 0; overflow: hidden; }
+.spark-title { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+.spark-wrap { height: 60px; position: relative; }
+
+/* -- Weather summary (no-data cards) ------------------------------- */
+.weather-summary { display: flex; flex-direction: column; gap: 10px; }
+.weather-summary .wx-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.weather-summary .wx-current { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--bg); border-radius: 8px; }
+.weather-summary .wx-icon { font-size: 2rem; line-height: 1; }
+.weather-summary .wx-temp { font-size: 1.4rem; font-weight: 700; }
+.weather-summary .wx-desc { font-size: 0.75rem; color: var(--text-sec); }
+.weather-summary .wx-detail { font-size: 0.72rem; color: var(--text-muted); }
+.wx-forecast-row { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0; }
+.wx-forecast-day { flex: 0 0 auto; background: var(--bg); border-radius: 8px; padding: 8px 10px; text-align: center; min-width: 70px; }
+.wx-forecast-day .wx-f-day { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+.wx-forecast-day .wx-f-icon { font-size: 1.2rem; margin: 2px 0; }
+.wx-forecast-day .wx-f-temp { font-size: 0.78rem; font-weight: 600; }
+.wx-forecast-day .wx-f-lo { font-size: 0.68rem; color: var(--text-muted); }
+
+/* -- Loading ------------------------------------------------------- */
+.spinner {
+  display: inline-block; width: 16px; height: 16px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+  vertical-align: middle; margin-right: 4px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 0.8rem; color: var(--text-muted); padding: 16px; text-align: center; }
+
+/* -- Footer -------------------------------------------------------- */
+.footer { text-align: center; padding: 20px; font-size: 0.75rem; color: var(--text-muted); }
+
+/* -- Responsive ---------------------------------------------------- */
+@media (max-width: 768px) {
+  .header { padding: 12px 16px; }
+  .main { padding: 12px; gap: 12px; }
+  .table-grid { grid-template-columns: 1fr; }
+  .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <span class="wave">&#127754;</span>
+    <div>
+      <h1>Seaweed Station Overview</h1>
+      <div class="sub">All monitoring tables at a glance</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <a class="btn btn-sm" href="pages/battery_estimator.html" title="Battery Estimator" style="font-size:0.95rem">&#128267; Battery</a>
+    <a class="btn btn-sm" href="pages/settings.html">&#9881; Settings</a>
+  </div>
+</header>
+
+<main class="main">
+
+  <div class="table-grid" id="tableGrid">
+    <!-- Cards injected by JS -->
+  </div>
+
+</main>
+
+<footer class="footer">
+  Seaweed Station Network &mdash; Perth &bull; Shangani Aramani &bull; Funzi Island
+</footer>
+
+<script>
+// =====================================================================
+// TABLE DEFINITIONS
+// =====================================================================
+
+// Read per-channel config from settings (channels array in localStorage)
+function getChannelConfig(tableId) {
+  try {
+    var s = JSON.parse(localStorage.getItem('seaweed_dashboard_config'));
+    if (s && s.channels && s.channels.length) {
+      var ch = s.channels.find(function(c) { return c.id === tableId; });
+      if (ch) return ch;
+    }
+    // Legacy fallback: single channelId → perth only
+    if (s && s.channelId && tableId === 'perth') {
+      return { channelId: s.channelId, apiKey: s.apiKey || '' };
+    }
+  } catch (e) {}
+  return null;
+}
+
+var TABLES = [
+  {
+    id: 'perth',
+    name: 'Perth Test Table',
+    location: 'Noranda, WA',
+    page: 'pages/perth.html',
+    dataFile: 'data/data_3262071_TT/merged_data.js',
+    weather: { lat: -31.87, lon: 115.90 },
+    channelId: '3262071',
+    apiKey: 'VVHUX39KINYPLCVI',
+  },
+  {
+    id: 'shangani',
+    name: 'Shangani Aramani',
+    location: 'Kwale County, Kenya',
+    page: 'pages/shangani.html',
+    dataFile: 'data/data_Shangani/merged_data.js',
+    weather: { lat: -4.55, lon: 39.50 },
+    channelId: '',
+    apiKey: '',
+  },
+  {
+    id: 'funzi',
+    name: 'Funzi Island',
+    location: 'Funzi Island, Kenya',
+    page: 'pages/funzi.html',
+    dataFile: 'data/data_Funzi/merged_data.js',
+    weather: { lat: -4.55, lon: 39.45 },
+    channelId: '',
+    apiKey: '',
+  },
+  {
+    id: 'wroom',
+    name: 'Perth WROOM Test',
+    location: 'Noranda, WA (WROOM-32E)',
+    page: 'pages/perth_wroom.html',
+    dataFile: 'data/data_WROOM_PTT/merged_data.js',
+    weather: { lat: -31.87, lon: 115.90 },
+    channelId: '3246116',
+    apiKey: '7K00B1Y8DNOTEIM0',
+    temp: true, /* flag: temporary page */
+  },
+];
+
+// Override table channel IDs and data file paths from saved settings
+TABLES.forEach(function(t) {
+  var ch = getChannelConfig(t.id);
+  if (ch) {
+    if (ch.channelId) t.channelId = ch.channelId;
+    if (ch.apiKey)    t.apiKey    = ch.apiKey;
+    if (ch.dataFolder) t.dataFile = 'data/' + ch.dataFolder + '/merged_data.js';
+  }
+});
+
+// =====================================================================
+// UTILITY: Parse ThingSpeak feed entry into usable values
+// =====================================================================
+function csvParse(val) {
+  if (!val || typeof val !== 'string') return [];
+  return val.split(',').map(function(v) { var n = parseFloat(v); return isNaN(n) ? null : n; });
+}
+
+function parseEntry(f) {
+  var ts = new Date(f.created_at);
+  var t0Sensors = csvParse(f.field2);
+  var t0Status  = csvParse(f.field3);
+  var satAStat  = csvParse(f.field4);
+  var satASens  = csvParse(f.field5);
+  var satBStat  = csvParse(f.field6);
+  var satBSens  = csvParse(f.field7);
+  return {
+    timestamp: ts,
+    t0BatPct: parseFloat(f.field1) || null,
+    t0BatV: t0Status[0] || null,
+    t0Temp1: t0Sensors[0], t0Temp2: t0Sensors[2],
+    t0Hum1: t0Sensors[1], t0Hum2: t0Sensors[3],
+    satABatPct: satAStat[1], satABatV: satAStat[0],
+    satATemp1: satASens[0], satATemp2: satASens[2],
+    satBBatPct: satBStat[1], satBBatV: satBStat[0],
+    satBTemp1: satBSens[0], satBTemp2: satBSens[2],
+  };
+}
+
+function timeAgo(d) {
+  var ms = Date.now() - d.getTime();
+  if (ms < 60000) return Math.round(ms/1000) + 's ago';
+  if (ms < 3600000) return Math.round(ms/60000) + 'm ago';
+  if (ms < 86400000) return Math.round(ms/3600000) + 'h ago';
+  return Math.round(ms/86400000) + 'd ago';
+}
+
+function findLast(entries, key) {
+  for (var i = entries.length - 1; i >= 0; i--) {
+    if (entries[i][key] != null) return entries[i];
+  }
+  return null;
+}
+
+// =====================================================================
+// COMPUTE SUMMARY for a table
+// =====================================================================
+function computeSummary(entries) {
+  if (!entries || entries.length === 0) return null;
+
+  var latest = entries[entries.length - 1];
+  var now = Date.now();
+  var h24 = entries.filter(function(e) { return (now - e.timestamp.getTime()) < 86400000; });
+  var w7  = entries.filter(function(e) { return (now - e.timestamp.getTime()) < 7 * 86400000; });
+  var m30 = entries.filter(function(e) { return (now - e.timestamp.getTime()) < 30 * 86400000; });
+
+  function peak(arr, key) {
+    var max = null;
+    for (var i = 0; i < arr.length; i++) {
+      var v = arr[i][key];
+      if (v != null && (max === null || v > max)) max = v;
+    }
+    return max;
+  }
+  function minVal(arr, key) {
+    var min = null;
+    for (var i = 0; i < arr.length; i++) {
+      var v = arr[i][key];
+      if (v != null && (min === null || v < min)) min = v;
+    }
+    return min;
+  }
+
+  // Most relevant temp sensor (try Sat-A Sensor 1 first, then T0 Sensor 1)
+  var tempKey  = findLast(entries, 'satATemp1') ? 'satATemp1' : 't0Temp1';
+  var humKey   = findLast(entries, 'satAHum1')  ? 'satAHum1'  : 't0Hum1';
+
+  // Freshness: how old is the latest entry?
+  var ageMins = (now - latest.timestamp.getTime()) / 60000;
+  var freshness = ageMins < 20 ? 'ok' : (ageMins < 120 ? 'warn' : 'err');
+
+  // Node health
+  var lastT0  = findLast(entries, 't0BatPct');
+  var lastSatA = findLast(entries, 'satABatPct');
+  var lastSatB = findLast(entries, 'satBBatPct');
+
+  function nodeHealth(lastEntry, batKey) {
+    if (!lastEntry) return { status: 'nc', bat: null, lastSeen: null };
+    var age = (now - lastEntry.timestamp.getTime()) / 60000;
+    var bat = lastEntry[batKey];
+    var status = age < 20 ? 'green' : (age < 120 ? 'yellow' : 'red');
+    if (bat !== null && bat < 15) status = 'red';
+    return { status: status, bat: bat, lastSeen: lastEntry.timestamp };
+  }
+
+  return {
+    freshness: freshness,
+    lastUpdate: latest.timestamp,
+    entries: entries.length,
+    t0: nodeHealth(lastT0, 't0BatPct'),
+    satA: nodeHealth(lastSatA, 'satABatPct'),
+    satB: nodeHealth(lastSatB, 'satBBatPct'),
+    dayTempHigh:  peak(h24, tempKey),
+    dayTempLow:   minVal(h24, tempKey),
+    dayHumHigh:   peak(h24, humKey),
+    weekTempHigh: peak(w7, tempKey),
+    weekHumHigh:  peak(w7, humKey),
+    monthTempHigh: peak(m30, tempKey),
+    monthHumHigh:  peak(m30, humKey),
+    // Last 24h of temp data for sparkline
+    sparkTemp: h24.map(function(e) { return { x: e.timestamp.getTime(), y: e[tempKey] }; }).filter(function(p) { return p.y != null; }),
+    sparkHum:  h24.map(function(e) { return { x: e.timestamp.getTime(), y: e[humKey] }; }).filter(function(p) { return p.y != null; }),
+  };
+}
+
+// =====================================================================
+// RENDER TABLE CARD
+// =====================================================================
+// =====================================================================
+// WROOM DUAL-CHANNEL PARSER (temp + hum from separate ThingSpeak channels)
+// =====================================================================
+function parseWroomDualChannel(tempFeeds, humFeeds) {
+  var entries = {};
+  function roundMin(ts) { return Math.round(ts.getTime() / 60000); }
+  function numParse(v) {
+    if (v === null || v === undefined || v === '' || v === 'null') return null;
+    var n = parseFloat(v);
+    return isNaN(n) ? null : n;
+  }
+  if (tempFeeds && tempFeeds.length) {
+    tempFeeds.forEach(function(f) {
+      var ts = new Date(f.created_at);
+      if (isNaN(ts.getTime())) return;
+      var key = roundMin(ts);
+      if (!entries[key]) entries[key] = { timestamp: ts };
+      var e = entries[key];
+      for (var s = 1; s <= 5; s++) {
+        var val = numParse(f['field' + s]);
+        e['t' + s] = val;
+        if (e['ok' + s] === undefined) e['ok' + s] = (val !== null && val !== 0) ? 1 : 0;
+      }
+    });
+  }
+  if (humFeeds && humFeeds.length) {
+    humFeeds.forEach(function(f) {
+      var ts = new Date(f.created_at);
+      if (isNaN(ts.getTime())) return;
+      var key = roundMin(ts);
+      if (!entries[key]) entries[key] = { timestamp: ts };
+      var e = entries[key];
+      for (var s = 1; s <= 5; s++) {
+        var val = numParse(f['field' + s]);
+        e['rh' + s] = val;
+        if (val !== null && val !== 0) e['ok' + s] = 1;
+      }
+    });
+  }
+  return Object.values(entries).map(function(e) {
+    for (var s = 1; s <= 5; s++) {
+      if (e['t' + s]  === undefined) e['t' + s]  = null;
+      if (e['rh' + s] === undefined) e['rh' + s] = null;
+      if (e['ok' + s] === undefined) e['ok' + s] = 0;
+    }
+    return e;
+  }).filter(function(e) { return !isNaN(e.timestamp.getTime()); })
+    .sort(function(a, b) { return a.timestamp - b.timestamp; });
+}
+
+// =====================================================================
+// WROOM-SPECIFIC SUMMARY + CARD
+// =====================================================================
+function computeWroomSummary(entries) {
+  if (!entries || entries.length === 0) return null;
+  var latest = entries[entries.length - 1];
+  var now = Date.now();
+  var h24 = entries.filter(function(e) { return (now - e.timestamp.getTime()) < 86400000; });
+  var w7  = entries.filter(function(e) { return (now - e.timestamp.getTime()) < 7 * 86400000; });
+
+  function peak(arr, keys) {
+    var max = null;
+    for (var i = 0; i < arr.length; i++) {
+      for (var k = 0; k < keys.length; k++) {
+        var v = arr[i][keys[k]];
+        if (v != null && (max === null || v > max)) max = v;
+      }
+    }
+    return max;
+  }
+  function minVal(arr, keys) {
+    var min = null;
+    for (var i = 0; i < arr.length; i++) {
+      for (var k = 0; k < keys.length; k++) {
+        var v = arr[i][keys[k]];
+        if (v != null && (min === null || v < min)) min = v;
+      }
+    }
+    return min;
+  }
+  function avg(arr, keys) {
+    var sum = 0, n = 0;
+    for (var i = 0; i < arr.length; i++) {
+      for (var k = 0; k < keys.length; k++) {
+        var v = arr[i][keys[k]];
+        if (v != null) { sum += v; n++; }
+      }
+    }
+    return n ? sum / n : null;
+  }
+
+  var tKeys = ['t1','t2','t3','t4','t5'];
+  var hKeys = ['rh1','rh2','rh3','rh4','rh5'];
+
+  var ageMins = (now - latest.timestamp.getTime()) / 60000;
+  var freshness = ageMins < 20 ? 'ok' : (ageMins < 120 ? 'warn' : 'err');
+
+  // Count active sensors from latest
+  var activeSensors = 0;
+  for (var s = 1; s <= 5; s++) {
+    if (latest['t' + s] != null || latest['rh' + s] != null) activeSensors++;
+  }
+
+  // Sparkline from first available sensor
+  var sparkKey = 't1';
+  var sparkHumKey = 'rh1';
+  for (var sk = 1; sk <= 5; sk++) {
+    if (latest['t' + sk] != null) { sparkKey = 't' + sk; sparkHumKey = 'rh' + sk; break; }
+  }
+  var sparkTemp = h24.map(function(e) { return { x: e.timestamp.getTime(), y: e[sparkKey] }; }).filter(function(p) { return p.y != null; });
+  var sparkHum  = h24.map(function(e) { return { x: e.timestamp.getTime(), y: e[sparkHumKey] }; }).filter(function(p) { return p.y != null; });
+
+  return {
+    freshness: freshness,
+    lastUpdate: latest.timestamp,
+    entries: entries.length,
+    activeSensors: activeSensors,
+    dayTempHigh:  peak(h24, tKeys),
+    dayTempLow:   minVal(h24, tKeys),
+    dayTempAvg:   avg(h24, tKeys),
+    dayHumHigh:   peak(h24, hKeys),
+    dayHumAvg:    avg(h24, hKeys),
+    weekTempHigh: peak(w7, tKeys),
+    weekHumHigh:  peak(w7, hKeys),
+    sparkTemp: sparkTemp,
+    sparkHum: sparkHum,
+  };
+}
+
+function renderWroomCard(table, summary) {
+  var card = document.createElement('div');
+  card.className = 'table-card';
+  card.onclick = function() { window.location.href = table.page; };
+
+  if (!summary) {
+    card.innerHTML =
+      '<div class="table-card-header">' +
+        '<div><h2>' + table.name + '</h2><div class="location">' + table.location + '</div></div>' +
+        '<span class="table-badge badge-nc">No Data</span>' +
+      '</div>' +
+      '<div class="loading-text">No cached data. Open the <a href="' + table.page + '">WROOM page</a> and fetch data first.</div>';
+    return card;
+  }
+
+  var badgeClass = summary.freshness === 'ok' ? 'badge-ok' : (summary.freshness === 'warn' ? 'badge-warn' : 'badge-err');
+  var badgeText  = summary.freshness === 'ok' ? 'Online' : (summary.freshness === 'warn' ? 'Stale' : 'Offline');
+  var fmt = function(v, unit, dp) {
+    if (v === null || v === undefined) return '--';
+    return v.toFixed(dp !== undefined ? dp : 1) + (unit || '');
+  };
+
+  card.innerHTML =
+    '<div class="table-card-header">' +
+      '<div><h2>' + table.name + '</h2><div class="location">' + table.location + '</div></div>' +
+      '<span class="table-badge ' + badgeClass + '">' + badgeText + '</span>' +
+    '</div>' +
+    '<div class="node-row">' +
+      '<div class="node-chip"><span class="dot dot-' + (summary.freshness === 'ok' ? 'green' : summary.freshness === 'warn' ? 'yellow' : 'red') + '"></span>' +
+        '<span class="node-name">WROOM-32E</span><span class="node-bat">' + summary.activeSensors + '/5 sensors</span></div>' +
+    '</div>' +
+    '<div class="metrics-grid">' +
+      metricBox('Day High', fmt(summary.dayTempHigh, '\u00B0C'), 'Peak temp (24h)') +
+      metricBox('Day Hum', fmt(summary.dayHumHigh, '%'), 'Peak humidity (24h)') +
+      metricBox('Day Low', fmt(summary.dayTempLow, '\u00B0C'), 'Low temp (24h)') +
+      metricBox('Avg Temp', fmt(summary.dayTempAvg, '\u00B0C'), 'Avg across sensors') +
+      metricBox('Avg Hum', fmt(summary.dayHumAvg, '%'), 'Avg across sensors') +
+      metricBox('Week High', fmt(summary.weekTempHigh, '\u00B0C'), 'Peak temp (7d)') +
+    '</div>' +
+    '<div class="spark-controls">' +
+      '<span style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase">Sensor Data</span>' +
+      '<div class="spark-range-btns">' +
+        ['Day','Week','Month','All'].map(function(r) {
+          return '<button class="spark-range-btn' + (r==='Day'?' active':'') + '" data-table="wroom" data-range="' + r + '" onclick="setSparkRange(\'wroom\',\'' + r + '\',event)">' + r + '</button>';
+        }).join('') +
+      '</div>' +
+    '</div>' +
+    '<div class="spark-row">' +
+      '<div class="spark-box"><div class="spark-title">Temp</div><div class="spark-wrap"><canvas id="spark-temp-wroom"></canvas></div></div>' +
+      '<div class="spark-box"><div class="spark-title">Humidity</div><div class="spark-wrap"><canvas id="spark-hum-wroom"></canvas></div></div>' +
+    '</div>' +
+    '<div style="font-size:0.7rem;color:var(--text-muted);text-align:right">' +
+      'Last update: ' + timeAgo(summary.lastUpdate) + ' &bull; ' + summary.entries + ' entries total' +
+    '</div>';
+
+  return card;
+}
+
+// =====================================================================
+// WEATHER-ONLY CARD (for tables with no sensor data)
+// =====================================================================
+var WMO_CODES = {
+  0:'Clear sky', 1:'Mainly clear', 2:'Partly cloudy', 3:'Overcast',
+  45:'Foggy', 48:'Rime fog', 51:'Light drizzle', 53:'Drizzle', 55:'Dense drizzle',
+  56:'Freezing drizzle', 57:'Dense freezing drizzle',
+  61:'Slight rain', 63:'Moderate rain', 65:'Heavy rain',
+  66:'Freezing rain', 67:'Heavy freezing rain',
+  71:'Slight snow', 73:'Moderate snow', 75:'Heavy snow', 77:'Snow grains',
+  80:'Slight showers', 81:'Moderate showers', 82:'Violent showers',
+  85:'Slight snow showers', 86:'Heavy snow showers',
+  95:'Thunderstorm', 96:'Thunderstorm w/ hail', 99:'Thunderstorm w/ heavy hail',
+};
+var WMO_ICONS = {
+  0:'\u2600',1:'\u26C5',2:'\u26C5',3:'\u2601',
+  45:'\uD83C\uDF2B',48:'\uD83C\uDF2B',
+  51:'\uD83C\uDF26',53:'\uD83C\uDF27',55:'\uD83C\uDF27',56:'\u2744',57:'\u2744',
+  61:'\uD83C\uDF26',63:'\uD83C\uDF27',65:'\uD83C\uDF27',66:'\u2744',67:'\u2744',
+  71:'\uD83C\uDF28',73:'\uD83C\uDF28',75:'\uD83C\uDF28',77:'\u2744',
+  80:'\uD83C\uDF26',81:'\uD83C\uDF27',82:'\uD83C\uDF27',85:'\uD83C\uDF28',86:'\uD83C\uDF28',
+  95:'\u26C8',96:'\u26C8',99:'\u26C8',
+};
+
+async function fetchWeatherCard(table) {
+  if (!table.weather) return null;
+  try {
+    var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + table.weather.lat +
+      '&longitude=' + table.weather.lon +
+      '&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation' +
+      '&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum' +
+      '&forecast_days=7&timezone=auto';
+    var resp = await fetch(url);
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch (e) { return null; }
+}
+
+function renderWeatherOnlyCard(table, weather) {
+  var card = document.createElement('div');
+  card.className = 'table-card';
+  card.onclick = function() { window.location.href = table.page; };
+
+  var headerHtml =
+    '<div class="table-card-header">' +
+      '<div><h2>' + table.name + '</h2><div class="location">' + table.location + '</div></div>' +
+      '<span class="table-badge badge-nc">No Data</span>' +
+    '</div>';
+
+  if (!weather || !weather.current) {
+    card.innerHTML = headerHtml +
+      '<div class="loading-text">No sensor data. Set up this table in <a href="pages/settings.html">Settings</a>, or click to open the page.</div>';
+    return card;
+  }
+
+  var c = weather.current;
+  var code = c.weather_code || 0;
+  var icon = WMO_ICONS[code] || '\u2601';
+  var desc = WMO_CODES[code] || 'Unknown';
+
+  var currentHtml =
+    '<div class="weather-summary">' +
+    '<div class="wx-current">' +
+      '<div class="wx-icon">' + icon + '</div>' +
+      '<div>' +
+        '<div class="wx-temp">' + c.temperature_2m.toFixed(1) + '\u00B0C</div>' +
+        '<div class="wx-desc">' + desc + '</div>' +
+      '</div>' +
+      '<div style="margin-left:auto;text-align:right">' +
+        '<div class="wx-detail">Humidity: ' + c.relative_humidity_2m + '%</div>' +
+        '<div class="wx-detail">Wind: ' + c.wind_speed_10m.toFixed(1) + ' km/h</div>' +
+        (c.precipitation > 0 ? '<div class="wx-detail">Precip: ' + c.precipitation.toFixed(1) + ' mm</div>' : '') +
+      '</div>' +
+    '</div>';
+
+  // 7-day forecast row
+  var forecastHtml = '';
+  if (weather.daily && weather.daily.time) {
+    var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    forecastHtml = '<div class="wx-forecast-row">';
+    for (var i = 0; i < Math.min(7, weather.daily.time.length); i++) {
+      var d = new Date(weather.daily.time[i] + 'T00:00:00');
+      var dayName = i === 0 ? 'Today' : days[d.getDay()];
+      var fCode = weather.daily.weather_code[i] || 0;
+      var fIcon = WMO_ICONS[fCode] || '\u2601';
+      var hi = weather.daily.temperature_2m_max[i];
+      var lo = weather.daily.temperature_2m_min[i];
+      var precip = weather.daily.precipitation_sum ? weather.daily.precipitation_sum[i] : 0;
+      forecastHtml += '<div class="wx-forecast-day">' +
+        '<div class="wx-f-day">' + dayName + '</div>' +
+        '<div class="wx-f-icon">' + fIcon + '</div>' +
+        '<div class="wx-f-temp">' + hi.toFixed(0) + '\u00B0</div>' +
+        '<div class="wx-f-lo">' + lo.toFixed(0) + '\u00B0' + (precip > 0 ? ' \uD83D\uDCA7' + precip.toFixed(1) : '') + '</div>' +
+      '</div>';
+    }
+    forecastHtml += '</div>';
+  }
+
+  card.innerHTML = headerHtml + currentHtml + forecastHtml +
+    '<div style="font-size:0.68rem;color:var(--text-muted);text-align:right;margin-top:4px">Weather via Open-Meteo &bull; Click to open page</div>' +
+    '</div>';
+
+  return card;
+}
+
+// =====================================================================
+// RENDER TABLE CARD (original Perth-style)
+// =====================================================================
+function renderTableCard(table, summary) {
+  var card = document.createElement('div');
+  card.className = 'table-card';
+  card.onclick = function() { window.location.href = table.page; };
+
+  if (!summary) {
+    card.innerHTML =
+      '<div class="table-card-header">' +
+        '<div><h2>' + table.name + '</h2><div class="location">' + table.location + '</div></div>' +
+        '<span class="table-badge badge-nc">No Data</span>' +
+      '</div>' +
+      '<div class="loading-text">No data file found. Set up this table in <a href="pages/settings.html">Settings</a>, or click to open the page.</div>';
+    return card;
+  }
+
+  var badgeClass = summary.freshness === 'ok' ? 'badge-ok' : (summary.freshness === 'warn' ? 'badge-warn' : 'badge-err');
+  var badgeText  = summary.freshness === 'ok' ? 'Online' : (summary.freshness === 'warn' ? 'Stale' : 'Offline');
+
+  var fmt = function(v, unit, dp) {
+    if (v === null || v === undefined) return '--';
+    return v.toFixed(dp !== undefined ? dp : 1) + (unit || '');
+  };
+
+  card.innerHTML =
+    '<div class="table-card-header">' +
+      '<div><h2>' + table.name + '</h2><div class="location">' + table.location + '</div></div>' +
+      '<span class="table-badge ' + badgeClass + '">' + badgeText + '</span>' +
+    '</div>' +
+
+    // Node health chips
+    '<div class="node-row">' +
+      renderNodeChip('T0', summary.t0) +
+      renderNodeChip('Sat-A', summary.satA) +
+      renderNodeChip('Sat-B', summary.satB) +
+    '</div>' +
+
+    // Metrics
+    '<div class="metrics-grid">' +
+      metricBox('Day High', fmt(summary.dayTempHigh, '\u00B0C'), 'Peak temp (24h)') +
+      metricBox('Day Hum', fmt(summary.dayHumHigh, '%'), 'Peak humidity (24h)') +
+      metricBox('Day Low', fmt(summary.dayTempLow, '\u00B0C'), 'Low temp (24h)') +
+      metricBox('Week High', fmt(summary.weekTempHigh, '\u00B0C'), 'Peak temp (7d)') +
+      metricBox('Week Hum', fmt(summary.weekHumHigh, '%'), 'Peak humidity (7d)') +
+      metricBox('Month High', fmt(summary.monthTempHigh, '\u00B0C'), 'Peak temp (30d)') +
+    '</div>' +
+
+    // Sparklines with range selector
+    '<div class="spark-controls">' +
+      '<span style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase">Sensor Data</span>' +
+      '<div class="spark-range-btns">' +
+        ['Day','Week','Month','All'].map(function(r) {
+          return '<button class="spark-range-btn' + (r==='Day'?' active':'') + '" data-table="' + table.id + '" data-range="' + r + '" onclick="setSparkRange(\'' + table.id + '\',\'' + r + '\',event)">' + r + '</button>';
+        }).join('') +
+      '</div>' +
+    '</div>' +
+    '<div class="spark-row">' +
+      '<div class="spark-box"><div class="spark-title">Temp</div><div class="spark-wrap"><canvas id="spark-temp-' + table.id + '"></canvas></div></div>' +
+      '<div class="spark-box"><div class="spark-title">Humidity</div><div class="spark-wrap"><canvas id="spark-hum-' + table.id + '"></canvas></div></div>' +
+    '</div>' +
+
+    '<div style="font-size:0.7rem;color:var(--text-muted);text-align:right">' +
+      'Last update: ' + timeAgo(summary.lastUpdate) + ' &bull; ' + summary.entries + ' entries total' +
+    '</div>';
+
+  return card;
+}
+
+function renderNodeChip(name, node) {
+  if (!node || node.status === 'nc') {
+    return '<div class="node-chip"><span class="dot dot-grey"></span><span class="node-name">' + name + '</span><span class="node-bat">--</span></div>';
+  }
+  var dotClass = 'dot-' + node.status;
+  var batStr = node.bat !== null ? Math.round(node.bat) + '%' : '--';
+  return '<div class="node-chip"><span class="dot ' + dotClass + '"></span><span class="node-name">' + name + '</span><span class="node-bat">' + batStr + '</span></div>';
+}
+
+function metricBox(label, value, sub) {
+  return '<div class="metric-box"><div class="metric-label">' + label + '</div><div class="metric-value">' + value + '</div>' +
+    (sub ? '<div class="metric-sub">' + sub + '</div>' : '') + '</div>';
+}
+
+// =====================================================================
+// SPARKLINE RANGE CONTROLS
+// =====================================================================
+var tableEntries = {};  // tableId -> entries[]
+var SPARK_RANGE_MS = { 'Day': 86400000, 'Week': 7*86400000, 'Month': 30*86400000, 'All': 0 };
+
+function rebuildSparklines(tableId, rangeMs) {
+  var entries = tableEntries[tableId];
+  if (!entries || !entries.length) return;
+  var now = Date.now();
+  var filtered = rangeMs === 0 ? entries : entries.filter(function(e) {
+    return (now - e.timestamp.getTime()) < rangeMs;
+  });
+
+  var tempKey, humKey;
+  if (tableId === 'wroom') {
+    // WROOM uses t1..t5, rh1..rh5
+    tempKey = 't1'; humKey = 'rh1';
+    var latest = entries[entries.length - 1];
+    for (var s = 1; s <= 5; s++) {
+      if (latest['t' + s] != null) { tempKey = 't' + s; humKey = 'rh' + s; break; }
+    }
+  } else {
+    tempKey = findLast(entries, 'satATemp1') ? 'satATemp1' : 't0Temp1';
+    humKey  = findLast(entries, 'satAHum1')  ? 'satAHum1'  : 't0Hum1';
+  }
+
+  var sparkTemp = filtered.map(function(e) { return { x: e.timestamp.getTime(), y: e[tempKey] }; }).filter(function(p) { return p.y != null; });
+  var sparkHum  = filtered.map(function(e) { return { x: e.timestamp.getTime(), y: e[humKey] };  }).filter(function(p) { return p.y != null; });
+  var c1 = Chart.getChart('spark-temp-' + tableId); if (c1) c1.destroy();
+  var c2 = Chart.getChart('spark-hum-'  + tableId); if (c2) c2.destroy();
+  renderSparkline('spark-temp-' + tableId, sparkTemp, '#ef4444');
+  renderSparkline('spark-hum-'  + tableId, sparkHum,  '#3b82f6');
+}
+
+function setSparkRange(tableId, label, event) {
+  event.stopPropagation();
+  var rangeMs = SPARK_RANGE_MS[label] !== undefined ? SPARK_RANGE_MS[label] : 86400000;
+  var btns = document.querySelectorAll('.spark-range-btn[data-table="' + tableId + '"]');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].classList.toggle('active', btns[i].dataset.range === label);
+  }
+  rebuildSparklines(tableId, rangeMs);
+}
+
+function renderSparkline(canvasId, data, color) {
+  var el = document.getElementById(canvasId);
+  if (!el || !data || data.length < 2) return;
+  new Chart(el, {
+    type: 'line',
+    data: {
+      datasets: [{
+        data: data, borderColor: color, backgroundColor: color + '22',
+        borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: { type: 'time', display: false },
+        y: { display: false },
+      },
+      animation: false,
+    },
+  });
+}
+
+// =====================================================================
+// DATA LOADING
+// =====================================================================
+function loadTableData(table) {
+  // WROOM: load from merged_data.js on disk (dual-channel format), fallback to localStorage
+  if (table.id === 'wroom') {
+    return new Promise(function(resolve) {
+      // Try disk file first
+      if (table.dataFile) {
+        var script = document.createElement('script');
+        script.src = table.dataFile;
+        script.onload = function() {
+          script.remove();
+          if (window.THINGSPEAK_DATA) {
+            var tsData = window.THINGSPEAK_DATA;
+            delete window.THINGSPEAK_DATA;
+            var tf = tsData.tempFeeds || tsData.feeds || [];
+            var hf = tsData.humFeeds || [];
+            if (tf.length || hf.length) {
+              var entries = parseWroomDualChannel(tf, hf);
+              if (entries.length) { resolve(entries); return; }
+            }
+          }
+          resolveFromCache();
+        };
+        script.onerror = function() { script.remove(); resolveFromCache(); };
+        document.head.appendChild(script);
+      } else {
+        resolveFromCache();
+      }
+      function resolveFromCache() {
+        try {
+          var raw = localStorage.getItem('seaweed_cache_wroom');
+          if (raw) {
+            var cached = JSON.parse(raw);
+            if (cached.allEntries && cached.allEntries.length) {
+              var entries = cached.allEntries.map(function(e) {
+                e.timestamp = new Date(e.timestamp);
+                return e;
+              });
+              resolve(entries);
+              return;
+            }
+          }
+        } catch (e) {}
+        resolve(null);
+      }
+    });
+  }
+
+  return new Promise(function(resolve) {
+    var jsUrl = table.dataFile;
+    if (!jsUrl) { resolve(null); return; }
+
+    var script = document.createElement('script');
+    script.src = jsUrl;
+    script.onload = function() {
+      if (window.THINGSPEAK_DATA) {
+        var data = window.THINGSPEAK_DATA;
+        delete window.THINGSPEAK_DATA;
+        var entries = (data.feeds || []).map(parseEntry).filter(function(e) { return !isNaN(e.timestamp.getTime()); });
+        resolve(entries);
+      } else {
+        resolve(null);
+      }
+      script.remove();
+    };
+    script.onerror = function() {
+      resolve(null);
+      script.remove();
+    };
+    document.head.appendChild(script);
+  });
+}
+
+// =====================================================================
+// INITIALIZATION
+// =====================================================================
+async function init() {
+  var grid = document.getElementById('tableGrid');
+  grid.innerHTML = '<div class="loading-text"><span class="spinner"></span> Loading table data...</div>';
+
+  var cards = [];
+
+  // Kick off weather fetches for no-data tables in parallel
+  var weatherPromises = {};
+  TABLES.forEach(function(t) {
+    if (!t.dataFile && t.id !== 'wroom' && t.weather) {
+      weatherPromises[t.id] = fetchWeatherCard(t);
+    }
+    // WROOM has dataFile now but also needs weather if data missing
+    if (t.id === 'wroom' && t.weather && !weatherPromises[t.id]) {
+      // weather will be fetched inline if needed
+    }
+  });
+
+  for (var i = 0; i < TABLES.length; i++) {
+    var table = TABLES[i];
+
+    // WROOM: special path
+    if (table.id === 'wroom') {
+      var wroomEntries = await loadTableData(table);
+      if (wroomEntries) tableEntries[table.id] = wroomEntries;
+      var wroomSummary = computeWroomSummary(wroomEntries);
+      var wroomCard = renderWroomCard(table, wroomSummary);
+      cards.push({ card: wroomCard, table: table, summary: wroomSummary });
+      continue;
+    }
+
+    var entries = await loadTableData(table);
+
+    // Tables with no sensor data: show weather-only card
+    if (!entries && weatherPromises[table.id]) {
+      var wx = await weatherPromises[table.id];
+      var wxCard = renderWeatherOnlyCard(table, wx);
+      cards.push({ card: wxCard, table: table, summary: null });
+      continue;
+    }
+
+    if (entries) tableEntries[table.id] = entries;
+    var summary = computeSummary(entries);
+    var card = renderTableCard(table, summary);
+    cards.push({ card: card, table: table, summary: summary });
+  }
+
+  grid.innerHTML = '';
+  for (var j = 0; j < cards.length; j++) {
+    grid.appendChild(cards[j].card);
+    // Render sparklines after card is in DOM
+    if (cards[j].summary && cards[j].summary.sparkTemp) {
+      renderSparkline('spark-temp-' + cards[j].table.id, cards[j].summary.sparkTemp, '#ef4444');
+      renderSparkline('spark-hum-'  + cards[j].table.id, cards[j].summary.sparkHum,  '#3b82f6');
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

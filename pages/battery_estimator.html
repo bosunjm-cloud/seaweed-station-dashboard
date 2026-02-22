@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 Seaweed Station — Battery Lifetime Estimator v2.1</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --accent: #4fc3f7;
+    --accent2: #81c784;
+    --accent3: #ce93d8;
+    --warn: #ffb74d;
+    --danger: #ef5350;
+    --text: #e0e0e0;
+    --muted: #8a8fa0;
+    --row-new: rgba(79,195,247,0.08);
+    --row-old: transparent;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .panel-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .t0-title { color: var(--accent); }
+  .te-title { color: var(--accent3); }
+  .shared-title { color: var(--warn); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .field { display: flex; flex-direction: column; }
+  .field label {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .field label .unit {
+    color: #666;
+    font-weight: 400;
+  }
+  .field input, .field select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field input[type="checkbox"] {
+    width: 18px; height: 18px;
+    accent-color: var(--accent);
+  }
+  .field.checkbox-field {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+  .field.checkbox-field label { margin-bottom: 0; }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    margin: 16px 0;
+    align-items: center;
+  }
+  button {
+    font-family: inherit;
+    font-size: 0.9rem;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 24px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .btn-apply {
+    background: var(--accent);
+    color: #000;
+  }
+  .btn-apply:hover { background: #29b6f6; }
+  .btn-clear {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .btn-clear:hover { border-color: var(--danger); color: var(--danger); }
+  .btn-export {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .btn-export:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .results-wrap {
+    overflow-x: auto;
+    border-radius: 10px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    min-width: 1200px;
+  }
+  thead th {
+    background: #12141c;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-size: 0.72rem;
+    padding: 10px 8px;
+    text-align: right;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    border-bottom: 2px solid var(--border);
+  }
+  thead th:first-child { text-align: center; }
+  thead th.col-input { color: var(--accent); }
+  thead th.col-output { color: var(--accent2); }
+  thead th.col-breakdown { color: var(--warn); }
+  thead th.group-head {
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--muted);
+    border-bottom: 2px solid var(--border);
+  }
+  thead th.group-sep {
+    border-left: 2px solid var(--border);
+  }
+  td.group-sep {
+    border-left: 2px solid var(--border);
+  }
+  th.col-input, td.col-input { padding: 7px 6px; }
+
+  tbody tr { transition: background 0.3s; }
+  tbody tr:hover { background: rgba(255,255,255,0.03); }
+  tbody tr.row-latest {
+    background: var(--row-new);
+    font-weight: 500;
+  }
+  tbody tr.row-latest td { border-top: 2px solid var(--accent); }
+
+  tbody td {
+    padding: 9px 8px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody td:first-child {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+  .val-good { color: var(--accent2); }
+  .val-ok   { color: var(--warn); }
+  .val-bad  { color: var(--danger); }
+  .val-mode { color: var(--accent); font-weight: 600; }
+  .val-te   { color: var(--accent3); font-weight: 600; }
+
+  .empty-msg {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  details { margin-top: 2px; }
+  details summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.8rem;
+    padding: 6px 0;
+    user-select: none;
+  }
+  details summary:hover { color: var(--text); }
+  details .grid { margin-top: 10px; }
+
+  .hw-info {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .hw-chip {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .hw-chip-te {
+    background: var(--bg);
+    border: 1px solid var(--accent3);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    color: var(--accent3);
+  }
+
+  .info-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+  .info-box strong { color: var(--text); }
+
+  .shared-box {
+    border: 1px solid var(--warn);
+    border-radius: 8px;
+    padding: 12px;
+    background: rgba(255,183,77,0.04);
+    margin-bottom: 10px;
+  }
+
+  @keyframes flashRow {
+    0%   { background: rgba(79,195,247,0.25); }
+    100% { background: rgba(79,195,247,0.08); }
+  }
+  .row-flash { animation: flashRow 0.8s ease-out; }
+
+  @media (max-width: 768px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+    body { padding: 10px; }
+  }
+  thead th.col-input { color: var(--accent); }
+  thead th.col-output { color: var(--accent2); }
+  thead th.col-breakdown { color: var(--warn); }
+
+  tbody tr {
+    transition: background 0.3s;
+  }
+  tbody tr:hover { background: rgba(255,255,255,0.03); }
+  tbody tr.row-latest {
+    background: var(--row-new);
+    font-weight: 500;
+  }
+  tbody tr.row-latest td { border-top: 2px solid var(--accent); }
+
+  tbody td {
+    padding: 9px 8px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody td:first-child {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.75rem;
+  }
+  .val-good { color: var(--accent2); }
+  .val-ok   { color: var(--warn); }
+  .val-bad  { color: var(--danger); }
+  .val-mode { color: var(--accent); font-weight: 600; }
+  .val-te   { color: var(--accent3); font-weight: 600; }
+
+  .empty-msg {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  /* Collapsible advanced */
+  details { margin-top: 2px; }
+  details summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.8rem;
+    padding: 6px 0;
+    user-select: none;
+  }
+  details summary:hover { color: var(--text); }
+  details .grid { margin-top: 10px; }
+
+  .hw-info {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .hw-chip {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .checklist {
+    list-style: none;
+    margin-top: 10px;
+    display: grid;
+    gap: 6px;
+  }
+  .checklist li {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 10px;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+  .checklist .ok {
+    color: var(--accent2);
+    font-weight: 600;
+    margin-right: 6px;
+  }
+
+  /* Row highlight animation */
+  @keyframes flashRow {
+    0%   { background: rgba(79,195,247,0.25); }
+    100% { background: rgba(79,195,247,0.08); }
+  }
+  .row-flash { animation: flashRow 0.8s ease-out; }
+
+  @keyframes flashRowTe {
+    0%   { background: rgba(206,147,216,0.25); }
+    100% { background: rgba(206,147,216,0.08); }
+  }
+  .row-flash-te { animation: flashRowTe 0.8s ease-out; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+    body { padding: 10px; }
+  }
+
+  .panel-title.te-title { color: var(--accent3); }
+
+  .shared-box {
+    border: 1px solid var(--warn);
+    border-radius: 8px;
+    padding: 12px;
+    background: rgba(255,183,77,0.04);
+    margin-bottom: 10px;
+  }
+
+  /* Shared config */
+  .shared-panel { border-color: var(--warn); }
+  .shared-panel .panel-title { color: var(--warn); }
+
+  .hw-chip-te {
+    background: var(--bg);
+    border: 1px solid var(--accent3);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    color: var(--accent3);
+  }
+  .checklist .te-ok {
+    color: var(--accent3);
+    font-weight: 600;
+    margin-right: 6px;
+  }
+
+  /* Power budget bar */
+  .budget-bar-wrap {
+    margin: 12px 0 6px;
+    background: var(--bg);
+    border-radius: 6px;
+    overflow: hidden;
+    height: 18px;
+    display: flex;
+    border: 1px solid var(--border);
+  }
+  .budget-seg {
+    height: 100%;
+    transition: width 0.4s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: 600; overflow: hidden; white-space: nowrap;
+    color: #000;
+  }
+  .seg-sleep  { background: #37474f; color: var(--muted); }
+  .seg-sample { background: var(--accent); }
+  .seg-radio  { background: var(--warn); }
+  .seg-upload { background: var(--accent2); }
+  .budget-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.72rem; margin-top: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; }
+
+  thead th.col-input-te { color: var(--accent3); }
+  tbody tr.row-latest-te td { border-top: 2px solid var(--accent3); }
+  .val-sat { color: var(--accent3); font-weight: 600; }
+
+  .info-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 14px;
+  }
+  .info-box strong { color: var(--text); }
+  .info-box .te-highlight { color: var(--accent3); font-weight: 600; }
+  .info-box .t0-highlight { color: var(--accent);  font-weight: 600; }
+
+  .btn-apply-te {
+    background: var(--accent3);
+    color: #000;
+    font-family: inherit;
+    font-size: 0.9rem;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 24px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .btn-apply-te:hover { background: #ba68c8; }
+
+  /* Drift Estimator */
+  .drift-scenario {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .drift-ok   { border-color: var(--accent2); }
+  .drift-warn { border-color: var(--warn); }
+  .drift-bad  { border-color: var(--danger); }
+  #dr_results { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 700px) { #dr_results { grid-template-columns: 1fr; } }
+  .drift-bar-track {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    height: 8px;
+    margin: 4px 0;
+  }
+  .drift-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.4s;
+  }
+</style>
+</head>
+<body>
+
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+  <h1>&#9889; Battery Lifetime Estimator</h1>
+  <a href="../index.html" style="color:var(--accent);font-size:0.85rem;text-decoration:none;border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-weight:600;transition:border-color 0.2s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">&#9664; Overview</a>
+</div>
+<p class="subtitle">ESP32 Seaweed Station &nbsp;|&nbsp; T0 (LilyGO T-SIM7670G S3, master) &nbsp;+&nbsp; T-Energy (satellite, ESP-NOW) &nbsp;|&nbsp; v2.1</p>
+
+<!-- ═══════════════════════════ T0 TAB ═══════════════════════════ -->
+<div id="tab-t0">
+
+<!-- Configuration Inputs -->
+<div class="panel">
+  <div class="panel-title">Configuration</div>
+  <div class="panel-title shared-title" style="font-size:0.85rem; margin-bottom:8px;">Shared</div>
+  <div class="shared-box">
+    <div class="info-box">
+      <strong>Sample Period</strong> is how often each board writes to its own SD card. <strong>ESP-NOW Sync Period</strong> is how often the boards sync.
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label>Sample Period <span class="unit">(minutes — SD log only)</span></label>
+        <input type="number" id="sharedSamplePeriod" value="10" min="1" max="1440" step="1">
+      </div>
+      <div class="field">
+        <label>ESP-NOW Sync Period <span class="unit">(minutes)</span></label>
+        <input type="number" id="sharedSyncPeriod" value="60" min="1" max="1440" step="1">
+      </div>
+      <div class="field">
+        <label>T-Energy Nodes <span class="unit">(0–2 — satellite boards)</span></label>
+        <input type="number" id="sharedTENodes" value="1" min="0" max="2" step="1">
+      </div>
+      <div class="field">
+        <label>ESP-NOW Channel <span class="unit">(both boards)</span></label>
+        <select id="sharedChannel">
+          <option value="1">CH 1</option>
+          <option value="6" selected>CH 6 (recommended)</option>
+          <option value="11">CH 11</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-title t0-title" style="font-size:0.85rem; margin:12px 0 8px;">T0</div>
+  <div class="grid">
+    <div class="field">
+      <label>Deploy Mode</label>
+      <select id="deployMode">
+        <option value="cell" selected>Cellular (SIM7670G)</option>
+        <option value="wifi">WiFi</option>
+      </select>
+    </div>
+    <div class="field checkbox-field">
+      <input type="checkbox" id="sleepEnable" checked>
+      <label>Deep Sleep Enabled</label>
+    </div>
+    <div class="field">
+      <label>Bulk Averaging Interval <span class="unit">(minutes)</span></label>
+      <input type="number" id="bulkInterval" value="15" min="1" max="1440" step="1">
+    </div>
+    <div class="field">
+      <label>Web Access Frequency <span class="unit">(hours)</span></label>
+      <input type="number" id="syncFreqHours" value="24" min="1" max="365" step="1">
+    </div>
+    <div class="field">
+      <label>Battery Capacity <span class="unit">(mAh)</span></label>
+      <input type="number" id="batteryCapacity" value="3000" min="100" max="50000" step="100">
+    </div>
+    <div class="field checkbox-field">
+      <input type="checkbox" id="tEnergyEnable" checked>
+      <label>Receive T-Energy via ESP-NOW</label>
+    </div>
+    <div class="field">
+      <label>T0 T/H Sensor Count <span class="unit">(per board)</span></label>
+      <input type="number" id="t0_sensorCount" value="2" min="0" max="8" step="1">
+    </div>
+  </div>
+
+  <div class="panel-title te-title" style="font-size:0.85rem; margin-top:12px;">T-Energy</div>
+  <div class="grid">
+    <div class="field">
+      <label>Battery Capacity <span class="unit">(mAh)</span></label>
+      <input type="number" id="te_battCap" value="3000" min="100" max="50000" step="100">
+    </div>
+    <div class="field checkbox-field">
+      <input type="checkbox" id="te_sleepEnable" checked>
+      <label>Deep Sleep Enabled (between sync + sample)</label>
+    </div>
+    <div class="field">
+      <label>T-Energy T/H Sensor Count <span class="unit">(per board)</span></label>
+      <input type="number" id="te_sensorCount" value="2" min="0" max="8" step="1">
+    </div>
+  </div>
+
+  <details>
+    <summary>Hardware (T0 + T-Energy)</summary>
+    <div class="panel-title" style="font-size:0.85rem; color:var(--muted); margin:10px 0 6px;">T0</div>
+    <div class="hw-info">
+      <span class="hw-chip">Board: LilyGO T-SIM7670G S3</span>
+      <span class="hw-chip">MCU: ESP32-S3</span>
+      <span class="hw-chip">Modem: SIM7670G (LTE Cat-1)</span>
+      <span class="hw-chip">Sensors: 2× SHT31 via TCA9548A</span>
+      <span class="hw-chip">Storage: MicroSD (SPI)</span>
+      <span class="hw-chip">Battery: 18650 Li-ion</span>
+      <span class="hw-chip">ESP-NOW: Master (RX HELLO/DATA + TX SYNC/ACK)</span>
+    </div>
+
+    <div class="panel-title te-title" style="font-size:0.85rem; margin:12px 0 6px;">T-Energy</div>
+    <div class="hw-info">
+      <span class="hw-chip-te">Board: LilyGO T-Energy S3 [H733] V1.0</span>
+      <span class="hw-chip-te">MCU: ESP32-S3-R8</span>
+      <span class="hw-chip-te">Flash: 16 MB | PSRAM: 8 MB</span>
+      <span class="hw-chip-te">Sensors: 2× SHT31 via TCA9548A (ch0, ch1)</span>
+      <span class="hw-chip-te">Battery ADC: GPIO3 (×2 divider)</span>
+      <span class="hw-chip-te">Wake: GPIO0 ext0 + timer</span>
+      <span class="hw-chip-te">No cellular modem</span>
+      <span class="hw-chip-te">ESP-NOW: Satellite (TX HELLO+DATA, RX SYNC+ACK)</span>
+    </div>
+  </details>
+
+  <details>
+    <summary>&#9881; Advanced Settings (T0 + T-Energy)</summary>
+
+    <div class="panel-title" style="margin-top:10px;">T0 Advanced</div>
+    <div class="grid">
+      <div class="field">
+        <label>Deep Sleep Current <span class="unit">(mA)</span></label>
+        <input type="number" id="sleepCurrent" value="0.35" min="0.01" max="50" step="0.01">
+      </div>
+      <div class="field">
+        <label>MCU Active Current <span class="unit">(mA)</span></label>
+        <input type="number" id="mcuActive" value="60" min="10" max="500" step="1">
+      </div>
+      <div class="field">
+        <label>WiFi Active Current <span class="unit">(mA)</span></label>
+        <input type="number" id="wifiActive" value="150" min="50" max="500" step="1">
+      </div>
+      <div class="field">
+        <label>Cellular Active Current <span class="unit">(mA)</span></label>
+        <input type="number" id="cellActive" value="200" min="50" max="800" step="1">
+      </div>
+      <div class="field">
+        <label>Base Sample Duration <span class="unit">(s — excludes sensors)</span></label>
+        <input type="number" id="sampleDuration" value="1.5" min="0.1" max="30" step="0.05">
+      </div>
+      <div class="field">
+        <label>T0 T/H Sensor Read Time <span class="unit">(ms / sensor)</span></label>
+        <input type="number" id="t0_sensorMs" value="25" min="1" max="200" step="1">
+      </div>
+      <div class="field">
+        <label>T0 T/H Sensor Current <span class="unit">(mA / sensor)</span></label>
+        <input type="number" id="t0_sensorCurrent" value="1.0" min="0.1" max="200" step="0.1">
+      </div>
+      <div class="field">
+        <label>Modem Boot Time <span class="unit">(s)</span></label>
+        <input type="number" id="modemBoot" value="12" min="1" max="60" step="1">
+      </div>
+      <div class="field">
+        <label>Modem Shutdown Time <span class="unit">(s)</span></label>
+        <input type="number" id="modemShutdown" value="3" min="1" max="30" step="1">
+      </div>
+      <div class="field">
+        <label>Cell Bulk Upload Base <span class="unit">(s)</span></label>
+        <input type="number" id="cellBulkBase" value="20" min="5" max="120" step="1">
+      </div>
+      <div class="field">
+        <label>Cell Init + Registration <span class="unit">(s)</span></label>
+        <input type="number" id="cellInitReg" value="35" min="5" max="180" step="1">
+      </div>
+      <div class="field">
+        <label>Cell Bulk Per-Row <span class="unit">(s)</span></label>
+        <input type="number" id="cellBulkPerRow" value="0.1" min="0.01" max="2" step="0.01">
+      </div>
+      <div class="field">
+        <label>Blynk Operations (Cell) <span class="unit">(s)</span></label>
+        <input type="number" id="blynkOps" value="8" min="0" max="90" step="1">
+      </div>
+      <div class="field">
+        <label>Modem Block Hard Cap <span class="unit">(s)</span></label>
+        <input type="number" id="modemBlockMax" value="180" min="30" max="300" step="5">
+      </div>
+      <div class="field">
+        <label>WiFi Connect Time <span class="unit">(s)</span></label>
+        <input type="number" id="wifiConnect" value="4" min="1" max="30" step="1">
+      </div>
+      <div class="field">
+        <label>WiFi Bulk Upload <span class="unit">(s)</span></label>
+        <input type="number" id="wifiBulkUpload" value="10" min="1" max="60" step="1">
+      </div>
+      <div class="field">
+        <label>SD Write Current <span class="unit">(mA)</span></label>
+        <input type="number" id="sdWriteCurrent" value="90" min="0" max="200" step="5">
+      </div>
+      <div class="field">
+        <label>SD Write Time <span class="unit">(s)</span></label>
+        <input type="number" id="sdWriteTime" value="0.2" min="0.01" max="5" step="0.01">
+      </div>
+      <div class="field">
+        <label>Boot Overhead <span class="unit">(s)</span></label>
+        <input type="number" id="bootOverhead" value="1.0" min="0.1" max="10" step="0.1">
+      </div>
+      <div class="field">
+        <label>T-Energy RX Window / Node <span class="unit">(ms — T0 listens for HELLO+DATA)</span></label>
+        <input type="number" id="teRxWindowMs" value="800" min="100" max="5000" step="50">
+      </div>
+      <div class="field">
+        <label>T-Energy TX SYNC+ACK / Node <span class="unit">(ms — T0 replies to satellite)</span></label>
+        <input type="number" id="teTxSyncMs" value="15" min="1" max="200" step="1">
+      </div>
+      <div class="field">
+        <label>T-Energy RX Proc / Node <span class="unit">(ms)</span></label>
+        <input type="number" id="teRxProcMs" value="120" min="0" max="2000" step="10">
+      </div>
+      <div class="field">
+        <label>T0 Early Wake for Sync <span class="unit">(s — T0 wakes before epoch grid)</span></label>
+        <input type="number" id="teEarlyWakeS" value="1.0" min="0" max="10" step="0.1">
+      </div>
+      <div class="field">
+        <label>Battery Derating <span class="unit">(%)</span></label>
+        <input type="number" id="batteryDerating" value="85" min="50" max="100" step="1">
+      </div>
+    </div>
+
+    <div class="panel-title te-title" style="margin-top:16px;">T-Energy Advanced</div>
+    <div class="grid">
+      <div class="field">
+        <label>T-Energy T/H Sensor Read Time <span class="unit">(ms / sensor)</span></label>
+        <input type="number" id="te_sensorMs" value="25" min="1" max="200" step="1">
+      </div>
+      <div class="field">
+        <label>T-Energy T/H Sensor Current <span class="unit">(mA / sensor)</span></label>
+        <input type="number" id="te_sensorCurrent" value="1.0" min="0.1" max="200" step="0.1">
+      </div>
+      <div class="field">
+        <label>Normal Listen Window <span class="unit">(ms per wake)</span></label>
+        <input type="number" id="te_listenMs" value="400" min="100" max="3000" step="50">
+      </div>
+      <div class="field">
+        <label>Extended Listen Window <span class="unit">(ms, every N cycles)</span></label>
+        <input type="number" id="te_listenLongMs" value="1200" min="200" max="5000" step="100">
+      </div>
+      <div class="field">
+        <label>Extended Listen Every N <span class="unit">(cycles)</span></label>
+        <input type="number" id="te_listenEveryN" value="10" min="1" max="50" step="1">
+      </div>
+      <div class="field">
+        <label>ESP-NOW Retries <span class="unit">(0–5)</span></label>
+        <input type="number" id="te_retries" value="2" min="0" max="5" step="1">
+      </div>
+      <div class="field">
+        <label>Backlog Max / wake <span class="unit">(extra DATA frames)</span></label>
+        <input type="number" id="te_backlogMax" value="5" min="0" max="10" step="1">
+      </div>
+      <div class="field">
+        <label>Battery Derating <span class="unit">(%)</span></label>
+        <input type="number" id="te_battDerating" value="85" min="50" max="100" step="1">
+      </div>
+      <div class="field">
+        <label>Deep Sleep Current <span class="unit">(µA)</span></label>
+        <input type="number" id="te_sleepUa" value="50" min="1" max="500" step="1">
+      </div>
+      <div class="field">
+        <label>Boot + NVS Overhead <span class="unit">(ms)</span></label>
+        <input type="number" id="te_bootMs" value="300" min="50" max="2000" step="50">
+      </div>
+      <div class="field">
+        <label>Boot Current <span class="unit">(mA)</span></label>
+        <input type="number" id="te_bootCurrent" value="80" min="20" max="200" step="5">
+      </div>
+      <div class="field">
+        <label>I2C Overhead Duration <span class="unit">(ms — mux select, setup)</span></label>
+        <input type="number" id="te_i2cMs" value="10" min="0" max="500" step="5">
+      </div>
+      <div class="field">
+        <label>MCU Active Current <span class="unit">(mA)</span></label>
+        <input type="number" id="te_mcuActive" value="50" min="10" max="200" step="1">
+      </div>
+      <div class="field">
+        <label>I2C Overhead Current <span class="unit">(mA)</span></label>
+        <input type="number" id="te_i2cCurrent" value="5" min="0" max="200" step="5">
+      </div>
+      <div class="field">
+        <label>ESP-NOW TX Duration / frame <span class="unit">(ms)</span></label>
+        <input type="number" id="te_txMs" value="10" min="2" max="100" step="1">
+      </div>
+      <div class="field">
+        <label>ESP-NOW TX Current <span class="unit">(mA)</span></label>
+        <input type="number" id="te_txCurrent" value="180" min="50" max="300" step="5">
+      </div>
+      <div class="field">
+        <label>ESP-NOW RX Listen Current <span class="unit">(mA)</span></label>
+        <input type="number" id="te_rxCurrent" value="95" min="30" max="200" step="5">
+      </div>
+      <div class="field">
+        <label>LittleFS Write Duration <span class="unit">(ms)</span></label>
+        <input type="number" id="te_flashMs" value="20" min="5" max="200" step="5">
+      </div>
+      <div class="field">
+        <label>SYNC Apply <span class="unit">(ms — computeNextWake after SYNC received)</span></label>
+        <input type="number" id="te_syncApplyMs" value="20" min="1" max="200" step="1">
+      </div>
+      <div class="field">
+        <label>LittleFS Write Current <span class="unit">(mA)</span></label>
+        <input type="number" id="te_flashCurrent" value="15" min="10" max="150" step="5">
+      </div>
+    </div>
+
+    <div class="panel-title te-title" style="margin-top:16px;">RC Drift Estimator Advanced</div>
+    <div class="info-box" style="margin-bottom:10px;font-size:0.75rem;">
+      These values feed the <strong>RC Oscillator Drift Estimator</strong> panel below.
+      <code>LISTEN_EARLY_MS</code> and <code>SYNC_GRACE_MS</code> should match what is compiled into T-Energy firmware (<a href="#" style="color:var(--accent3);">SyncState.h</a>).
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label>RC Error: Best Case <span class="unit">(%)</span></label>
+        <input type="number" id="dr_rcBest" value="0.5" min="0.1" max="10" step="0.1" oninput="calcDriftEst()">
+      </div>
+      <div class="field">
+        <label>RC Error: Typical <span class="unit">(%)</span></label>
+        <input type="number" id="dr_rcTypical" value="1.5" min="0.1" max="10" step="0.1" oninput="calcDriftEst()">
+      </div>
+      <div class="field">
+        <label>RC Error: Worst Case <span class="unit">(%)</span></label>
+        <input type="number" id="dr_rcWorst" value="5.0" min="0.1" max="20" step="0.1" oninput="calcDriftEst()">
+      </div>
+      <div class="field">
+        <label>LISTEN_EARLY_MS <span class="unit">(s &mdash; window opens before expected sync)</span></label>
+        <input type="number" id="dr_listenEarly" value="15" min="1" max="3600" step="1" oninput="calcDriftEst()">
+      </div>
+      <div class="field">
+        <label>SYNC_GRACE_MS <span class="unit">(s &mdash; window stays open after expected sync)</span></label>
+        <input type="number" id="dr_syncGrace" value="45" min="1" max="3600" step="1" oninput="calcDriftEst()">
+      </div>
+      <div class="field">
+        <label>Active Time per Cycle <span class="unit">(s &mdash; awake per sample wake)</span></label>
+        <input type="number" id="dr_activePerCycle" value="8" min="1" max="120" step="1" oninput="calcDriftEst()">
+      </div>
+    </div>
+  </details>
+</div>
+
+<!-- Action Buttons -->
+<div class="actions">
+  <button class="btn-apply" onclick="runAllEstimates()">&#9654; Apply</button>
+  <button class="btn-clear" onclick="clearAllResults()">Clear Table</button>
+  <button class="btn-export" onclick="exportAllCSV()">Export CSV</button>
+  <span style="color:var(--muted);font-size:0.8rem;margin-left:8px" id="t0RowCount"></span>
+  <span style="color:var(--muted);font-size:0.8rem;margin-left:8px" id="teRowCount"></span>
+</div>
+
+<!-- Results -->
+<div class="panel results-wrap">
+  <div class="panel-title">Results</div>
+  <table id="resultsTable" style="min-width:1600px;">
+    <thead>
+      <tr>
+        <th rowspan="2">#</th>
+        <th class="group-head" colspan="10">Inputs</th>
+        <th class="group-head group-sep" colspan="6">Battery Estimate</th>
+        <th class="group-head group-sep" colspan="2">Time Estimates</th>
+        <th class="group-head group-sep" colspan="2">Sample Estimates</th>
+        <th class="group-head group-sep" colspan="4">Data &amp; Drift (T0)</th>
+      </tr>
+      <tr>
+        <th class="col-input">Board</th>
+        <th class="col-input">Sample<br>Period</th>
+        <th class="col-input">Sync<br>Period</th>
+        <th class="col-input">Nodes</th>
+        <th class="col-input">Mode</th>
+        <th class="col-input">Sleep</th>
+        <th class="col-input">Bulk Avg<br>(min)</th>
+        <th class="col-input">Web Freq<br>(hr)</th>
+        <th class="col-input">Battery<br>(mAh)</th>
+        <th class="col-input">T/H<br>Sensors</th>
+        <th class="col-output group-sep">Daily<br>mAh</th>
+        <th class="col-output">Sleep<br>mAh/d</th>
+        <th class="col-output">Web Sync<br>mAh/d</th>
+        <th class="col-output">Sampling<br>mAh/d</th>
+        <th class="col-output">ESP-NOW<br>mAh/d</th>
+        <th class="col-output">Other<br>mAh/d</th>
+        <th class="col-output group-sep">Lifetime<br>(days)</th>
+        <th class="col-output">Lifetime<br>(months)</th>
+        <th class="col-output group-sep">Samples<br>/day</th>
+        <th class="col-output">Syncs<br>/day</th>
+        <th class="col-output group-sep">Updates<br>/day</th>
+        <th class="col-output">SIM data<br>/mo (MB)</th>
+        <th class="col-output">RC Drift<br>Typical</th>
+        <th class="col-output">RC Drift<br>Worst</th>
+      </tr>
+    </thead>
+    <tbody id="resultsBody">
+    </tbody>
+  </table>
+  <div class="empty-msg" id="resultsEmptyMsg">Adjust settings and click <strong>Apply</strong> to calculate battery lifetime.</div>
+</div>
+
+<!-- Data Estimate -->
+<div class="panel" style="margin-top:16px;">
+  <div class="panel-title" style="color:var(--accent2);">Cellular Data &amp; ThingSpeak Usage Estimate</div>
+
+  <div class="info-box" style="margin-bottom:10px;">
+    Values are taken from <strong>Configuration</strong> above: Sample Period, ESP-NOW Sync Period (used as upload batch frequency), T-Energy Nodes, T0 sensor count, and T-Energy sensor count.
+    Hit <strong>Apply</strong> to refresh this section along with the battery estimates.
+  </div>
+
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap;">
+    <div class="field" style="min-width:180px;">
+      <label>TCP session overhead <span class="unit">(KB)</span></label>
+      <input type="number" id="de_tcpOverheadKB" value="3" min="0" max="20" oninput="calcDataEst()">
+    </div>
+    <div style="font-size:0.78rem;color:var(--muted);line-height:1.7;">
+      <span style="color:var(--text);font-weight:600;">Reading from config:</span><br>
+      Sample period: <span id="de_display_sample" style="color:var(--accent);">—</span> &nbsp;|&nbsp;
+      Upload every: <span id="de_display_upload" style="color:var(--accent);">—</span> &nbsp;|&nbsp;
+      Nodes: <span id="de_display_nodes" style="color:var(--accent3);">—</span> &nbsp;|&nbsp;
+      T0 sensors: <span id="de_display_t0s" style="color:var(--accent);">—</span> &nbsp;|&nbsp;
+      Sat sensors/node: <span id="de_display_tes" style="color:var(--accent3);">—</span>
+    </div>
+  </div>
+
+  <!-- Results grid -->
+  <div id="de_results" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;"></div>
+
+  <div style="margin-top:12px;font-size:0.78rem;color:var(--muted);line-height:1.6;">
+    <strong style="color:var(--text);">Field layout (v3):</strong>
+    f1 T0 batV (numeric) &nbsp;|&nbsp; f2 T0 sensors t1,rh1,t2,rh2 &nbsp;|&nbsp; f3 T0 status bat%,rssi,boot,heap &nbsp;|&nbsp;
+    f4 Sat-A status &nbsp;|&nbsp; f5 Sat-A sensors &nbsp;|&nbsp; f6 Sat-B status &nbsp;|&nbsp; f7 Sat-B sensors &nbsp;|&nbsp;
+    f8 System sdFreeKB,csq,uploadOk
+  </div>
+</div>
+
+<!-- ═══════════════════════════ DRIFT ESTIMATOR ═══════════════════════════ -->
+<div class="panel" id="driftPanel" style="margin-top:16px;">
+  <div class="panel-title" style="color:var(--accent3);">&#9202; RC Oscillator Drift Estimator &mdash; T-Energy Sync Window</div>
+  <div class="info-box">
+    The T-Energy S3 uses <strong>ESP32-S3-WROOM-1</strong> which has <strong>no onboard 32&nbsp;kHz crystal</strong>.
+    Sleep timing runs on the internal RC slow clock (~17.5&nbsp;kHz). The IDF calibrates this before each sleep,
+    but temperature shifts cause systematic bias &mdash; errors <em>accumulate</em> across cycles rather than cancelling out.
+    This panel shows how far T-Energy may be offset from T0&rsquo;s expected sync window at the configured sync period.
+    RC error values and window constants are configured under <strong>Advanced Settings &rsaquo; RC Drift Estimator Advanced</strong>.
+  </div>
+
+  <div id="dr_results"></div>
+  <div id="dr_recommendation" style="margin-top:12px;"></div>
+</div>
+
+</div><!-- /tab-t0 -->
+
+<script>
+// ============================================================================
+// DATA ESTIMATE
+// ============================================================================
+function calcDataEst() {
+  // Read from shared config inputs
+  const sampleMin   = Math.max(1, parseFloat(document.getElementById('sharedSamplePeriod').value) || 10);
+  const satNodes    = Math.min(2, Math.max(0, parseInt(document.getElementById('sharedTENodes').value)    || 0));
+  const t0sensors   = Math.min(8, Math.max(0, parseInt(document.getElementById('t0_sensorCount').value)   || 2));
+  const satSensors  = Math.min(8, Math.max(0, parseInt(document.getElementById('te_sensorCount').value)   || 2));
+  const uploadFreqH = Math.max(1, parseFloat(document.getElementById('syncFreqHours').value)             || 24);
+  const tcpOverKB   = Math.max(0, parseFloat(document.getElementById('de_tcpOverheadKB').value)          || 3);
+
+  // Update the inline display labels
+  const fmt = (m) => m >= 60 ? (m/60).toFixed(0)+'h' : m+'min';
+  const s = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  s('de_display_sample', fmt(sampleMin));
+  s('de_display_upload', uploadFreqH + 'h');
+  s('de_display_nodes',  satNodes);
+  s('de_display_t0s',    t0sensors);
+  s('de_display_tes',    satSensors);
+
+  // --- Estimate bytes per ThingSpeak update object ---
+  // Each field value is a CSV string; estimate its length conservatively.
+  // Format: {"created_at":"YYYY-MM-DDTHH:MM:SSZ","field1":"...","field2":"...",...}
+  const overhead_per_obj = 40; // created_at key+value + braces + separating comma
+  const field_key_bytes  = 11; // `,"fieldN":"` + closing `"`  average
+
+  // Always-present T0 fields
+  let fieldsBytes = 0;
+  fieldsBytes += field_key_bytes + 5;   // f1: batV  e.g. "3.85"
+  fieldsBytes += field_key_bytes + (t0sensors >= 1 ? 22 : 5); // f2: t1,rh1,t2,rh2 or "NC,NC,NC,NC"
+  fieldsBytes += field_key_bytes + 20;  // f3: bat%,rssi,boot,heap  e.g. "82.5,-73,3,180000"
+  fieldsBytes += field_key_bytes + 18;  // f8: sdFreeKB,csq,uploadOk  e.g. "2048000,12,5"
+
+  // Sat-A fields (f4+f5)
+  if (satNodes >= 1) {
+    fieldsBytes += field_key_bytes + 18; // f4 Sat-A status  "4.12,88.3,-68,41"
+    fieldsBytes += field_key_bytes + (satSensors >= 1 ? 22 : 5); // f5 Sat-A sensors
+  }
+  // Sat-B fields (f6+f7)
+  if (satNodes >= 2) {
+    fieldsBytes += field_key_bytes + 18; // f6 Sat-B status
+    fieldsBytes += field_key_bytes + (satSensors >= 1 ? 22 : 5); // f7 Sat-B sensors
+  }
+
+  const bytesPerUpdate = overhead_per_obj + fieldsBytes;
+
+  // --- Timing ---
+  const updatesPerDay    = 1440 / sampleMin;
+  const updatesPerBatch  = (uploadFreqH * 60) / sampleMin;
+  const batchesPerDay    = 24 / uploadFreqH;
+  const batchesPerMonth  = batchesPerDay * 30;
+
+  // --- Per-batch payload ---
+  const jsonWrapperBytes = 50 + (strlen_tsWriteKey = 16); // {"write_api_key":"...","updates":[...]}
+  const payloadBytes     = jsonWrapperBytes + updatesPerBatch * bytesPerUpdate;
+
+  // --- HTTP headers ---
+  const httpHeaderBytes = 160; // POST /channels/... + Host + Content-Type + Content-Length + \r\n\r\n
+  const httpRespBytes   = 80;  // ThingSpeak returns: {"success":true} or HTTP/1.1 202
+
+  const bytesPerSession = payloadBytes + httpHeaderBytes + httpRespBytes + (tcpOverKB * 1024);
+
+  // --- Monthly totals ---
+  const monthlyPayloadMB = (batchesPerMonth * bytesPerSession) / (1024 * 1024);
+  const monthlyUpdates   = Math.round(updatesPerDay * 30);
+  const tsFreeLimitMonth = 250000; // 3M/year = 250k/month
+  const tsPctUsed        = (monthlyUpdates / tsFreeLimitMonth * 100);
+
+  // --- ESP-NOW (local RF, not SIM data) ---
+  const espnowBytesPerPkt = 80; // conservative
+  const espnowPktsPerDay  = satNodes * updatesPerDay;
+  const espnowMBMonth     = (espnowPktsPerDay * espnowBytesPerPkt * 30) / (1024 * 1024);
+
+  // --- Render ---
+  const warn = tsPctUsed > 80;
+  const tsColor = tsPctUsed > 80 ? 'var(--danger)' : tsPctUsed > 40 ? 'var(--warn)' : 'var(--accent2)';
+
+  const card = (label, value, unit, color, sub) =>
+    `<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;">
+      <div style="font-size:0.75rem;color:var(--muted);margin-bottom:4px;">${label}</div>
+      <div style="font-size:1.4rem;font-weight:700;color:${color||'var(--accent)'};">${value}<span style="font-size:0.75rem;color:var(--muted);margin-left:4px;">${unit}</span></div>
+      ${sub ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">${sub}</div>` : ''}
+    </div>`;
+
+  document.getElementById('de_results').innerHTML =
+    card('Updates / day',     Math.round(updatesPerDay),       'updates',  'var(--accent)',  `${Math.round(updatesPerBatch)} per ${uploadFreqH}h batch`) +
+    card('Bytes / update',    bytesPerUpdate,                  'bytes',    'var(--accent)',  `${Math.round(payloadBytes/1024)} KB payload per batch`) +
+    card('Monthly SIM data',  monthlyPayloadMB < 1 ? (monthlyPayloadMB*1024).toFixed(0) : monthlyPayloadMB.toFixed(2),
+                                                               monthlyPayloadMB < 1 ? 'KB' : 'MB', 'var(--accent2)',
+                                                               `${batchesPerMonth} upload sessions/month`) +
+    card('ThingSpeak msgs',   monthlyUpdates.toLocaleString(), '/month',   tsColor,
+         `${tsPctUsed.toFixed(1)}% of free tier (250k/month)`) +
+    card('ESP-NOW RF data',   espnowMBMonth < 1 ? (espnowMBMonth*1024).toFixed(0) : espnowMBMonth.toFixed(2),
+                                                               espnowMBMonth < 1 ? 'KB' : 'MB', 'var(--muted)',
+                                                               'local radio only — no SIM cost') +
+    card('Update objects / month', monthlyUpdates.toLocaleString(), '', 'var(--text)',
+         `${updatesPerDay.toFixed(0)}/day × 30 days`);
+}
+
+// ============================================================================
+// LOCALSTORAGE PERSISTENCE
+// ============================================================================
+const LS_SETTINGS  = 'bee_settings_v1';
+const LS_T0RESULTS = 'bee_t0results_v1';
+const LS_TERESULTS = 'bee_teresults_v1';
+const MAX_SAVED_ROWS = 10;
+
+function saveSettings() {
+  const data = {};
+  document.querySelectorAll('input[id], select[id]').forEach(el => {
+    data[el.id] = (el.type === 'checkbox') ? el.checked : el.value;
+  });
+  try { localStorage.setItem(LS_SETTINGS, JSON.stringify(data)); } catch(e) {}
+}
+
+function loadSettings() {
+  let data;
+  try { data = JSON.parse(localStorage.getItem(LS_SETTINGS)); } catch(e) { return; }
+  if (!data) return;
+  Object.keys(data).forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = data[id];
+    else el.value = data[id];
+  });
+}
+
+function saveResults() {
+  try {
+    localStorage.setItem(LS_T0RESULTS, JSON.stringify(t0Results.slice(0, MAX_SAVED_ROWS)));
+    localStorage.setItem(LS_TERESULTS, JSON.stringify(teResults.slice(0, MAX_SAVED_ROWS)));
+  } catch(e) {}
+}
+
+function loadResults() {
+  try {
+    const t0 = JSON.parse(localStorage.getItem(LS_T0RESULTS));
+    if (Array.isArray(t0) && t0.length > 0) {
+      t0Results.push(...t0);
+      t0RowCounter = Math.max(...t0.map(r => r.num));
+    }
+  } catch(e) {}
+  try {
+    const te = JSON.parse(localStorage.getItem(LS_TERESULTS));
+    if (Array.isArray(te) && te.length > 0) {
+      teResults.push(...te);
+      teRowCounter = Math.max(...te.map(r => r.num));
+    }
+  } catch(e) {}
+  if (t0Results.length > 0 || teResults.length > 0) {
+    renderResultsTable();
+    updateT0RowCount();
+    updateTERowCount();
+  }
+}
+
+function clearAllStorage() {
+  try {
+    localStorage.removeItem(LS_T0RESULTS);
+    localStorage.removeItem(LS_TERESULTS);
+  } catch(e) {}
+}
+
+// ============================================================================
+// SHARED STATE + HELPERS
+// ============================================================================
+let t0RowCounter = 0;
+const t0Results  = [];
+let teRowCounter = 0;
+const teResults  = [];
+
+function syncSharedPeriod() {
+  // Shared schedule values are read directly by the estimators.
+}
+function syncToShared(srcId) {
+  // No-op: shared inputs live only in the Shared Schedule panel.
+}
+function getVal(id, fallback, allowZero = false) {
+  const v = parseFloat(document.getElementById(id).value);
+  if (isNaN(v)) return (fallback || 0);
+  if (allowZero) return (v < 0) ? (fallback || 0) : v;
+  return (v <= 0) ? (fallback || 0) : v;
+}
+function getBool(id) { return document.getElementById(id).checked; }
+function getStr(id)  { return document.getElementById(id).value; }
+
+function runAllEstimates() {
+  saveSettings();
+  runT0Estimate();
+  runTEEstimate();
+  calcDriftEst();
+  calcDataEst();
+}
+function clearAllResults() {
+  clearT0Results();
+  clearTEResults();
+  clearAllStorage();
+}
+function exportAllCSV() {
+  exportT0CSV();
+  exportTECSV();
+}
+
+function formatDuration(s) {
+  if (s < 60)   return s + 's';
+  if (s < 3600) return (s / 60).toFixed(0) + 'm';
+  return (s / 3600).toFixed(1) + 'h';
+}
+function lifetimeClass(days) {
+  if (days >= 180) return 'val-good';
+  if (days >= 30)  return 'val-ok';
+  return 'val-bad';
+}
+
+// ============================================================================
+// T0 ENERGY MODEL
+// ============================================================================
+function runT0Estimate() {
+  const mode          = getStr('deployMode');
+  const sleepEn       = getBool('sleepEnable');
+  const samplePeriodMin = getVal('sharedSamplePeriod', 10);
+  const syncPeriodMin   = getVal('sharedSyncPeriod', 60);
+  const samplePeriod    = samplePeriodMin * 60;
+  const syncPeriod      = syncPeriodMin * 60;
+  const bulkInterval  = getVal('bulkInterval', 15);
+  const syncFreqHours = getVal('syncFreqHours', 24);
+  const battCap       = getVal('batteryCapacity', 3000);
+  const tEnergyEn     = getBool('tEnergyEnable');
+  const tEnergyNodesRaw = parseInt(document.getElementById('sharedTENodes').value, 10);
+  const tEnergyNodes  = tEnergyEn ? Math.max(0, Math.min(2, isNaN(tEnergyNodesRaw) ? 0 : tEnergyNodesRaw)) : 0;
+  const derating      = getVal('batteryDerating', 85) / 100.0;
+
+  const I_sleep     = getVal('sleepCurrent');
+  const I_mcu       = getVal('mcuActive');
+  const I_wifi      = getVal('wifiActive');
+  const I_cell      = getVal('cellActive');
+  const I_sd        = getVal('sdWriteCurrent');
+  const t_sample    = getVal('sampleDuration');
+  const t_modemBoot = getVal('modemBoot');
+  const t_modemOff  = getVal('modemShutdown');
+  const t_cellBase  = getVal('cellBulkBase');
+  const t_cellInit  = getVal('cellInitReg');
+  const t_cellRow   = getVal('cellBulkPerRow');
+  const t_blynk     = getVal('blynkOps', 8, true);
+  const t_modemMax  = getVal('modemBlockMax');
+  const t_wifiConn  = getVal('wifiConnect');
+  const t_wifiBulk  = getVal('wifiBulkUpload');
+  const t_sdWrite   = getVal('sdWriteTime');
+  const t_boot      = getVal('bootOverhead');
+  const t_teWindowMs   = getVal('teRxWindowMs');              // ms: T0 listens per node
+  const t_teTxMs       = getVal('teTxSyncMs', 15, true);     // ms: T0 sends SYNC+ACK per node
+  const t_teProcMs     = getVal('teRxProcMs', 120, true);    // ms: parse/store overhead per node
+  const t_teEarlyWakeS = getVal('teEarlyWakeS', 1.0, true);  // s: T0 wakes before epoch grid
+  const t0SensorCount  = Math.max(0, Math.round(getVal('t0_sensorCount', 2, true)));
+  const t0SensorMs     = getVal('t0_sensorMs', 25, true);
+  const t0SensorCurrent = getVal('t0_sensorCurrent', 40, true);
+
+  const usable_mAh  = battCap * derating;
+  const samplesPerDay   = Math.floor(86400 / samplePeriod);
+  const syncsPerDay     = (tEnergyNodes > 0) ? Math.floor(86400 / syncPeriod) : 0;
+  const uploadsPerDay   = 24.0 / syncFreqHours;
+  const uploadsPerMonth = 30.0 * uploadsPerDay;
+  const bulkInterval_s  = bulkInterval * 60;
+  const rowsPerUpload   = Math.max(1, Math.floor((syncFreqHours * 3600) / bulkInterval_s));
+
+  // --- Sample energy (base + sensors + SD write per wake) ---
+  const t0Sensors_s = (t0SensorCount * t0SensorMs) / 1000.0;
+  const t_sampleTotal = t_sample + t0Sensors_s;
+  let sampleActivePerDay_s;
+  if (sleepEn) {
+    sampleActivePerDay_s = samplesPerDay * t_sampleTotal;
+  } else {
+    const t_readOnly = Math.max(0, t_sampleTotal - t_boot);
+    sampleActivePerDay_s = samplesPerDay * t_readOnly;
+  }
+  const sdEnergy_mAh     = (samplesPerDay * t_sdWrite * I_sd) / 3600.0;
+  const sensorEnergy_mAh = (samplesPerDay * t0Sensors_s * t0SensorCurrent) / 3600.0;
+  const sampleEnergy_mAh = (sampleActivePerDay_s * I_mcu) / 3600.0 + sdEnergy_mAh + sensorEnergy_mAh;
+
+  // --- Early-wake penalty (T0 idles at MCU current before epoch grid for satellite sync) ---
+  // Applied every sample cycle when tEnergyNodes > 0
+  const earlyWakePerDay_s  = (tEnergyNodes > 0) ? syncsPerDay * t_teEarlyWakeS : 0;
+  const earlyWakeEnergy_mAh = (earlyWakePerDay_s * I_mcu) / 3600.0;
+
+  // --- Satellite ESP-NOW window (RX HELLO/DATA + TX SYNC/ACK + processing) ---
+  // Extra current above MCU idle for the radio-active portion
+  const I_espnowExtra    = Math.max(0, I_wifi - I_mcu);
+  const tePerSync_s    = (tEnergyNodes * (t_teWindowMs + t_teTxMs + t_teProcMs)) / 1000.0;
+  const teActivePerDay_s = syncsPerDay * tePerSync_s;
+  const teEnergy_mAh     = (teActivePerDay_s * I_wifi) / 3600.0;
+
+  // --- Upload energy ---
+  let uploadDuration_s = 0;
+  let I_radio = I_mcu;
+  if (mode === 'cell') {
+    I_radio = I_cell;
+    uploadDuration_s = t_modemBoot + t_cellInit + t_cellBase + (rowsPerUpload * t_cellRow) + t_blynk + t_modemOff;
+    uploadDuration_s = Math.min(uploadDuration_s, t_modemMax);
+  } else {
+    I_radio = I_wifi;
+    uploadDuration_s = t_wifiConn + t_wifiBulk + (rowsPerUpload * 0.05);
+  }
+  const uploadActivePerDay_s = uploadsPerDay * uploadDuration_s;
+  const uploadEnergy_mAh = (uploadActivePerDay_s * I_radio) / 3600.0;
+
+  // --- Sleep energy ---
+  const totalActivePerDay_s = sampleActivePerDay_s + earlyWakePerDay_s + teActivePerDay_s + uploadActivePerDay_s;
+  let sleepEnergy_mAh;
+  if (sleepEn) {
+    const sleepTime_s = Math.max(0, 86400 - totalActivePerDay_s);
+    sleepEnergy_mAh = (sleepTime_s * I_sleep) / 3600.0;
+  } else {
+    const idleTime_s = Math.max(0, 86400 - totalActivePerDay_s);
+    sleepEnergy_mAh = (idleTime_s * I_mcu) / 3600.0;
+  }
+
+  const dailyTotal_mAh = sleepEnergy_mAh + sampleEnergy_mAh + earlyWakeEnergy_mAh + teEnergy_mAh + uploadEnergy_mAh;
+  const lifetimeDays   = (dailyTotal_mAh > 0) ? usable_mAh / dailyTotal_mAh : 0;
+  const lifetimeMonths = lifetimeDays / 30.44;
+  const pctAsleep = (sleepEn && totalActivePerDay_s < 86400)
+    ? ((86400 - totalActivePerDay_s) / 86400 * 100) : 0;
+
+  // --- Data estimate snapshot (replicated from calcDataEst logic) ---
+  const _de_teSensors   = Math.max(0, Math.round(getVal('te_sensorCount', 2, true)));
+  const _de_tcpOverKB   = getVal('de_tcpOverheadKB', 3, true);
+  const _de_updPerDay   = 86400 / samplePeriod;
+  const _de_updPerBatch = (syncFreqHours * 3600) / samplePeriod;
+  const _de_batchesPMo  = 30 * (24 / syncFreqHours);
+  const _fkb = 11, _ohd = 40;
+  let _fb = _fkb+5 + _fkb+(t0SensorCount>=1?22:5) + _fkb+20 + _fkb+18;
+  if (tEnergyNodes >= 1) { _fb += _fkb+18 + _fkb+(_de_teSensors>=1?22:5); }
+  if (tEnergyNodes >= 2) { _fb += _fkb+18 + _fkb+(_de_teSensors>=1?22:5); }
+  const _bpu   = _ohd + _fb;
+  const _pyld  = 66 + _de_updPerBatch * _bpu;
+  const _bpSes = _pyld + 240 + (_de_tcpOverKB * 1024);
+  const _simMB = (_de_batchesPMo * _bpSes) / (1024 * 1024);
+
+  // --- RC drift snapshot ---
+  const _rcTyp = getVal('dr_rcTypical', 1.5) / 100;
+  const _rcWst = getVal('dr_rcWorst',   5.0) / 100;
+  const _actS  = getVal('dr_activePerCycle', 8);
+  const _slpCy = Math.max(1, samplePeriod - _actS);
+  const _cyBSy = Math.max(1, syncPeriod / samplePeriod);
+  const _totSl = _slpCy * _cyBSy;
+  const _driftTyp_s = _totSl * _rcTyp;
+  const _driftWst_s = _totSl * _rcWst;
+  const _fmtDrift = s => s < 60 ? s.toFixed(1)+'s' : s < 3600 ? (s/60).toFixed(1)+'m' : (s/3600).toFixed(2)+'h';
+
+  t0RowCounter++;
+  const row = {
+    num: t0RowCounter,
+    board: 'T0',
+    samplePeriod: formatDuration(samplePeriod),
+    syncPeriod: formatDuration(syncPeriod),
+    nodes: tEnergyNodes,
+    mode: mode === 'cell' ? 'CELL' : 'WiFi',
+    sleep: sleepEn ? 'YES' : 'NO',
+    bulkInterval: bulkInterval + ' min',
+    webFreq: syncFreqHours + (syncFreqHours === 1 ? ' hr' : ' hrs'),
+    battCap,
+    sensorCount: t0SensorCount,
+    dailyTotal: dailyTotal_mAh,
+    sleepMah: sleepEnergy_mAh,
+    webSyncMah: uploadEnergy_mAh,
+    sampleMah: sampleEnergy_mAh,
+    espNowMah: teEnergy_mAh,
+    otherMah: earlyWakeEnergy_mAh,
+    lifetimeDays,
+    lifetimeMonths,
+    samplesPerDay,
+    syncsPerDay,
+    updatesPerDay: Math.round(_de_updPerDay),
+    simDataMB: _simMB,
+    driftTypical: _fmtDrift(_driftTyp_s),
+    driftWorst:   _fmtDrift(_driftWst_s)
+  };
+  t0Results.unshift(row);
+  if (t0Results.length > MAX_SAVED_ROWS) t0Results.length = MAX_SAVED_ROWS;
+  renderT0Table();
+  updateT0RowCount();
+  saveResults();
+}
+
+function renderResultsTable() {
+  const tbody    = document.getElementById('resultsBody');
+  const emptyMsg = document.getElementById('resultsEmptyMsg');
+  if (t0Results.length === 0 && teResults.length === 0) { tbody.innerHTML = ''; emptyMsg.style.display = 'block'; return; }
+  emptyMsg.style.display = 'none';
+  let html = '';
+  const rows = [...t0Results, ...teResults].sort((a, b) => b.num - a.num);
+  const formatMah = (v) => (typeof v === 'number' ? v.toFixed(2) : '-');
+  rows.forEach((r, i) => {
+    const isTe = r.board === 'T-Energy';
+    const cls = (i === 0) ? 'row-latest row-flash' : '';
+    html += `<tr class="${cls}">
+      <td>${r.num}</td>
+      <td class="col-input ${isTe ? 'val-te' : 'val-mode'}">${r.board}</td>
+      <td class="col-input">${r.samplePeriod}</td>
+      <td class="col-input">${r.syncPeriod}</td>
+      <td class="col-input">${r.nodes}</td>
+      <td class="col-input val-mode">${r.mode}</td>
+      <td class="col-input">${r.sleep}</td>
+      <td class="col-input">${r.bulkInterval}</td>
+      <td class="col-input">${r.webFreq}</td>
+      <td class="col-input">${r.battCap}</td>
+      <td class="col-input">${r.sensorCount}</td>
+      <td class="col-output group-sep">${formatMah(r.dailyTotal)}</td>
+      <td class="col-output">${formatMah(r.sleepMah)}</td>
+      <td class="col-output">${formatMah(r.webSyncMah)}</td>
+      <td class="col-output">${formatMah(r.sampleMah)}</td>
+      <td class="col-output">${formatMah(r.espNowMah)}</td>
+      <td class="col-output">${formatMah(r.otherMah)}</td>
+      <td class="col-output group-sep ${lifetimeClass(r.lifetimeDays)}"><strong>${r.lifetimeDays.toFixed(1)}</strong></td>
+      <td class="col-output ${lifetimeClass(r.lifetimeDays)}"><strong>${r.lifetimeMonths.toFixed(1)}</strong></td>
+      <td class="col-output group-sep">${r.samplesPerDay}</td>
+      <td class="col-output">${r.syncsPerDay}</td>
+      <td class="col-output group-sep">${r.updatesPerDay != null ? r.updatesPerDay : '-'}</td>
+      <td class="col-output">${r.simDataMB != null ? r.simDataMB.toFixed(2) : '-'}</td>
+      <td class="col-output">${r.driftTypical != null ? r.driftTypical : '-'}</td>
+      <td class="col-output">${r.driftWorst   != null ? r.driftWorst   : '-'}</td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+}
+
+function renderT0Table() { renderResultsTable(); }
+function clearT0Results()   { t0Results.length = 0; t0RowCounter = 0; renderResultsTable(); updateT0RowCount(); }
+function updateT0RowCount() {
+  document.getElementById('t0RowCount').textContent =
+    t0Results.length > 0 ? t0Results.length + ' estimate' + (t0Results.length > 1 ? 's' : '') : '';
+}
+function exportT0CSV() {
+  if (t0Results.length === 0) return;
+  const headers = ['#','Board','Sample Period','Sync Period','Nodes','Mode','Sleep','Bulk Avg (min)','Web Freq (hr)',
+    'Battery mAh','T/H Sensors','Daily mAh','Sleep mAh/d','Web Sync mAh/d','Sampling mAh/d','ESP-NOW mAh/d','Other mAh/d',
+    'Lifetime Days','Lifetime Months','Samples/day','Syncs/day',
+    'Updates/day','SIM Data/mo (MB)','RC Drift Typical','RC Drift Worst'];
+  let csv = headers.join(',') + '\n';
+  t0Results.forEach(r => {
+    csv += [r.num,r.board,r.samplePeriod,r.syncPeriod,r.nodes,r.mode,r.sleep,r.bulkInterval,r.webFreq,
+      r.battCap,r.sensorCount,r.dailyTotal.toFixed(2),r.sleepMah.toFixed(2),
+      r.webSyncMah.toFixed(2),r.sampleMah.toFixed(2),r.espNowMah.toFixed(2),r.otherMah.toFixed(2),
+      r.lifetimeDays.toFixed(1),r.lifetimeMonths.toFixed(1),r.samplesPerDay,r.syncsPerDay,
+      r.updatesPerDay ?? '-', r.simDataMB != null ? r.simDataMB.toFixed(2) : '-',
+      r.driftTypical ?? '-', r.driftWorst ?? '-'].join(',') + '\n';
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 't0_battery_estimates.csv';
+  a.click();
+}
+
+// ============================================================================
+// T-ENERGY ENERGY MODEL  (per-wake cycle budget from T_ENERGY_PLAN.md § 11)
+// ============================================================================
+function runTEEstimate() {
+  const samplePeriodMin = getVal('sharedSamplePeriod', 10);
+  const syncPeriodMin   = getVal('sharedSyncPeriod', 60);
+  const samplePeriod    = samplePeriodMin * 60;
+  const syncPeriod      = syncPeriodMin * 60;
+  const battCap       = getVal('te_battCap', 3000);
+  const sleepEn       = getBool('te_sleepEnable');
+  const listenMs      = getVal('te_listenMs', 400);
+  const listenLongMs  = getVal('te_listenLongMs', 1200);
+  const listenEveryN  = getVal('te_listenEveryN', 10);
+  const retries       = getVal('te_retries', 2, true);
+  const derating      = getVal('te_battDerating', 85) / 100.0;
+
+  const sleepUa    = getVal('te_sleepUa', 10);
+  const I_boot        = getVal('te_bootCurrent', 80);
+  const t_boot_ms     = getVal('te_bootMs', 300);
+  const I_i2c         = getVal('te_i2cCurrent', 20);
+  const I_teMcuActive = getVal('te_mcuActive', 50);
+  const t_i2c_ms      = getVal('te_i2cMs', 10);
+  const I_tx          = getVal('te_txCurrent', 120);
+  const t_tx_ms       = getVal('te_txMs', 10);
+  const I_rx          = getVal('te_rxCurrent', 80);
+  const t_flash_ms    = getVal('te_flashMs', 20);
+  const I_flash       = getVal('te_flashCurrent', 40);
+  const t_syncApplyMs  = getVal('te_syncApplyMs', 20, true); // ms: computeNextWake after SYNC received
+  const teSensorCount  = Math.max(0, Math.round(getVal('te_sensorCount', 2, true)));
+  const teSensorMs     = getVal('te_sensorMs', 25, true);
+  const teSensorCurrent = getVal('te_sensorCurrent', 40, true);
+
+  const usable_mAh    = battCap * derating;
+  const samplesPerDay = Math.floor(86400 / samplePeriod);
+  const syncsPerDay   = Math.floor(86400 / syncPeriod);
+  const periodsMatch  = Math.abs(samplePeriod - syncPeriod) < 0.001;
+
+  // Per-wake active phases (ms)
+  const boot_ms    = t_boot_ms;
+  const sensor_ms  = teSensorCount * teSensorMs;
+  const i2c_ms     = t_i2c_ms + sensor_ms;
+  // HELLO + DATA each with retry budget
+  const tx_frames = 2 * (1 + retries);
+  const tx_ms     = tx_frames * t_tx_ms;
+  // Weighted average listen window
+  const normalFraction = (listenEveryN - 1) / listenEveryN;
+  const longFraction   = 1.0 / listenEveryN;
+  const avgListenMs    = normalFraction * listenMs + longFraction * listenLongMs;
+  const flash_ms       = t_flash_ms;
+  // SYNC processing: computeNextWake() + RTC correction, runs at boot-level CPU current
+  const sync_ms        = t_syncApplyMs;
+
+  const sampleWakeCount = samplesPerDay;
+  const syncWakeCount   = periodsMatch ? samplesPerDay : syncsPerDay;
+  const bootWakeCount   = periodsMatch ? sampleWakeCount : (sampleWakeCount + syncWakeCount);
+  const sampleWakeMs    = boot_ms + i2c_ms + flash_ms;
+  const syncWakeMs      = boot_ms + tx_ms + avgListenMs + sync_ms;
+  const totalActiveMs   = periodsMatch
+    ? (sampleWakeCount * (sampleWakeMs + tx_ms + avgListenMs + sync_ms))
+    : (sampleWakeCount * sampleWakeMs) + (syncWakeCount * syncWakeMs);
+  const totalMsDay      = 86400 * 1000;
+  const sleepMsDay      = Math.max(0, totalMsDay - totalActiveMs);
+
+  // Energy per event (µAh)
+  const mAhPerMs        = 1.0 / 3600000.0;
+  const e_boot_uAh      = I_boot  * boot_ms      * mAhPerMs * 1000;
+  const e_i2c_uAh       = I_i2c   * t_i2c_ms     * mAhPerMs * 1000;
+  const e_sensor_uAh    = teSensorCurrent * sensor_ms * mAhPerMs * 1000;
+  const e_tx_uAh        = I_tx    * tx_ms        * mAhPerMs * 1000;
+  const e_rx_uAh        = I_rx    * avgListenMs  * mAhPerMs * 1000;
+  const e_flash_uAh     = I_flash * flash_ms     * mAhPerMs * 1000;
+
+  const sampleMcuMs      = t_i2c_ms + sensor_ms + flash_ms;
+  const syncApplyMcuMs   = sync_ms;
+  const e_mcuActive_uAh  = I_teMcuActive * ((sampleWakeCount * sampleMcuMs) + (syncWakeCount * syncApplyMcuMs)) * mAhPerMs * 1000;
+  const e_syncApply_uAh  = I_teMcuActive * (syncWakeCount * syncApplyMcuMs) * mAhPerMs * 1000;
+
+  const e_active_uAh =
+    (e_boot_uAh * bootWakeCount) +
+    (e_mcuActive_uAh) +
+    (e_i2c_uAh * sampleWakeCount) +
+    (e_sensor_uAh * sampleWakeCount) +
+    (e_flash_uAh * sampleWakeCount) +
+    (e_tx_uAh * syncWakeCount) +
+    (e_rx_uAh * syncWakeCount);
+
+  const e_sleep_uAh = sleepEn
+    ? (sleepUa * sleepMsDay / 3600000.0) // µA × ms / 3600000
+    : (I_boot * sleepMsDay * mAhPerMs * 1000); // idle at boot current when deep sleep disabled
+
+  // Daily figures
+  const dailyEnergy_mAh  = (e_active_uAh + e_sleep_uAh) / 1000.0;
+  const sleepMah_d       = e_sleep_uAh / 1000.0;
+  const bootMah_d        = (e_boot_uAh * bootWakeCount) / 1000.0;
+  const txMah_d          = (e_tx_uAh * syncWakeCount) / 1000.0;
+  const rxMah_d          = (e_rx_uAh * syncWakeCount) / 1000.0;
+  const flashMah_d       = (e_flash_uAh * sampleWakeCount) / 1000.0;
+  const syncApplyMah_d   = e_syncApply_uAh / 1000.0;
+  const sampleMcuMah_d   = (I_teMcuActive * (sampleWakeCount * sampleMcuMs) * mAhPerMs * 1000) / 1000.0;
+  const i2cMah_d         = (e_i2c_uAh * sampleWakeCount) / 1000.0;
+  const sensorMah_d      = (e_sensor_uAh * sampleWakeCount) / 1000.0;
+
+  const lifetimeDays   = (dailyEnergy_mAh > 0) ? usable_mAh / dailyEnergy_mAh : 0;
+  const lifetimeMonths = lifetimeDays / 30.44;
+  const pctActive      = (totalActiveMs / totalMsDay) * 100;
+
+  teRowCounter++;
+  const row = {
+    num: teRowCounter,
+    board: 'T-Energy',
+    samplePeriod: formatDuration(samplePeriod),
+    syncPeriod: formatDuration(syncPeriod),
+    nodes: parseInt(document.getElementById('sharedTENodes').value, 10) || 0,
+    mode: '-',
+    sleep: sleepEn ? 'YES' : 'NO',
+    bulkInterval: '-',
+    webFreq: '-',
+    battCap,
+    sensorCount: teSensorCount,
+    dailyTotal: dailyEnergy_mAh,
+    sleepMah: sleepMah_d,
+    webSyncMah: '-',
+    sampleMah: sampleMcuMah_d + i2cMah_d + sensorMah_d + flashMah_d,
+    espNowMah: txMah_d + rxMah_d,
+    otherMah: bootMah_d + syncApplyMah_d,
+    lifetimeDays,
+    lifetimeMonths,
+    samplesPerDay,
+    syncsPerDay
+  };
+  teResults.unshift(row);
+  if (teResults.length > MAX_SAVED_ROWS) teResults.length = MAX_SAVED_ROWS;
+  renderTETable();
+  updateTERowCount();
+  saveResults();
+}
+
+function renderTETable() { renderResultsTable(); }
+
+function clearTEResults()  { teResults.length = 0; teRowCounter = 0; renderResultsTable(); updateTERowCount(); }
+function updateTERowCount() {
+  document.getElementById('teRowCount').textContent =
+    teResults.length > 0 ? teResults.length + ' estimate' + (teResults.length > 1 ? 's' : '') : '';
+}
+function exportTECSV() {
+  if (teResults.length === 0) return;
+  const headers = ['#','Board','Sample Period','Sync Period','Nodes','Mode','Sleep','Bulk Avg (min)','Web Freq (hr)',
+    'Battery mAh','T/H Sensors','Daily mAh','Sleep mAh/d','Web Sync mAh/d','Sampling mAh/d','ESP-NOW mAh/d','Other mAh/d',
+    'Lifetime Days','Lifetime Months','Samples/day','Syncs/day'];
+  let csv = headers.join(',') + '\n';
+  teResults.forEach(r => {
+    csv += [r.num,r.board,r.samplePeriod,r.syncPeriod,r.nodes,r.mode,r.sleep,r.bulkInterval,r.webFreq,
+      r.battCap,r.sensorCount,r.dailyTotal.toFixed(2),r.sleepMah.toFixed(2),
+      (r.webSyncMah === '-' ? '-' : r.webSyncMah.toFixed(2)),
+      (r.sampleMah === '-' ? '-' : r.sampleMah.toFixed(2)),
+      (r.espNowMah === '-' ? '-' : r.espNowMah.toFixed(2)),
+      (r.otherMah === '-' ? '-' : r.otherMah.toFixed(2)),
+      r.lifetimeDays.toFixed(1),r.lifetimeMonths.toFixed(1),r.samplesPerDay,r.syncsPerDay].join(',') + '\n';
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'tenergy_battery_estimates.csv';
+  a.click();
+}
+
+// ============================================================================
+// DRIFT ESTIMATOR
+// ============================================================================
+function calcDriftEst() {
+  const samplePeriod_s  = getVal('sharedSamplePeriod', 10) * 60;
+  const syncPeriod_s    = getVal('sharedSyncPeriod', 60) * 60;
+  const rcBest    = getVal('dr_rcBest',    0.5) / 100;
+  const rcTypical = getVal('dr_rcTypical', 1.5) / 100;
+  const rcWorst   = getVal('dr_rcWorst',   5.0) / 100;
+  const listenEarly_s    = getVal('dr_listenEarly', 15);
+  const syncGrace_s      = getVal('dr_syncGrace',   45);
+  const activePerCycle_s = getVal('dr_activePerCycle', 8);
+
+  // Actual sleep per cycle (what the RC timer is actually measuring)
+  const sleepPerCycle_s = Math.max(1, samplePeriod_s - activePerCycle_s);
+
+  // How many sample cycles elapse between T0 syncs?
+  // e.g. samplePeriod=30min, syncPeriod=24hr → 48 cycles
+  const cyclesBetweenSync = Math.max(1, syncPeriod_s / samplePeriod_s);
+
+  // Total sleep between syncs = sleepPerCycle × cycles
+  // Drift is systematic (temperature bias doesn't cancel) so it stacks
+  const totalSleep_s = sleepPerCycle_s * cyclesBetweenSync;
+  const driftBest_s    = totalSleep_s * rcBest;
+  const driftTypical_s = totalSleep_s * rcTypical;
+  const driftWorst_s   = totalSleep_s * rcWorst;
+
+  const windowTotal_s = listenEarly_s + syncGrace_s;
+
+  const formatS = s => {
+    if (s < 60)   return s.toFixed(1) + ' s';
+    if (s < 3600) return (s / 60).toFixed(1) + ' min';
+    return (s / 3600).toFixed(2) + ' hr';
+  };
+  const fCycles = Math.round(cyclesBetweenSync);
+  const cycleLabel = fCycles === 1 ? '1 sleep cycle' : fCycles + ' sleep cycles';
+
+  const scenarios = [
+    { label: 'Best Case',  pct: rcBest    * 100, drift: driftBest_s },
+    { label: 'Typical',   pct: rcTypical * 100, drift: driftTypical_s },
+    { label: 'Worst Case', pct: rcWorst   * 100, drift: driftWorst_s },
+  ];
+
+  let html = '';
+  scenarios.forEach(sc => {
+    const ratio = sc.drift / windowTotal_s;
+    const barPct = Math.min(100, ratio * 100).toFixed(1);
+    let cls, verdict, color;
+    if (ratio <= 0.5)    { cls = 'drift-ok';   verdict = '&#10003; OK';     color = 'var(--accent2)'; }
+    else if (ratio <= 1) { cls = 'drift-warn'; verdict = '&#9888; Tight';   color = 'var(--warn)'; }
+    else                 { cls = 'drift-bad';  verdict = '&#10007; Miss';   color = 'var(--danger)'; }
+
+    const coverageStr = ratio <= 1
+      ? (1 / ratio).toFixed(1) + '&times; headroom'
+      : ratio.toFixed(1) + '&times; over window';
+
+    html += `<div class="drift-scenario ${cls}">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:0.82rem;font-weight:600;color:var(--text);">${sc.label}</span>
+        <span style="font-size:0.82rem;font-weight:700;color:${color};">${verdict}</span>
+      </div>
+      <div style="font-size:0.7rem;color:var(--muted);">RC error &plusmn;${sc.pct.toFixed(1)}%</div>
+      <div style="font-size:1.5rem;font-weight:700;color:${color};margin:4px 0;">${formatS(sc.drift)}</div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-bottom:6px;">accumulated across ${cycleLabel}</div>
+      <div class="drift-bar-track">
+        <div class="drift-bar-fill" style="width:${barPct}%;background:${color};"></div>
+      </div>
+      <div style="font-size:0.7rem;color:var(--muted);">${coverageStr} &nbsp;&middot;&nbsp; window ${formatS(listenEarly_s)}+${formatS(syncGrace_s)}=${formatS(windowTotal_s)}</div>
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:2px;">sleep/cycle ${formatS(sleepPerCycle_s)} &times; ${fCycles} = ${formatS(totalSleep_s)} total sleep</div>
+    </div>`;
+  });
+  document.getElementById('dr_results').innerHTML = html;
+
+  // --- Recommendation ---
+  let rec = '';
+  if (driftTypical_s > windowTotal_s) {
+    const needed_s   = Math.ceil(driftTypical_s * 1.5);
+    const half       = Math.ceil(needed_s / 2);
+    rec = `<div class="info-box" style="border-color:var(--danger);margin-top:0;">
+      <strong style="color:var(--danger);">&#9888; Window too narrow — T-Energy will likely miss T0&rsquo;s sync.</strong><br>
+      Typical drift (${formatS(driftTypical_s)}) exceeds the ${formatS(windowTotal_s)} listen window across ${cycleLabel}.<br><br>
+      <strong>Options:</strong><br>
+      &bull; Widen: <code>LISTEN_EARLY_MS = ${half}s, SYNC_GRACE_MS = ${half}s</code> (${formatS(needed_s)} total window)<br>
+      &bull; Reduce sync period to match sample period (${formatS(samplePeriod_s)}) &mdash; re-anchor every wake<br>
+      &bull; Solder 32.768&nbsp;kHz crystal to GPIO15/16 &mdash; reduces drift to ~1&ndash;5&nbsp;s over 24&nbsp;hr
+    </div>`;
+  } else if (driftTypical_s > windowTotal_s * 0.5) {
+    const extra_s = Math.ceil(driftTypical_s - windowTotal_s * 0.5);
+    rec = `<div class="info-box" style="border-color:var(--warn);margin-top:0;">
+      <strong style="color:var(--warn);">&#9888; Window is tight — cold or warm boards may miss sync.</strong><br>
+      Typical drift (${formatS(driftTypical_s)}) uses ${(driftTypical_s / windowTotal_s * 100).toFixed(0)}% of the window.
+      Consider adding ~${extra_s}&nbsp;s to <code>SYNC_GRACE_MS</code> for comfortable headroom.
+    </div>`;
+  } else if (driftWorst_s > windowTotal_s) {
+    rec = `<div class="info-box" style="border-color:var(--warn);margin-top:0;">
+      <strong style="color:var(--warn);">&#9888; Worst case exceeds window (typical is fine).</strong><br>
+      Typical drift (${formatS(driftTypical_s)}) fits, but worst case (${formatS(driftWorst_s)}) does not.
+      Acceptable for most deployments; widen grace window if boards run at temperature extremes.
+    </div>`;
+  } else {
+    rec = `<div class="info-box" style="border-color:var(--accent2);margin-top:0;">
+      <strong style="color:var(--accent2);">&#10003; Window is adequate for all scenarios.</strong><br>
+      Even worst-case drift (${formatS(driftWorst_s)}) fits within the ${formatS(windowTotal_s)} listen window
+      across ${cycleLabel} (${formatS(samplePeriod_s)} sample &times; ${formatS(syncPeriod_s)} sync).
+    </div>`;
+  }
+  document.getElementById('dr_recommendation').innerHTML = rec;
+}
+
+// ============================================================================
+// INIT
+// ============================================================================
+window.addEventListener('DOMContentLoaded', () => {
+  loadSettings();       // restore inputs first
+  syncSharedPeriod();
+  loadResults();        // restore saved rows (renders them)
+  calcDataEst();        // data estimate reads its own inputs
+  calcDriftEst();       // drift reads shared sync/sample period inputs
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings -- Seaweed Station Dashboard</title>
+<style>
+:root {
+  --bg:          #0f172a;
+  --bg-card:     #1e293b;
+  --bg-alt:      #162032;
+  --bg-hover:    #334155;
+  --bg-input:    #0f172a;
+  --text:        #f1f5f9;
+  --text-sec:    #94a3b8;
+  --text-muted:  #64748b;
+  --accent:      #0ea5e9;
+  --accent-dim:  #0284c7;
+  --success:     #22c55e;
+  --success-dim: #166534;
+  --warning:     #f59e0b;
+  --warning-dim: #92400e;
+  --danger:      #ef4444;
+  --danger-dim:  #991b1b;
+  --border:      #334155;
+  --radius:      10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+.header {
+  background: linear-gradient(135deg, #0c4a6e 0%, #1e293b 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-left h1 { font-size: 1.2rem; font-weight: 600; }
+.header-left .sub { font-size: 0.75rem; color: var(--text-sec); }
+.wave { font-size: 1.4rem; }
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.btn {
+  padding: 7px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn:hover { background: var(--bg-hover); border-color: var(--accent); }
+.btn-primary { background: var(--accent-dim); border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent); }
+.btn-success { background: var(--success-dim); border-color: var(--success); }
+.btn-success:hover { background: #15803d; }
+.btn-warning { background: var(--warning-dim); border-color: var(--warning); color: #fef3c7; }
+.btn-warning:hover { background: #b45309; }
+.btn-lg { padding: 10px 22px; font-size: 0.9rem; }
+.btn-sm { padding: 4px 12px; font-size: 0.75rem; }
+
+/* ── Layout ──────────────────────────────────────────────────────── */
+.main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Section cards ───────────────────────────────────────────────── */
+.section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.section-header {
+  padding: 14px 20px;
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-header h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.section-icon { font-size: 1.1rem; }
+.section-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-left: auto;
+  max-width: 340px;
+  text-align: right;
+}
+.section-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+/* ── Form fields ─────────────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.field-row .field { flex: 1; min-width: 180px; }
+
+label {
+  font-size: 0.75rem;
+  color: var(--text-sec);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+.field-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="time"],
+input[type="number"],
+select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 0.85rem;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(14,165,233,0.15); }
+input.wide { max-width: none; }
+
+/* ── Schedule toggle ─────────────────────────────────────────────── */
+.schedule-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  width: fit-content;
+}
+.schedule-option {
+  padding: 9px 22px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-sec);
+  background: var(--bg-input);
+  border: none;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.schedule-option:hover { background: var(--bg-hover); color: var(--text); }
+.schedule-option.active { background: var(--accent-dim); color: #fff; font-weight: 600; }
+.schedule-option:first-child { border-right: 1px solid var(--border); }
+
+/* ── Info boxes ──────────────────────────────────────────────────── */
+.info-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.8rem;
+  color: var(--text-sec);
+  line-height: 1.6;
+}
+.info-box.warn  { border-color: var(--warning); background: var(--warning-dim); color: #fef3c7; }
+.info-box.info  { border-color: var(--accent);  background: rgba(14,165,233,0.08); }
+.info-box .info-title { font-weight: 600; color: var(--text); margin-bottom: 4px; font-size: 0.82rem; }
+
+/* ── Code block ──────────────────────────────────────────────────── */
+.code-block {
+  background: #0a0f1a;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.8rem;
+  color: #a5f3fc;
+  overflow-x: auto;
+  white-space: pre;
+  position: relative;
+}
+.code-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.code-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.copy-btn {
+  font-size: 0.72rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  color: var(--text-sec);
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.copy-btn:hover { border-color: var(--accent); color: var(--text); }
+.copy-btn.copied { color: var(--success); border-color: var(--success); }
+
+/* ── Status / save feedback ──────────────────────────────────────── */
+.save-status {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: var(--success-dim);
+  border: 1px solid var(--success);
+  color: #bbf7d0;
+}
+.save-status.show { display: flex; }
+
+/* ── Bottom action bar ───────────────────────────────────────────── */
+.action-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  position: sticky;
+  bottom: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+.action-bar-right { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Steps list ──────────────────────────────────────────────────── */
+.steps { list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 8px; }
+.steps li {
+  counter-increment: step;
+  display: flex;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--text-sec);
+  align-items: flex-start;
+}
+.steps li::before {
+  content: counter(step);
+  min-width: 22px; height: 22px;
+  background: var(--accent-dim);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.steps li strong { color: var(--text); }
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+.footer {
+  text-align: center;
+  padding: 20px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════ HEADER ═══ -->
+<header class="header">
+  <div class="header-left">
+    <span class="wave">&#127754;</span>
+    <div>
+      <h1>Dashboard Settings</h1>
+      <div class="sub">Seaweed Station Network -- All Tables</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <a class="btn" href="../index.html">&#8592; Back to Overview</a>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════ MAIN ══════ -->
+<main class="main">
+
+  <!-- ─────────────────────────────────────── ThingSpeak Channels ── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#128225;</span>
+      <h2>ThingSpeak Channels</h2>
+      <span class="section-desc">One channel per table -- each stores data in its own folder</span>
+    </div>
+    <div class="section-body">
+
+      <div class="info-box info">
+        <div class="info-title">Three independent channels</div>
+        Each seaweed table has its own ThingSpeak channel. Leave Channel ID blank for tables not yet deployed.
+        The download script will skip unconfigured channels.
+      </div>
+
+      <!-- Perth -->
+      <div style="border-left:3px solid var(--accent);padding-left:14px">
+        <label style="font-size:0.85rem;color:var(--text);text-transform:none;letter-spacing:0">&#127466;&#127472; Perth Test Table</label>
+        <div class="field-row" style="margin-top:6px">
+          <div class="field">
+            <label>Channel ID</label>
+            <input type="text" id="ch_perth_id" placeholder="3262071">
+          </div>
+          <div class="field">
+            <label>Read API Key</label>
+            <input type="password" id="ch_perth_key" placeholder="VVHUX39KINYPLCVI" autocomplete="off">
+          </div>
+        </div>
+        <div class="field-hint" style="margin-top:2px">Data folder: <code>data/</code></div>
+      </div>
+
+      <!-- Shangani -->
+      <div style="border-left:3px solid var(--success);padding-left:14px">
+        <label style="font-size:0.85rem;color:var(--text);text-transform:none;letter-spacing:0">&#127472;&#127466; Shangani Aramani</label>
+        <div class="field-row" style="margin-top:6px">
+          <div class="field">
+            <label>Channel ID</label>
+            <input type="text" id="ch_shangani_id" placeholder="">
+          </div>
+          <div class="field">
+            <label>Read API Key</label>
+            <input type="password" id="ch_shangani_key" placeholder="" autocomplete="off">
+          </div>
+        </div>
+        <div class="field-hint" style="margin-top:2px">Data folder: <code>data_shangani/</code></div>
+      </div>
+
+      <!-- Funzi -->
+      <div style="border-left:3px solid var(--warning);padding-left:14px">
+        <label style="font-size:0.85rem;color:var(--text);text-transform:none;letter-spacing:0">&#127472;&#127466; Funzi Island</label>
+        <div class="field-row" style="margin-top:6px">
+          <div class="field">
+            <label>Channel ID</label>
+            <input type="text" id="ch_funzi_id" placeholder="">
+          </div>
+          <div class="field">
+            <label>Read API Key</label>
+            <input type="password" id="ch_funzi_key" placeholder="" autocomplete="off">
+          </div>
+        </div>
+        <div class="field-hint" style="margin-top:2px">Data folder: <code>data_funzi/</code></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Data Storage info -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#128193;</span>
+      <h2>Data Storage &amp; Paths</h2>
+      <span class="section-desc">Where the scripts and dashboard files live</span>
+    </div>
+    <div class="section-body">
+
+      <div class="info-box info">
+        <div class="info-title">Split folder layout</div>
+        The download scripts live <strong>outside</strong> git.  The HTML dashboard lives <strong>inside</strong> git
+        (data folders are gitignored).
+        <code style="display:block;margin-top:8px;color:#a5f3fc;white-space:pre">ESP32 Weather Station/
+  ThingSpeak_Dashboard/          ← Scripts + config (NOT in git)
+    download_data.ps1
+    apply_schedule.ps1
+    config.json
+    logs/
+
+  ESP32_Seaweed_Station/.../
+    ThingSpeak_Dashboard/        ← Dashboard root (IN git)
+      ../index.html  ← Open in browser
+      pages/                     ← Table pages
+        perth.html, shangani.html, funzi.html
+        settings.html, tides.js
+      data/                      ← .gitignored (all subfolders)
+        data_3262071_TT/
+        data_Shangani/
+        data_Funzi/</code>
+      </div>
+
+      <div class="field">
+        <label>Scripts folder (where download_data.ps1 lives)</label>
+        <input type="text" id="scriptsPath" style="width:100%;font-family:monospace;font-size:0.82rem"
+               placeholder="e.g. D:\Documents\...\ESP32 Weather Station\ThingSpeak_Dashboard">
+        <div class="field-hint">Folder containing download_data.ps1, apply_schedule.ps1 and config.json. The Task Scheduler command below uses this path — update it here when you move the scripts, then re-run the command.</div>
+      </div>
+
+      <div class="field">
+        <label>Data folder (root data directory)</label>
+        <input type="text" id="dataPath" style="width:100%;font-family:monospace;font-size:0.82rem"
+               placeholder="e.g. D:\Documents\...\LillyGo_T0_SIM\ThingSpeak_Dashboard\data">
+        <div class="field-hint">Full path to the data/ folder. Channel subfolders (e.g. data_3262071_TT/) are created inside here by the download scripts.</div>
+      </div>
+
+      <div class="field">
+        <label>Pages folder (HTML files)</label>
+        <input type="text" id="pagesPath" style="width:100%;font-family:monospace;font-size:0.82rem"
+               placeholder="e.g. D:\Documents\...\LillyGo_T0_SIM\ThingSpeak_Dashboard\pages">
+        <div class="field-hint">Full path to the pages/ subfolder containing perth.html, settings.html, tides.js, etc. Usually: [Data output folder]\pages</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────── Automatic Download ── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#128197;</span>
+      <h2>Automatic Download Schedule</h2>
+      <span class="section-desc">Windows Task Scheduler runs the PowerShell script automatically</span>
+    </div>
+    <div class="section-body">
+
+      <div class="field">
+        <label>Schedule Type</label>
+        <div class="schedule-toggle">
+          <button class="schedule-option active" id="optDaily" onclick="setSchedule('daily')">Daily</button>
+          <button class="schedule-option"         id="optHourly" onclick="setSchedule('hourly')">Hourly</button>
+        </div>
+        <div class="field-hint" id="scheduleHint">
+          Downloads once per day at the time you set. Good for most monitoring setups.
+        </div>
+      </div>
+
+      <!-- Daily time picker (shown for daily mode) -->
+      <div class="field" id="dailyTimeField">
+        <label>Run at (24-hour time)</label>
+        <input type="time" id="scheduleTime" value="06:00" style="width:140px">
+        <div class="field-hint">The download will run at this time every day. Recommend 06:00 -- 07:00 (before the workday).</div>
+      </div>
+
+      <!-- Hourly minute picker (shown for hourly mode) -->
+      <div class="field" id="hourlyMinField" style="display:none">
+        <label>Run at minute (of each hour)</label>
+        <input type="number" id="scheduleMinute" value="5" min="0" max="59" style="width:120px">
+        <div class="field-hint">e.g. 5 = runs at :05 past every hour (06:05, 07:05, 08:05 ...)</div>
+      </div>
+
+      <!-- File naming preview -->
+      <div class="info-box">
+        <div class="info-title">Archive File Naming</div>
+        <span id="namingPreview">Daily mode: archives are named <strong>20260218.json</strong> (one file per day, re-downloaded fresh each day)</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────── Dashboard Settings ── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#128065;</span>
+      <h2>Dashboard Display</h2>
+      <span class="section-desc">Controls how the dashboard page behaves in the browser</span>
+    </div>
+    <div class="section-body">
+      <div class="field-row">
+        <div class="field">
+          <label>Auto-Refresh (when browser is open)</label>
+          <select id="autoRefreshMin">
+            <option value="0">Off</option>
+            <option value="5">Every 5 minutes</option>
+            <option value="15" selected>Every 15 minutes</option>
+            <option value="30">Every 30 minutes</option>
+            <option value="60">Every 60 minutes</option>
+          </select>
+          <div class="field-hint">How often the dashboard fetches live data from ThingSpeak while open</div>
+        </div>
+        <div class="field">
+          <label>Max Results per Fetch</label>
+          <input type="number" id="maxResults" value="8000" min="100" max="8000" style="width:140px">
+          <div class="field-hint">ThingSpeak free tier limit is 8000 entries per request</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────── Save / Generate ───── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#128190;</span>
+      <h2>Save &amp; Apply Settings</h2>
+      <span class="section-desc">Save locally and generate the config file for download scripts</span>
+    </div>
+    <div class="section-body">
+
+      <div class="info-box info">
+        <div class="info-title">How settings are applied</div>
+        Settings you save here are stored in your browser (localStorage) and used by the dashboard automatically.
+        To apply them to the PowerShell download scripts, click
+        <strong>Download config.json</strong> and save it in the <strong>scripts folder</strong>
+        (next to <strong>download_data.ps1</strong> &amp; <strong>apply_schedule.ps1</strong>).
+        The <strong>Scripts folder</strong> drives the Task Scheduler command — update it here when you move the scripts, then re-run the generated command. The <strong>Data folder</strong> setting tells the download scripts where to write channel data. Channel subfolders (e.g. data_3262071_TT/) are created automatically inside it. The <strong>Pages folder</strong> is for reference only.
+      </div>
+
+      <!-- Buttons -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary btn-lg" onclick="saveSettings()">&#10003; Save to Browser</button>
+        <button class="btn btn-success btn-lg" onclick="downloadConfigJson()">&#8595; Download config.json</button>
+        <div class="save-status" id="saveStatus">&#10003; Settings saved!</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────── Schedule Setup ──── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#9201;</span>
+      <h2>Set Up Automatic Downloads (Windows Task Scheduler)</h2>
+      <span class="section-desc">One-time setup -- runs the download script automatically on schedule</span>
+    </div>
+    <div class="section-body">
+
+      <div class="info-box warn">
+        <div class="info-title">&#9888; Setup required — re-run whenever you move the scripts folder</div>
+        Run this once now. If you ever move the scripts to a new location (e.g. a different PC or Google Drive sync folder),
+        update the <strong>Scripts folder</strong> path above, save, then run the generated command again — it removes the old task and creates a new one automatically.
+      </div>
+
+      <div>
+        <div class="code-block-header">
+          <span class="code-label">Run this in PowerShell (as Administrator)</span>
+          <span id="schedCmdLive" style="font-size:0.75rem;color:#6ee7b7;margin-left:8px;opacity:0;transition:opacity 0.4s">&#10003; updated</span>
+          <button class="copy-btn" style="margin-left:auto" onclick="refreshSchedCmd(this)">&#8635; Refresh</button>
+          <button class="copy-btn" onclick="copyCode('schedCmd', this)">Copy</button>
+        </div>
+        <div class="code-block" id="schedCmd">Loading...</div>
+      </div>
+
+      <ul class="steps">
+        <li>Press <strong>Win + X</strong> → <strong>Windows PowerShell (Admin)</strong> or <strong>Terminal (Admin)</strong></li>
+        <li>Paste and press <strong>Enter</strong>. It deletes any old task then creates <strong>SeaweedStationDownload</strong> pointing at the current Scripts folder.</li>
+        <li>The job runs <strong>apply_schedule.ps1</strong> which reads <strong>config.json</strong> (same folder) and calls <strong>download_data.ps1</strong>.</li>
+        <li>To verify: open <strong>Task Scheduler</strong> (Start Menu) and look for <strong>SeaweedStationDownload</strong>.</li>
+        <li><strong>Moving machines or folders?</strong> Update <em>Scripts folder</em> in settings → Save → copy the command above → run as Admin. Done.</li>
+      </ul>
+
+      <div class="info-box">
+        <div class="info-title">Manual download (any time)</div>
+        You can always trigger a download immediately from the scripts folder:
+        <code style="display:block;margin-top:4px;color:#a5f3fc">powershell -ExecutionPolicy Bypass -File ".\download_data.ps1"</code>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────── Current Config Preview -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#128220;</span>
+      <h2>config.json Preview</h2>
+      <span class="section-desc">This file must sit next to download_data.ps1 for the scripts to use your settings</span>
+    </div>
+    <div class="section-body">
+      <div>
+        <div class="code-block-header">
+          <span class="code-label">config.json (generated from current settings)</span>
+          <button class="copy-btn" onclick="copyCode('configPreview', this)">Copy</button>
+        </div>
+        <div class="code-block" id="configPreview">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="footer">
+  Seaweed Station Dashboard -- Settings &mdash; <a href="../index.html" style="color:var(--accent)">Back to Overview</a>
+</footer>
+
+<!-- =================================================================
+     JAVASCRIPT
+     ================================================================= -->
+<script>
+"use strict";
+
+var scheduleType = 'daily';
+
+// ── Schedule toggle ─────────────────────────────────────────────────
+function setSchedule(type) {
+  scheduleType = type;
+  document.getElementById('optDaily').classList.toggle('active', type === 'daily');
+  document.getElementById('optHourly').classList.toggle('active', type === 'hourly');
+  document.getElementById('dailyTimeField').style.display  = type === 'daily'  ? '' : 'none';
+  document.getElementById('hourlyMinField').style.display  = type === 'hourly' ? '' : 'none';
+
+  if (type === 'daily') {
+    document.getElementById('scheduleHint').textContent    = 'Downloads once per day at the time you set. Good for most monitoring setups.';
+    document.getElementById('namingPreview').innerHTML     = 'Daily mode: archives are named <strong>20260218.json</strong> (one file per day, re-downloaded fresh each day)';
+  } else {
+    document.getElementById('scheduleHint').textContent    = 'Downloads every hour. Useful when you want near real-time data without browser auto-refresh.';
+    document.getElementById('namingPreview').innerHTML     = 'Hourly mode: archives are named <strong>2026021806.json</strong> (one file per hour, all merged into merged_data.js)';
+  }
+
+  updatePreviews();
+}
+
+// ── Get current form values as a config object ──────────────────────
+// Auto-compute data subfolder name: data_(channelId)_(suffix) or data_(suffix) if no ID yet
+function getDataFolder(channelId, suffix) {
+  return channelId ? 'data_' + channelId + '_' + suffix : 'data_' + suffix;
+}
+
+function getFormConfig() {
+  var perthId    = (document.getElementById('ch_perth_id').value    || '').trim();
+  var shanganiId = (document.getElementById('ch_shangani_id').value || '').trim();
+  var funziId    = (document.getElementById('ch_funzi_id').value    || '').trim();
+  return {
+    channels: [
+      {
+        id: 'perth',
+        name: 'Perth Test Table',
+        channelId:  perthId,
+        apiKey:     (document.getElementById('ch_perth_key').value || '').trim(),
+        dataFolder: getDataFolder(perthId, 'TT'),
+      },
+      {
+        id: 'shangani',
+        name: 'Shangani Aramani',
+        channelId:  shanganiId,
+        apiKey:     (document.getElementById('ch_shangani_key').value || '').trim(),
+        dataFolder: getDataFolder(shanganiId, 'Shangani'),
+      },
+      {
+        id: 'funzi',
+        name: 'Funzi Island',
+        channelId:  funziId,
+        apiKey:     (document.getElementById('ch_funzi_key').value || '').trim(),
+        dataFolder: getDataFolder(funziId, 'Funzi'),
+      },
+    ],
+    scheduleType:   scheduleType,
+    scheduleTime:   document.getElementById('scheduleTime').value   || '06:00',
+    scheduleMinute: parseInt(document.getElementById('scheduleMinute').value) || 5,
+    autoRefreshMin: parseInt(document.getElementById('autoRefreshMin').value) || 15,
+    maxResults:     parseInt(document.getElementById('maxResults').value)     || 8000,
+    retentionDays:  90,
+    dataPath:       (document.getElementById('dataPath').value  || '').trim(),
+    pagesPath:      (document.getElementById('pagesPath').value || '').trim(),    scriptsPath:    (document.getElementById('scriptsPath').value || '').trim(),  };
+}
+
+// ── Build the PowerShell Register-ScheduledTask command ─────────────
+function buildSchedCommand(cfg) {
+  var dir = (cfg.scriptsPath && cfg.scriptsPath.trim())
+    ? cfg.scriptsPath.trim()
+    : '(set Scripts folder in Data Storage & Paths section above)';
+  var taskName = 'SeaweedStationDownload';
+
+  var triggerLine;
+  if (cfg.scheduleType === 'hourly') {
+    triggerLine = '$trigger = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Hours 1) -Once -At (Get-Date)';
+  } else {
+    triggerLine = '$trigger = New-ScheduledTaskTrigger -Daily -At "' + (cfg.scheduleTime || '06:00') + '"';
+  }
+
+  return [
+    '# ── Remove existing task (safe if it does not exist) ──',
+    'Unregister-ScheduledTask -TaskName "' + taskName + '" -Confirm:$false -ErrorAction SilentlyContinue',
+    '',
+    '# ── Register updated task ──',
+    '$s = "' + dir + '"',
+    '$action  = New-ScheduledTaskAction -Execute "powershell.exe" `',
+    '           -Argument ("-ExecutionPolicy Bypass -NonInteractive -File `"$s\\apply_schedule.ps1`"")',
+    triggerLine,
+    '$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1)',
+    'Register-ScheduledTask -TaskName "' + taskName + '" `',
+    '  -Action $action -Trigger $trigger -Settings $settings `',
+    '  -RunLevel Highest -Force',
+    '',
+    '# ── Verify ──',
+    'Get-ScheduledTask -TaskName "' + taskName + '" | Select-Object TaskName, State',
+  ].join('\n');
+}
+
+// ── Build the config.json preview string ───────────────────────────
+function buildConfigJson(cfg) {
+  return JSON.stringify(cfg, null, 2);
+}
+
+// ── Update both preview panels ──────────────────────────────────────
+function updatePreviews(flashSched) {
+  var cfg = getFormConfig();
+  document.getElementById('configPreview').textContent = buildConfigJson(cfg);
+  document.getElementById('schedCmd').textContent      = buildSchedCommand(cfg);
+  if (flashSched) {
+    var lbl = document.getElementById('schedCmdLive');
+    if (lbl) {
+      lbl.style.opacity = '1';
+      clearTimeout(lbl._t);
+      lbl._t = setTimeout(function() { lbl.style.opacity = '0'; }, 1800);
+    }
+  }
+}
+
+function refreshSchedCmd(btn) {
+  updatePreviews(true);
+  var orig = btn.textContent;
+  btn.textContent = '&#10003; Done';
+  btn.innerHTML   = '&#10003; Done';
+  setTimeout(function() { btn.innerHTML = '&#8635; Refresh'; }, 1500);
+}
+
+// ── Live update previews as user types ─────────────────────────────
+['ch_perth_id', 'ch_perth_key', 'ch_shangani_id', 'ch_shangani_key',
+ 'ch_funzi_id', 'ch_funzi_key', 'scheduleTime', 'scheduleMinute',
+ 'autoRefreshMin', 'maxResults', 'dataPath', 'pagesPath'].forEach(function (id) {
+  var el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input',  function() { updatePreviews(false); });
+    el.addEventListener('change', function() { updatePreviews(false); });
+  }
+});
+// scriptsPath drives the schtasks command -- flash the indicator when it changes
+var _spEl = document.getElementById('scriptsPath');
+if (_spEl) {
+  _spEl.addEventListener('input',  function() { updatePreviews(true); });
+  _spEl.addEventListener('change', function() { updatePreviews(true); });
+}
+
+// ── Save to localStorage ────────────────────────────────────────────
+function saveSettings() {
+  var cfg = getFormConfig();
+  localStorage.setItem('seaweed_dashboard_config', JSON.stringify(cfg));
+
+  var status = document.getElementById('saveStatus');
+  status.classList.add('show');
+  setTimeout(function () { status.classList.remove('show'); }, 3000);
+
+  updatePreviews();
+}
+
+// ── Download config.json ────────────────────────────────────────────
+function downloadConfigJson() {
+  var cfg  = getFormConfig();
+  var json = buildConfigJson(cfg);
+  var blob = new Blob([json], { type: 'application/json' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'config.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Copy code block to clipboard ───────────────────────────────────
+function copyCode(elId, btn) {
+  var text = document.getElementById(elId).textContent;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = 'Copied!'; btn.classList.add('copied');
+    setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  }
+}
+
+// ── Load saved config into the form on page load ────────────────────
+function loadSavedConfig() {
+  var saved = {};
+  try {
+    var s = localStorage.getItem('seaweed_dashboard_config');
+    if (s) saved = JSON.parse(s);
+  } catch (e) {}
+
+  // Channel fields -- support both new (channels array) and legacy (single channelId) format
+  var chMap = {};
+  if (saved.channels && saved.channels.length) {
+    saved.channels.forEach(function (c) { chMap[c.id] = c; });
+  } else if (saved.channelId) {
+    // Legacy single-channel config → map to perth
+    chMap.perth = { channelId: saved.channelId, apiKey: saved.apiKey || '' };
+  }
+
+  document.getElementById('ch_perth_id').value     = (chMap.perth    && chMap.perth.channelId)    || '3262071';
+  document.getElementById('ch_perth_key').value    = (chMap.perth    && chMap.perth.apiKey)       || 'VVHUX39KINYPLCVI';
+  document.getElementById('ch_shangani_id').value  = (chMap.shangani && chMap.shangani.channelId) || '';
+  document.getElementById('ch_shangani_key').value = (chMap.shangani && chMap.shangani.apiKey)    || '';
+  document.getElementById('ch_funzi_id').value     = (chMap.funzi    && chMap.funzi.channelId)    || '';
+  document.getElementById('ch_funzi_key').value    = (chMap.funzi    && chMap.funzi.apiKey)       || '';
+
+  document.getElementById('scheduleTime').value    = saved.scheduleTime    || '06:00';
+  document.getElementById('scheduleMinute').value  = saved.scheduleMinute  || 5;
+  document.getElementById('autoRefreshMin').value  = String(saved.autoRefreshMin != null ? saved.autoRefreshMin : 15);
+  document.getElementById('maxResults').value      = saved.maxResults      || 8000;
+  document.getElementById('dataPath').value         = saved.dataPath         || '';
+  document.getElementById('pagesPath').value        = saved.pagesPath        || '';
+  document.getElementById('scriptsPath').value      = saved.scriptsPath      || '';
+
+  if (saved.scheduleType === 'hourly') {
+    setSchedule('hourly');
+  } else {
+    setSchedule('daily');
+  }
+}
+
+// ── Init ─────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+  loadSavedConfig();
+  updatePreviews();
+});
+</script>
+</body>
+</html>
