@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write   # needed to push the committed data files
+      issues: write     # needed to open/close alert issues
 
     steps:
       - name: Checkout repository
@@ -43,3 +44,13 @@ jobs:
             git push
             echo "Data committed and pushed."
           fi
+
+      - name: Check alerts and open/close GitHub Issues
+        if: always()   # run even if download or commit step fails
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          Write-Host "=== Running alert checks ===" -ForegroundColor Cyan
+          ./check_alerts.ps1
+          Write-Host "=== Alert checks complete ===" -ForegroundColor Green
