@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -551,9 +551,9 @@ body {
         <h3>Temperature (&#176;C)</h3>
         <div class="time-btns">
           <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
-          <button class="btn btn-sm" data-range="week" onclick="setTimeRange('week')">Week</button>
+          <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
           <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
-          <button class="btn btn-sm active" data-range="all" onclick="setTimeRange('all')">All</button>
+          <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
         </div>
       </div>
       <div class="chart-subhead" id="tempSubhead">Showing: All data</div>
@@ -569,9 +569,9 @@ body {
         <h3>Humidity (%RH)</h3>
         <div class="time-btns">
           <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
-          <button class="btn btn-sm" data-range="week" onclick="setTimeRange('week')">Week</button>
+          <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
           <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
-          <button class="btn btn-sm active" data-range="all" onclick="setTimeRange('all')">All</button>
+          <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
         </div>
       </div>
       <div class="chart-subhead" id="humSubhead">Showing: All data</div>
@@ -777,7 +777,7 @@ var SENSOR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#a855f7', '#ef4444'];
 var state = {
   allEntries:       [],   // [{timestamp, t1, rh1, ok1, t2, rh2, ok2, ... t5, rh5, ok5}]
   filteredEntries:  [],
-  timeRange:        'all',
+  timeRange:        'week',
   dateStart:        null,
   dateEnd:          null,
   dataSource:       '',
@@ -1119,7 +1119,7 @@ function clearDateRange() {
   state.dateStart = null;
   state.dateEnd = null;
   updateDateRangeIndicator();
-  setTimeRange('all');
+  setTimeRange('week');
 }
 
 function updateDateRangeIndicator() {

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -646,9 +646,9 @@ body {
         <h3>Temperature (&#176;C)</h3>
         <div class="time-btns">
           <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
-          <button class="btn btn-sm" data-range="week" onclick="setTimeRange('week')">Week</button>
+          <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
           <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
-          <button class="btn btn-sm active" data-range="all" onclick="setTimeRange('all')">All</button>
+          <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
         </div>
       </div>
       <div class="chart-subhead" id="tempSubhead">
@@ -666,9 +666,9 @@ body {
         <h3>Humidity (%RH)</h3>
         <div class="time-btns">
           <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
-          <button class="btn btn-sm" data-range="week" onclick="setTimeRange('week')">Week</button>
+          <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
           <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
-          <button class="btn btn-sm active" data-range="all" onclick="setTimeRange('all')">All</button>
+          <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
         </div>
       </div>
       <div class="chart-subhead" id="humSubhead">Showing: All data</div>
@@ -685,9 +685,9 @@ body {
           <h3>Battery %</h3>
           <div class="time-btns">
             <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
-            <button class="btn btn-sm" data-range="week" onclick="setTimeRange('week')">Week</button>
+            <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
             <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
-            <button class="btn btn-sm active" data-range="all" onclick="setTimeRange('all')">All</button>
+            <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
           </div>
         </div>
         <div class="chart-subhead" id="batSubhead">Showing: All data</div>
@@ -855,7 +855,7 @@ body {
 const state = {
   allEntries:       [],
   filteredEntries:  [],
-  timeRange:        'all',
+  timeRange:        'week',
   dateStart:        null,  // custom start date (Date object or null)
   dateEnd:          null,  // custom end date (Date object or null = latest)
   channelInfo:      null,
@@ -1220,7 +1220,7 @@ function clearDateRange() {
   document.getElementById('dateEnd').value = '';
   state.dateStart = null;
   state.dateEnd = null;
-  setTimeRange('all');
+  setTimeRange('week');
   saveViewPrefs();
 }
 
