@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -370,108 +370,68 @@ input.wide { max-width: none; }
         <div class="field-hint" style="margin-top:2px">Data folder: <code>data_funzi/</code></div>
       </div>
 
+      <!-- WROOM PTT -->
+      <div style="border-left:3px solid #a78bfa;padding-left:14px">
+        <label style="font-size:0.85rem;color:var(--text);text-transform:none;letter-spacing:0">&#127464;&#127468; Perth WROOM PTT <span style="font-size:0.72rem;color:var(--text-muted);font-weight:400">(dual-channel: temp + humidity)</span></label>
+        <div class="field-row" style="margin-top:6px">
+          <div class="field">
+            <label>Temp Channel ID</label>
+            <input type="text" id="ch_wroom_temp_id" placeholder="3246116">
+          </div>
+          <div class="field">
+            <label>Temp Read API Key</label>
+            <input type="password" id="ch_wroom_temp_key" placeholder="7K00B1Y8DNOTEIM0" autocomplete="off">
+          </div>
+        </div>
+        <div class="field-row" style="margin-top:8px">
+          <div class="field">
+            <label>Humidity Channel ID</label>
+            <input type="text" id="ch_wroom_hum_id" placeholder="3256756">
+          </div>
+          <div class="field">
+            <label>Humidity Read API Key</label>
+            <input type="password" id="ch_wroom_hum_key" placeholder="D8TXB5B33KPWRIHO" autocomplete="off">
+          </div>
+        </div>
+        <div class="field-hint" style="margin-top:4px">Two separate ThingSpeak channels merged into <code>data_WROOM_PTT/merged_data.js</code></div>
+      </div>
+
     </div>
   </div>
-
-  <!-- Data Storage info -->
+  <!-- GitHub Actions Status -->
   <div class="section">
     <div class="section-header">
-      <span class="section-icon">&#128193;</span>
-      <h2>Data Storage &amp; Paths</h2>
-      <span class="section-desc">Where the scripts and dashboard files live</span>
+      <span class="section-icon">&#9654;</span>
+      <h2>Automatic Download Schedule</h2>
+      <span class="section-desc">Managed by GitHub Actions -- runs in the cloud every hour</span>
     </div>
     <div class="section-body">
 
       <div class="info-box info">
-        <div class="info-title">Split folder layout</div>
-        The download scripts live <strong>outside</strong> git.  The HTML dashboard lives <strong>inside</strong> git
-        (data folders are gitignored).
-        <code style="display:block;margin-top:8px;color:#a5f3fc;white-space:pre">ESP32 Weather Station/
-  ThingSpeak_Dashboard/          ← Scripts + config (NOT in git)
-    download_data.ps1
-    apply_schedule.ps1
-    config.json
-    logs/
-
-  ESP32_Seaweed_Station/.../
-    ThingSpeak_Dashboard/        ← Dashboard root (IN git)
-      ESP32_Weather_Station_Dashboard.html  ← Open in browser
-      pages/                     ← Table pages
-        perth.html, shangani.html, funzi.html
-        settings.html, tides.js
-      data/                      ← .gitignored (all subfolders)
-        data_3262071_TT/
-        data_Shangani/
-        data_Funzi/</code>
+        <div class="info-title">&#128257; Current schedule: every hour</div>
+        GitHub Actions runs <strong>download_data.ps1</strong> automatically every hour (00:00, 01:00, 02:00 &hellip; UTC),
+        commits any new ThingSpeak data to the repo, and deploys it to GitHub Pages.
+        Your PC does not need to be on.
       </div>
 
-      <div class="field">
-        <label>Scripts folder (where download_data.ps1 lives)</label>
-        <input type="text" id="scriptsPath" style="width:100%;font-family:monospace;font-size:0.82rem"
-               placeholder="e.g. D:\Documents\...\ESP32 Weather Station\ThingSpeak_Dashboard">
-        <div class="field-hint">Folder containing download_data.ps1, apply_schedule.ps1 and config.json. The Task Scheduler command below uses this path — update it here when you move the scripts, then re-run the command.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn btn-primary" href="https://github.com/bosunjm-cloud/seaweed-station-dashboard/actions/workflows/download-data.yml" target="_blank">
+          &#128279; View run history &amp; trigger manually
+        </a>
+        <a class="btn" href="https://github.com/bosunjm-cloud/seaweed-station-dashboard/edit/main/.github/workflows/download-data.yml" target="_blank">
+          &#9998; Edit schedule (change cron)
+        </a>
       </div>
 
-      <div class="field">
-        <label>Data folder (root data directory)</label>
-        <input type="text" id="dataPath" style="width:100%;font-family:monospace;font-size:0.82rem"
-               placeholder="e.g. D:\Documents\...\LillyGo_T0_SIM\ThingSpeak_Dashboard\data">
-        <div class="field-hint">Full path to the data/ folder. Channel subfolders (e.g. data_3262071_TT/) are created inside here by the download scripts.</div>
-      </div>
-
-      <div class="field">
-        <label>Pages folder (HTML files)</label>
-        <input type="text" id="pagesPath" style="width:100%;font-family:monospace;font-size:0.82rem"
-               placeholder="e.g. D:\Documents\...\LillyGo_T0_SIM\ThingSpeak_Dashboard\pages">
-        <div class="field-hint">Full path to the pages/ subfolder containing perth.html, settings.html, tides.js, etc. Usually: [Data output folder]\pages</div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- ─────────────────────────────────────── Automatic Download ── -->
-  <div class="section">
-    <div class="section-header">
-      <span class="section-icon">&#128197;</span>
-      <h2>Automatic Download Schedule</h2>
-      <span class="section-desc">Windows Task Scheduler runs the PowerShell script automatically</span>
-    </div>
-    <div class="section-body">
-
-      <div class="field">
-        <label>Schedule Type</label>
-        <div class="schedule-toggle">
-          <button class="schedule-option active" id="optDaily" onclick="setSchedule('daily')">Daily</button>
-          <button class="schedule-option"         id="optHourly" onclick="setSchedule('hourly')">Hourly</button>
-        </div>
-        <div class="field-hint" id="scheduleHint">
-          Downloads once per day at the time you set. Good for most monitoring setups.
-        </div>
-      </div>
-
-      <!-- Daily time picker (shown for daily mode) -->
-      <div class="field" id="dailyTimeField">
-        <label>Run at (24-hour time)</label>
-        <input type="time" id="scheduleTime" value="06:00" style="width:140px">
-        <div class="field-hint">The download will run at this time every day. Recommend 06:00 -- 07:00 (before the workday).</div>
-      </div>
-
-      <!-- Hourly minute picker (shown for hourly mode) -->
-      <div class="field" id="hourlyMinField" style="display:none">
-        <label>Run at minute (of each hour)</label>
-        <input type="number" id="scheduleMinute" value="5" min="0" max="59" style="width:120px">
-        <div class="field-hint">e.g. 5 = runs at :05 past every hour (06:05, 07:05, 08:05 ...)</div>
-      </div>
-
-      <!-- File naming preview -->
       <div class="info-box">
-        <div class="info-title">Archive File Naming</div>
-        <span id="namingPreview">Daily mode: archives are named <strong>20260218.json</strong> (one file per day, re-downloaded fresh each day)</span>
+        <div class="info-title">Changing the frequency</div>
+        Click <strong>Edit schedule</strong> above to open the workflow YAML on GitHub. Change the cron line:<br>
+        <code style="display:block;margin-top:6px;color:#a5f3fc">cron: '0 * * * *'</code>
+        Common alternatives: <code>'0 */6 * * *'</code> (every 6 h) &nbsp;|&nbsp; <code>'0 8 * * *'</code> (daily at 08:00 UTC)
       </div>
 
     </div>
   </div>
-
   <!-- ─────────────────────────────────────── Dashboard Settings ── -->
   <div class="section">
     <div class="section-header">
@@ -513,10 +473,9 @@ input.wide { max-width: none; }
       <div class="info-box info">
         <div class="info-title">How settings are applied</div>
         Settings you save here are stored in your browser (localStorage) and used by the dashboard automatically.
-        To apply them to the PowerShell download scripts, click
-        <strong>Download config.json</strong> and save it in the <strong>scripts folder</strong>
-        (next to <strong>download_data.ps1</strong> &amp; <strong>apply_schedule.ps1</strong>).
-        The <strong>Scripts folder</strong> drives the Task Scheduler command — update it here when you move the scripts, then re-run the generated command. The <strong>Data folder</strong> setting tells the download scripts where to write channel data. Channel subfolders (e.g. data_3262071_TT/) are created automatically inside it. The <strong>Pages folder</strong> is for reference only.
+        To use them with <strong>download_data.ps1</strong> on your local machine, click
+        <strong>Download config.json</strong> and save the file next to <strong>download_data.ps1</strong> in the repo folder.
+        GitHub Actions does not read config.json &mdash; it uses the channel defaults built into the script.
       </div>
 
       <!-- Buttons -->
@@ -529,48 +488,33 @@ input.wide { max-width: none; }
     </div>
   </div>
 
-  <!-- ─────────────────────────────────────── Schedule Setup ──── -->
+  <!-- Local Development -->
   <div class="section">
     <div class="section-header">
-      <span class="section-icon">&#9201;</span>
-      <h2>Set Up Automatic Downloads (Windows Task Scheduler)</h2>
-      <span class="section-desc">One-time setup -- runs the download script automatically on schedule</span>
+      <span class="section-icon">&#128187;</span>
+      <h2>Local Development</h2>
+      <span class="section-desc">Run download scripts manually on your own machine</span>
     </div>
     <div class="section-body">
 
-      <div class="info-box warn">
-        <div class="info-title">&#9888; Setup required — re-run whenever you move the scripts folder</div>
-        Run this once now. If you ever move the scripts to a new location (e.g. a different PC or Google Drive sync folder),
-        update the <strong>Scripts folder</strong> path above, save, then run the generated command again — it removes the old task and creates a new one automatically.
+      <div class="info-box info">
+        <div class="info-title">config.json is still used for local runs</div>
+        When running <strong>download_data.ps1</strong> directly on your PC, it reads <strong>config.json</strong>
+        from the same folder. Use <strong>Save to Browser</strong> then <strong>Download config.json</strong>
+        below, and save the file next to <strong>download_data.ps1</strong> in the repo folder.
+        GitHub Actions does not use this file &mdash; it uses the defaults built into the script.
       </div>
-
-      <div>
-        <div class="code-block-header">
-          <span class="code-label">Run this in PowerShell (as Administrator)</span>
-          <span id="schedCmdLive" style="font-size:0.75rem;color:#6ee7b7;margin-left:8px;opacity:0;transition:opacity 0.4s">&#10003; updated</span>
-          <button class="copy-btn" style="margin-left:auto" onclick="refreshSchedCmd(this)">&#8635; Refresh</button>
-          <button class="copy-btn" onclick="copyCode('schedCmd', this)">Copy</button>
-        </div>
-        <div class="code-block" id="schedCmd">Loading...</div>
-      </div>
-
-      <ul class="steps">
-        <li>Press <strong>Win + X</strong> → <strong>Windows PowerShell (Admin)</strong> or <strong>Terminal (Admin)</strong></li>
-        <li>Paste and press <strong>Enter</strong>. It deletes any old task then creates <strong>SeaweedStationDownload</strong> pointing at the current Scripts folder.</li>
-        <li>The job runs <strong>apply_schedule.ps1</strong> which reads <strong>config.json</strong> (same folder) and calls <strong>download_data.ps1</strong>.</li>
-        <li>To verify: open <strong>Task Scheduler</strong> (Start Menu) and look for <strong>SeaweedStationDownload</strong>.</li>
-        <li><strong>Moving machines or folders?</strong> Update <em>Scripts folder</em> in settings → Save → copy the command above → run as Admin. Done.</li>
-      </ul>
 
       <div class="info-box">
-        <div class="info-title">Manual download (any time)</div>
-        You can always trigger a download immediately from the scripts folder:
-        <code style="display:block;margin-top:4px;color:#a5f3fc">powershell -ExecutionPolicy Bypass -File ".\download_data.ps1"</code>
+        <div class="info-title">Run a manual download any time</div>
+        Open PowerShell in the repo folder and run:
+        <code style="display:block;margin-top:6px;color:#a5f3fc">.\download_data.ps1</code>
+        Or with override options:
+        <code style="display:block;margin-top:4px;color:#a5f3fc">.\download_data.ps1 -ScheduleType hourly -MaxResults 8000</code>
       </div>
 
     </div>
   </div>
-
   <!-- ─────────────────────────────────────── Current Config Preview -->
   <div class="section">
     <div class="section-header">
@@ -601,44 +545,25 @@ input.wide { max-width: none; }
 <script>
 "use strict";
 
-var scheduleType = 'daily';
-
-// ── Schedule toggle ─────────────────────────────────────────────────
-function setSchedule(type) {
-  scheduleType = type;
-  document.getElementById('optDaily').classList.toggle('active', type === 'daily');
-  document.getElementById('optHourly').classList.toggle('active', type === 'hourly');
-  document.getElementById('dailyTimeField').style.display  = type === 'daily'  ? '' : 'none';
-  document.getElementById('hourlyMinField').style.display  = type === 'hourly' ? '' : 'none';
-
-  if (type === 'daily') {
-    document.getElementById('scheduleHint').textContent    = 'Downloads once per day at the time you set. Good for most monitoring setups.';
-    document.getElementById('namingPreview').innerHTML     = 'Daily mode: archives are named <strong>20260218.json</strong> (one file per day, re-downloaded fresh each day)';
-  } else {
-    document.getElementById('scheduleHint').textContent    = 'Downloads every hour. Useful when you want near real-time data without browser auto-refresh.';
-    document.getElementById('namingPreview').innerHTML     = 'Hourly mode: archives are named <strong>2026021806.json</strong> (one file per hour, all merged into merged_data.js)';
-  }
-
-  updatePreviews();
-}
-
-// ── Get current form values as a config object ──────────────────────
+//  Get current form values as a config object 
 // Auto-compute data subfolder name: data_(channelId)_(suffix) or data_(suffix) if no ID yet
 function getDataFolder(channelId, suffix) {
   return channelId ? 'data_' + channelId + '_' + suffix : 'data_' + suffix;
 }
 
 function getFormConfig() {
-  var perthId    = (document.getElementById('ch_perth_id').value    || '').trim();
-  var shanganiId = (document.getElementById('ch_shangani_id').value || '').trim();
-  var funziId    = (document.getElementById('ch_funzi_id').value    || '').trim();
+  var perthId      = (document.getElementById('ch_perth_id').value      || '').trim();
+  var shanganiId   = (document.getElementById('ch_shangani_id').value   || '').trim();
+  var funziId      = (document.getElementById('ch_funzi_id').value      || '').trim();
+  var wroomTempId  = (document.getElementById('ch_wroom_temp_id').value || '').trim();
+  var wroomHumId   = (document.getElementById('ch_wroom_hum_id').value  || '').trim();
   return {
     channels: [
       {
         id: 'perth',
         name: 'Perth Test Table',
         channelId:  perthId,
-        apiKey:     (document.getElementById('ch_perth_key').value || '').trim(),
+        apiKey:     (document.getElementById('ch_perth_key').value    || '').trim(),
         dataFolder: getDataFolder(perthId, 'TT'),
       },
       {
@@ -652,99 +577,50 @@ function getFormConfig() {
         id: 'funzi',
         name: 'Funzi Island',
         channelId:  funziId,
-        apiKey:     (document.getElementById('ch_funzi_key').value || '').trim(),
+        apiKey:     (document.getElementById('ch_funzi_key').value    || '').trim(),
         dataFolder: getDataFolder(funziId, 'Funzi'),
       },
+      {
+        id: 'wroom',
+        name: 'Perth WROOM',
+        dualChannel:  true,
+        channelId:    wroomTempId,
+        apiKey:       (document.getElementById('ch_wroom_temp_key').value || '').trim(),
+        channelId2:   wroomHumId,
+        apiKey2:      (document.getElementById('ch_wroom_hum_key').value  || '').trim(),
+        dataFolder:   getDataFolder(wroomTempId, 'WROOM_PTT'),
+      },
     ],
-    scheduleType:   scheduleType,
-    scheduleTime:   document.getElementById('scheduleTime').value   || '06:00',
-    scheduleMinute: parseInt(document.getElementById('scheduleMinute').value) || 5,
     autoRefreshMin: parseInt(document.getElementById('autoRefreshMin').value) || 15,
     maxResults:     parseInt(document.getElementById('maxResults').value)     || 8000,
     retentionDays:  90,
-    dataPath:       (document.getElementById('dataPath').value  || '').trim(),
-    pagesPath:      (document.getElementById('pagesPath').value || '').trim(),    scriptsPath:    (document.getElementById('scriptsPath').value || '').trim(),  };
+  };
 }
 
-// ── Build the PowerShell Register-ScheduledTask command ─────────────
-function buildSchedCommand(cfg) {
-  var dir = (cfg.scriptsPath && cfg.scriptsPath.trim())
-    ? cfg.scriptsPath.trim()
-    : '(set Scripts folder in Data Storage & Paths section above)';
-  var taskName = 'SeaweedStationDownload';
-
-  var triggerLine;
-  if (cfg.scheduleType === 'hourly') {
-    triggerLine = '$trigger = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Hours 1) -Once -At (Get-Date)';
-  } else {
-    triggerLine = '$trigger = New-ScheduledTaskTrigger -Daily -At "' + (cfg.scheduleTime || '06:00') + '"';
-  }
-
-  return [
-    '# ── Remove existing task (safe if it does not exist) ──',
-    'Unregister-ScheduledTask -TaskName "' + taskName + '" -Confirm:$false -ErrorAction SilentlyContinue',
-    '',
-    '# ── Register updated task ──',
-    '$s = "' + dir + '"',
-    '$action  = New-ScheduledTaskAction -Execute "powershell.exe" `',
-    '           -Argument ("-ExecutionPolicy Bypass -NonInteractive -File `"$s\\apply_schedule.ps1`"")',
-    triggerLine,
-    '$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1)',
-    'Register-ScheduledTask -TaskName "' + taskName + '" `',
-    '  -Action $action -Trigger $trigger -Settings $settings `',
-    '  -RunLevel Highest -Force',
-    '',
-    '# ── Verify ──',
-    'Get-ScheduledTask -TaskName "' + taskName + '" | Select-Object TaskName, State',
-  ].join('\n');
-}
-
-// ── Build the config.json preview string ───────────────────────────
+//  Build the config.json preview string 
 function buildConfigJson(cfg) {
   return JSON.stringify(cfg, null, 2);
 }
 
-// ── Update both preview panels ──────────────────────────────────────
-function updatePreviews(flashSched) {
+//  Update both preview panels 
+function updatePreviews() {
   var cfg = getFormConfig();
   document.getElementById('configPreview').textContent = buildConfigJson(cfg);
-  document.getElementById('schedCmd').textContent      = buildSchedCommand(cfg);
-  if (flashSched) {
-    var lbl = document.getElementById('schedCmdLive');
-    if (lbl) {
-      lbl.style.opacity = '1';
-      clearTimeout(lbl._t);
-      lbl._t = setTimeout(function() { lbl.style.opacity = '0'; }, 1800);
-    }
-  }
 }
 
-function refreshSchedCmd(btn) {
-  updatePreviews(true);
-  var orig = btn.textContent;
-  btn.textContent = '&#10003; Done';
-  btn.innerHTML   = '&#10003; Done';
-  setTimeout(function() { btn.innerHTML = '&#8635; Refresh'; }, 1500);
-}
-
-// ── Live update previews as user types ─────────────────────────────
+//  Live update previews as user types 
 ['ch_perth_id', 'ch_perth_key', 'ch_shangani_id', 'ch_shangani_key',
- 'ch_funzi_id', 'ch_funzi_key', 'scheduleTime', 'scheduleMinute',
- 'autoRefreshMin', 'maxResults', 'dataPath', 'pagesPath'].forEach(function (id) {
+ 'ch_funzi_id', 'ch_funzi_key', 'ch_wroom_temp_id', 'ch_wroom_temp_key',
+ 'ch_wroom_hum_id', 'ch_wroom_hum_key',
+ 'autoRefreshMin', 'maxResults'].forEach(function (id) {
   var el = document.getElementById(id);
   if (el) {
-    el.addEventListener('input',  function() { updatePreviews(false); });
-    el.addEventListener('change', function() { updatePreviews(false); });
+    el.addEventListener('input',  function() { updatePreviews(); });
+    el.addEventListener('change', function() { updatePreviews(); });
   }
 });
-// scriptsPath drives the schtasks command -- flash the indicator when it changes
-var _spEl = document.getElementById('scriptsPath');
-if (_spEl) {
-  _spEl.addEventListener('input',  function() { updatePreviews(true); });
-  _spEl.addEventListener('change', function() { updatePreviews(true); });
-}
 
-// ── Save to localStorage ────────────────────────────────────────────
+//  Save to localStorage 
 function saveSettings() {
   var cfg = getFormConfig();
   localStorage.setItem('seaweed_dashboard_config', JSON.stringify(cfg));
@@ -756,7 +632,7 @@ function saveSettings() {
   updatePreviews();
 }
 
-// ── Download config.json ────────────────────────────────────────────
+//  Download config.json 
 function downloadConfigJson() {
   var cfg  = getFormConfig();
   var json = buildConfigJson(cfg);
@@ -769,7 +645,7 @@ function downloadConfigJson() {
   URL.revokeObjectURL(url);
 }
 
-// ── Copy code block to clipboard ───────────────────────────────────
+//  Copy code block to clipboard 
 function copyCode(elId, btn) {
   var text = document.getElementById(elId).textContent;
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -789,7 +665,7 @@ function copyCode(elId, btn) {
   }
 }
 
-// ── Load saved config into the form on page load ────────────────────
+//  Load saved config into the form on page load 
 function loadSavedConfig() {
   var saved = {};
   try {
@@ -802,33 +678,26 @@ function loadSavedConfig() {
   if (saved.channels && saved.channels.length) {
     saved.channels.forEach(function (c) { chMap[c.id] = c; });
   } else if (saved.channelId) {
-    // Legacy single-channel config → map to perth
+    // Legacy single-channel config  map to perth
     chMap.perth = { channelId: saved.channelId, apiKey: saved.apiKey || '' };
   }
 
-  document.getElementById('ch_perth_id').value     = (chMap.perth    && chMap.perth.channelId)    || '3262071';
-  document.getElementById('ch_perth_key').value    = (chMap.perth    && chMap.perth.apiKey)       || 'VVHUX39KINYPLCVI';
-  document.getElementById('ch_shangani_id').value  = (chMap.shangani && chMap.shangani.channelId) || '';
-  document.getElementById('ch_shangani_key').value = (chMap.shangani && chMap.shangani.apiKey)    || '';
-  document.getElementById('ch_funzi_id').value     = (chMap.funzi    && chMap.funzi.channelId)    || '';
-  document.getElementById('ch_funzi_key').value    = (chMap.funzi    && chMap.funzi.apiKey)       || '';
+  document.getElementById('ch_perth_id').value      = (chMap.perth    && chMap.perth.channelId)    || '3262071';
+  document.getElementById('ch_perth_key').value     = (chMap.perth    && chMap.perth.apiKey)       || 'VVHUX39KINYPLCVI';
+  document.getElementById('ch_shangani_id').value   = (chMap.shangani && chMap.shangani.channelId) || '';
+  document.getElementById('ch_shangani_key').value  = (chMap.shangani && chMap.shangani.apiKey)    || '';
+  document.getElementById('ch_funzi_id').value      = (chMap.funzi    && chMap.funzi.channelId)    || '';
+  document.getElementById('ch_funzi_key').value     = (chMap.funzi    && chMap.funzi.apiKey)       || '';
+  document.getElementById('ch_wroom_temp_id').value = (chMap.wroom    && chMap.wroom.channelId)    || '3246116';
+  document.getElementById('ch_wroom_temp_key').value= (chMap.wroom    && chMap.wroom.apiKey)       || '7K00B1Y8DNOTEIM0';
+  document.getElementById('ch_wroom_hum_id').value  = (chMap.wroom    && chMap.wroom.channelId2)   || '3256756';
+  document.getElementById('ch_wroom_hum_key').value = (chMap.wroom    && chMap.wroom.apiKey2)      || 'D8TXB5B33KPWRIHO';
 
-  document.getElementById('scheduleTime').value    = saved.scheduleTime    || '06:00';
-  document.getElementById('scheduleMinute').value  = saved.scheduleMinute  || 5;
-  document.getElementById('autoRefreshMin').value  = String(saved.autoRefreshMin != null ? saved.autoRefreshMin : 15);
-  document.getElementById('maxResults').value      = saved.maxResults      || 8000;
-  document.getElementById('dataPath').value         = saved.dataPath         || '';
-  document.getElementById('pagesPath').value        = saved.pagesPath        || '';
-  document.getElementById('scriptsPath').value      = saved.scriptsPath      || '';
-
-  if (saved.scheduleType === 'hourly') {
-    setSchedule('hourly');
-  } else {
-    setSchedule('daily');
-  }
+  document.getElementById('autoRefreshMin').value = String(saved.autoRefreshMin != null ? saved.autoRefreshMin : 15);
+  document.getElementById('maxResults').value     = saved.maxResults || 8000;
 }
 
-// ── Init ─────────────────────────────────────────────────────────────
+//  Init 
 document.addEventListener('DOMContentLoaded', function () {
   loadSavedConfig();
   updatePreviews();
