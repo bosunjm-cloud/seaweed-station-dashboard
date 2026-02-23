@@ -734,9 +734,9 @@ body {
         <span class="chart-subhead" id="weatherLocation" style="margin:0"></span>
         <div class="time-btns">
           <button class="btn btn-sm" data-wxrange="day" onclick="setWeatherTimeRange('day')">Day</button>
-          <button class="btn btn-sm" data-wxrange="week" onclick="setWeatherTimeRange('week')">Week</button>
+          <button class="btn btn-sm active" data-wxrange="week" onclick="setWeatherTimeRange('week')">Week</button>
           <button class="btn btn-sm" data-wxrange="month" onclick="setWeatherTimeRange('month')">Month</button>
-          <button class="btn btn-sm active" data-wxrange="all" onclick="setWeatherTimeRange('all')">All</button>
+          <button class="btn btn-sm" data-wxrange="all" onclick="setWeatherTimeRange('all')">All</button>
           <button class="btn btn-sm" data-wxrange="forecast" onclick="setWeatherTimeRange('forecast')">7-Day &#x2197;</button>
         </div>
       </div>
@@ -861,7 +861,7 @@ const state = {
   channelInfo:      null,
   dataSource:       '',
   charts:           { temp: null, hum: null, bat: null, volt: null, weather: null },
-  weatherTimeRange: 'all',
+  weatherTimeRange: 'week',
   autoRefreshTimer: null,
 };
 
@@ -2459,7 +2459,7 @@ async function fetchForecastData() {
 }
 
 function renderWeatherCharts() {
-  var _wxr = state.weatherTimeRange || 'all';
+  var _wxr = state.weatherTimeRange || 'week';
   var w = (_wxr === 'forecast') ? weatherState.forecast : weatherState.data;
   var activeDaily = (_wxr === 'forecast') ? weatherState.forecastDaily : weatherState.daily;
   if (!w || !w.time || !w.time.length) return;
