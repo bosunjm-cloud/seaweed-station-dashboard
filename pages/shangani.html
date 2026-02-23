@@ -165,6 +165,24 @@ body {
 }
 .date-range-bar input[type="date"]:focus { outline: none; border-color: var(--accent); }
 
+/* -- Sensor placement map ------------------------------------------ */
+.sensor-map-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.sensor-map-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: none; border: none; color: var(--text-muted);
+  font-size: 0.82rem; font-weight: 600; cursor: pointer; letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.sensor-map-toggle:hover { color: var(--text); }
+.sensor-map-chevron { font-size: 0.75rem; transition: transform 0.2s; color: var(--text-muted); }
+.sensor-map-chevron.open { transform: rotate(180deg); }
+.sensor-map-body { border-top: 1px solid var(--border); }
+.sensor-map-inner { padding: 14px 20px 18px; }
+.rack-svg { width: 100%; max-width: 760px; display: block; margin: 0 auto 14px; }
+.sensor-map-legend { display: flex; flex-wrap: wrap; gap: 10px 22px; justify-content: center; }
+.sml-item { display: flex; align-items: center; gap: 7px; font-size: 0.8rem; font-weight: 600; }
+.sml-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
 /* -- Status cards grid --------------------------------------------- */
 .status-grid {
   display: grid;
@@ -375,7 +393,7 @@ body {
     </div>
   </div>
   <div class="header-actions">
-    <a class="btn btn-sm" href="../index.html" title="All tables overview">&#9664; Overview</a>
+    <a class="btn btn-sm" href="../ESP32_Weather_Station_Dashboard.html" title="All tables overview">&#9664; Overview</a>
     <button class="btn btn-primary" id="btnFetch" onclick="fetchLiveData()">Fetch Live</button>
     <button class="btn" id="btnLoadFile" onclick="document.getElementById('fileInput').click()">Load JSON</button>
     <input type="file" id="fileInput" multiple accept=".json" style="display:none"
@@ -415,11 +433,8 @@ body {
     <button class="btn btn-primary" onclick="fetchLiveData()" style="margin-top:10px">Fetch Live Now</button>
   </div>
 
-  <!-- Dashboard content (hidden until data loaded) -->
-  <div id="dashboardContent" style="display:none">
-
-    <!-- -- Date Range Filter -------------------------------------- -->
-    <section class="date-range-bar" id="dateRangeBar">
+  <!-- -- Date Range Filter -------------------------------------- -->
+  <section class="date-range-bar" id="dateRangeBar">
       <span class="date-range-label">Date Range:</span>
       <input type="date" id="dateStart" title="Start date (leave empty for earliest)">
       <span class="date-range-sep">to</span>
@@ -427,6 +442,98 @@ body {
       <button class="btn btn-sm" onclick="applyDateRange()">Apply</button>
       <button class="btn btn-sm" onclick="clearDateRange()" title="Reset to all data">Clear</button>
     </section>
+
+    <!-- -- Sensor Placement Map ----------------------------------------- -->
+    <div class="sensor-map-panel">
+      <button class="sensor-map-toggle" id="sensorMapToggle" onclick="toggleSensorMap()" aria-expanded="false">
+        <span>&#9741; Sensor Placement Reference</span>
+        <span class="sensor-map-chevron" id="sensorMapChevron">&#9660;</span>
+      </button>
+      <div class="sensor-map-body" id="sensorMapBody" style="display:none">
+        <div class="sensor-map-inner">
+          <svg class="rack-svg" viewBox="0 0 960 280" xmlns="http://www.w3.org/2000/svg" aria-label="Shangani sensor placement diagram">
+            <!-- === Posts (green metal tubes, 5 legs) === -->
+            <rect x="55" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>
+            <rect x="223" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>
+            <rect x="391" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>
+            <rect x="559" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>
+            <rect x="727" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>
+            <!-- Post highlights -->
+            <line x1="58" y1="132" x2="58" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>
+            <line x1="226" y1="132" x2="226" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>
+            <line x1="394" y1="132" x2="394" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>
+            <line x1="562" y1="132" x2="562" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>
+            <line x1="730" y1="132" x2="730" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>
+            <!-- === Upper rail pair === -->
+            <rect x="55" y="132" width="684" height="8" fill="#3a7d44" rx="2"/>
+            <rect x="55" y="144" width="684" height="8" fill="#3a7d44" rx="2"/>
+            <line x1="55" y1="134" x2="739" y2="134" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>
+            <line x1="55" y1="146" x2="739" y2="146" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>
+            <!-- === Lower rail pair === -->
+            <rect x="55" y="194" width="684" height="8" fill="#3a7d44" rx="2"/>
+            <rect x="55" y="206" width="684" height="8" fill="#3a7d44" rx="2"/>
+            <line x1="55" y1="196" x2="739" y2="196" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>
+            <line x1="55" y1="208" x2="739" y2="208" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>
+            <!-- === Connector flanges at post×rail junctions === -->
+            <rect x="50" y="127" width="22" height="28" fill="#2d5e35" rx="3"/>
+            <rect x="50" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>
+            <rect x="218" y="127" width="22" height="28" fill="#2d5e35" rx="3"/>
+            <rect x="218" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>
+            <rect x="386" y="127" width="22" height="28" fill="#2d5e35" rx="3"/>
+            <rect x="386" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>
+            <rect x="554" y="127" width="22" height="28" fill="#2d5e35" rx="3"/>
+            <rect x="554" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>
+            <rect x="722" y="127" width="22" height="28" fill="#2d5e35" rx="3"/>
+            <rect x="722" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>
+            <!-- === Ground line & footing plates === -->
+            <line x1="30" y1="252" x2="755" y2="252" stroke="#888" stroke-width="2"/>
+            <rect x="48" y="249" width="26" height="6" fill="#555" rx="1"/>
+            <rect x="216" y="249" width="26" height="6" fill="#555" rx="1"/>
+            <rect x="384" y="249" width="26" height="6" fill="#555" rx="1"/>
+            <rect x="552" y="249" width="26" height="6" fill="#555" rx="1"/>
+            <rect x="720" y="249" width="26" height="6" fill="#555" rx="1"/>
+            <line x1="61" y1="240" x2="61" y2="255" stroke="#888" stroke-width="1.5"/>
+            <line x1="229" y1="240" x2="229" y2="255" stroke="#888" stroke-width="1.5"/>
+            <line x1="397" y1="240" x2="397" y2="255" stroke="#888" stroke-width="1.5"/>
+            <line x1="565" y1="240" x2="565" y2="255" stroke="#888" stroke-width="1.5"/>
+            <line x1="733" y1="240" x2="733" y2="255" stroke="#888" stroke-width="1.5"/>
+            <!-- === S4 — upper-left (between posts 1-2) === -->
+            <rect x="85" y="74" width="120" height="36" fill="#7e22ce" fill-opacity="0.15" stroke="#a855f7" stroke-width="1.5" rx="5"/>
+            <text x="145" y="88" text-anchor="middle" fill="#a855f7" font-size="12" font-weight="700">S4</text>
+            <text x="145" y="103" text-anchor="middle" fill="#a855f7" font-size="10">Upper West</text>
+            <!-- === S2 — upper-right (between posts 3-4) === -->
+            <rect x="421" y="74" width="120" height="36" fill="#15803d" fill-opacity="0.15" stroke="#22c55e" stroke-width="1.5" rx="5"/>
+            <text x="481" y="88" text-anchor="middle" fill="#22c55e" font-size="12" font-weight="700">S2</text>
+            <text x="481" y="103" text-anchor="middle" fill="#22c55e" font-size="10">Upper East</text>
+            <!-- === S1 — lower-left (between posts 1-2) === -->
+            <rect x="85" y="220" width="120" height="36" fill="#0369a1" fill-opacity="0.15" stroke="#38bdf8" stroke-width="1.5" rx="5"/>
+            <text x="145" y="234" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700">S1</text>
+            <text x="145" y="249" text-anchor="middle" fill="#38bdf8" font-size="10">Lower West</text>
+            <!-- === S3 — lower-right (between posts 3-4) === -->
+            <rect x="421" y="220" width="120" height="36" fill="#854d0e" fill-opacity="0.15" stroke="#eab308" stroke-width="1.5" rx="5"/>
+            <text x="481" y="234" text-anchor="middle" fill="#eab308" font-size="12" font-weight="700">S3</text>
+            <text x="481" y="249" text-anchor="middle" fill="#eab308" font-size="10">Lower East</text>
+            <!-- === Control sensor — off-rack right === -->
+            <line x1="739" y1="138" x2="804" y2="138" stroke="#f97316" stroke-width="1.5" stroke-dasharray="6,4"/>
+            <rect x="804" y="120" width="120" height="36" fill="#9a3412" fill-opacity="0.15" stroke="#f97316" stroke-width="1.5" rx="5"/>
+            <text x="864" y="134" text-anchor="middle" fill="#f97316" font-size="12" font-weight="700">Control</text>
+            <text x="864" y="149" text-anchor="middle" fill="#f97316" font-size="10">External Ref</text>
+            <!-- === Rack label === -->
+            <text x="397" y="270" text-anchor="middle" fill="#64748b" font-size="9">Green Metal Rack</text>
+          </svg>
+          <div class="sensor-map-legend">
+            <div class="sml-item"><div class="sml-dot" style="background:#38bdf8"></div><span style="color:#38bdf8">S1 — Lower West</span></div>
+            <div class="sml-item"><div class="sml-dot" style="background:#22c55e"></div><span style="color:#22c55e">S2 — Upper East</span></div>
+            <div class="sml-item"><div class="sml-dot" style="background:#eab308"></div><span style="color:#eab308">S3 — Lower East</span></div>
+            <div class="sml-item"><div class="sml-dot" style="background:#a855f7"></div><span style="color:#a855f7">S4 — Upper West</span></div>
+            <div class="sml-item"><div class="sml-dot" style="background:#f97316"></div><span style="color:#f97316">Control — External Ref</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  <!-- Dashboard content (hidden until data loaded) -->
+  <div id="dashboardContent" style="display:none">
 
     <!-- -- Network At-A-Glance Bar -------------------------------- -->
     <section class="network-bar" id="networkBar"></section>
@@ -512,6 +619,7 @@ body {
           <div class="detail-item"><div class="detail-label">Upload OK</div><div class="detail-value" id="sysUploadOk">--</div></div>
           <div class="detail-item"><div class="detail-label">Total Entries</div><div class="detail-value" id="sysTotalEntries">--</div></div>
           <div class="detail-item"><div class="detail-label">Sample Period</div><div class="detail-value" id="sysSamplePeriod">--</div></div>
+          <div class="detail-item" style="grid-column:1/-1" title="SD space consumed since first recorded entry"><div class="detail-label">Data Written (SD)</div><div class="detail-value" id="sysSDUsed">--</div></div>
         </div>
         <div class="card-footer">
           <span class="dot dot-grey" id="sysDot"></span>
@@ -575,31 +683,6 @@ body {
       </div>
     </section>
 
-    <!-- -- Local Weather (Open-Meteo hindcast) --------------------- -->
-    <section class="chart-panel" id="weatherSection" style="display:none">
-      <div class="chart-header">
-        <h3>&#127326; Local Weather (Open-Meteo)</h3>
-        <span class="chart-subhead" id="weatherLocation" style="margin:0"></span>
-      </div>
-      <div class="chart-subhead" id="weatherSubhead">Hourly weather from Open-Meteo -- syncs with the selected time range above</div>
-      <div class="two-charts" style="margin-top:8px">
-        <div class="chart-wrap">
-          <canvas id="weatherTempChart"></canvas>
-        </div>
-        <div class="chart-wrap">
-          <canvas id="weatherHumChart"></canvas>
-        </div>
-      </div>
-      <div class="two-charts" style="margin-top:8px">
-        <div class="chart-wrap" style="height:200px">
-          <canvas id="weatherPrecipChart"></canvas>
-        </div>
-        <div class="chart-wrap" style="height:200px">
-          <canvas id="weatherUVChart"></canvas>
-        </div>
-      </div>
-    </section>
-
     <!-- -- Battery Charts (side by side: % and Voltage) ----------- -->
     <div class="two-charts">
       <section class="chart-panel">
@@ -647,9 +730,42 @@ body {
 
   </div> <!-- /dashboardContent -->
 
-  <!-- =================================================================
-       TIDES & MOON PHASE (always visible -- pure astronomical prediction)
-       ================================================================= -->
+  <!-- Weather & Tides: shown regardless of sensor data being loaded -->
+  <!-- -- Local Weather (Open-Meteo hindcast) --------------------- -->
+  <section class="chart-panel" id="weatherSection" style="display:none">
+    <div class="chart-header">
+      <h3>&#127326; Local Weather (Open-Meteo)</h3>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="chart-subhead" id="weatherLocation" style="margin:0"></span>
+        <div class="time-btns">
+          <button class="btn btn-sm" data-wxrange="day" onclick="setWeatherTimeRange('day')">Day</button>
+          <button class="btn btn-sm" data-wxrange="week" onclick="setWeatherTimeRange('week')">Week</button>
+          <button class="btn btn-sm" data-wxrange="month" onclick="setWeatherTimeRange('month')">Month</button>
+          <button class="btn btn-sm active" data-wxrange="all" onclick="setWeatherTimeRange('all')">All</button>
+          <button class="btn btn-sm" data-wxrange="forecast" onclick="setWeatherTimeRange('forecast')">7-Day &#x2197;</button>
+        </div>
+      </div>
+    </div>
+    <div class="chart-subhead" id="weatherSubhead">Hourly weather from Open-Meteo</div>
+    <div class="two-charts" style="margin-top:8px">
+      <div class="chart-wrap">
+        <canvas id="weatherTempChart"></canvas>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="weatherHumChart"></canvas>
+      </div>
+    </div>
+    <div class="two-charts" style="margin-top:8px">
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="weatherPrecipChart"></canvas>
+      </div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="weatherUVChart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- -- Tides & Moon Phase ------------------------------------- -->
   <section class="chart-panel" id="tidesSection" style="display:none">
     <div class="chart-header">
       <h3>&#127754; Tides &amp; Moon Phase</h3>
@@ -750,6 +866,7 @@ const state = {
   channelInfo:      null,
   dataSource:       '',
   charts:           { temp: null, hum: null, bat: null, volt: null, weather: null },
+  weatherTimeRange: 'all',
   autoRefreshTimer: null,
 };
 
@@ -854,16 +971,9 @@ function timeAgo(date) {
   return days + 'd ' + (hrs % 24) + 'h ago';
 }
 
-/** Get browser timezone label */
+/** Timezone label — data is recorded in East African Time */
 function getTimezoneLabel() {
-  try {
-    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    var offset = new Date().getTimezoneOffset();
-    var sign = offset <= 0 ? '+' : '-';
-    var absH = Math.floor(Math.abs(offset) / 60);
-    var absM = Math.abs(offset) % 60;
-    return tz + ' (UTC' + sign + absH + (absM ? ':' + String(absM).padStart(2, '0') : '') + ')';
-  } catch (e) { return 'Local time'; }
+  return 'East African Time (UTC+3)';
 }
 
 /** Range label for chart subheads */
@@ -1074,7 +1184,25 @@ function setTimeRange(range) {
   updatePeaksTable();
   updateTimeButtons();
   updateChartSubheads();
-  renderWeatherCharts();   // sync weather to same time range
+  renderWeatherCharts();   // re-render weather (uses its own independent time range)
+}
+
+function setWeatherTimeRange(r) {
+  state.weatherTimeRange = r;
+  document.querySelectorAll('[data-wxrange]').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.wxrange === r);
+  });
+  if (r === 'forecast') { fetchForecastData(); } else { renderWeatherCharts(); }
+}
+
+function toggleSensorMap() {
+  var body = document.getElementById('sensorMapBody');
+  var chevron = document.getElementById('sensorMapChevron');
+  var toggle = document.getElementById('sensorMapToggle');
+  var open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  chevron.classList.toggle('open', open);
+  toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function applyDateRange() {
@@ -1412,6 +1540,13 @@ function updateStatusCards() {
   document.getElementById('sysUploadOk').textContent     = latest.uploadOk !== null ? latest.uploadOk : '--';
   document.getElementById('sysTotalEntries').textContent  = state.allEntries.length.toLocaleString();
   document.getElementById('sysChannelName').textContent   = state.channelInfo ? state.channelInfo.name : '--';
+  var _peakFreeKB = null;
+  for (var _i = 0; _i < state.allEntries.length; _i++) {
+    var _fk = state.allEntries[_i].sdFreeKB;
+    if (_fk !== null && _fk !== undefined && (_peakFreeKB === null || _fk > _peakFreeKB)) _peakFreeKB = _fk;
+  }
+  var _usedKB = (_peakFreeKB !== null && latest.sdFreeKB !== null) ? (_peakFreeKB - latest.sdFreeKB) : null;
+  document.getElementById('sysSDUsed').textContent = (_usedKB !== null && _usedKB > 0) ? fmtBytes(_usedKB) : (_usedKB === 0 ? '0 KB' : '--');
 
   // Estimate sample period from recent data
   if (e.length >= 2) {
@@ -1585,6 +1720,185 @@ var sensorBandsPlugin = {
   }
 };
 
+// ── Daily Min/Max value labels ─────────────────────────────────────────
+var dailyMinMaxPlugin = {
+  id: 'dailyMinMax',
+  afterDatasetsDraw: function(chart) {
+    var xScale = chart.scales.x;
+    var yScale = chart.scales.y;
+    if (!xScale || !yScale) return;
+    var ctx = chart.ctx;
+
+    // Find daily high and low across all visible datasets
+    var dayMax = {};  // dayKey -> { val, x, color }
+    var dayMin = {};  // dayKey -> { val, x, color }
+
+    chart.data.datasets.forEach(function(ds, dsIdx) {
+      var meta = chart.getDatasetMeta(dsIdx);
+      if (meta.hidden) return;
+      var color = (typeof ds.borderColor === 'string') ? ds.borderColor : '#94a3b8';
+      if (/^#[0-9a-fA-F]{8}$/.test(color)) color = color.slice(0, 7);  // strip alpha
+
+      ds.data.forEach(function(pt) {
+        if (!pt || pt.y === null || pt.y === undefined) return;
+        var d = new Date(pt.x);
+        var key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+        if (!dayMax[key] || pt.y > dayMax[key].val) dayMax[key] = { val: pt.y, x: pt.x, color: color };
+        if (!dayMin[key] || pt.y < dayMin[key].val) dayMin[key] = { val: pt.y, x: pt.x, color: color };
+      });
+    });
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(xScale.left, yScale.top, xScale.right - xScale.left, yScale.bottom - yScale.top);
+    ctx.clip();
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    function drawDayLabel(val, x, y, color, above) {
+      var lbl = val.toFixed(1);
+      var oy = above ? -10 : 10;
+      ctx.fillStyle = 'rgba(15,23,42,0.65)';
+      ctx.fillText(lbl, x + 1, y + oy + 1);
+      ctx.fillStyle = color;
+      ctx.fillText(lbl, x, y + oy);
+    }
+
+    Object.keys(dayMax).forEach(function(key) {
+      var m = dayMax[key];
+      var px = xScale.getPixelForValue(m.x);
+      if (px < xScale.left || px > xScale.right) return;
+      drawDayLabel(m.val, px, yScale.getPixelForValue(m.val), m.color, true);
+    });
+
+    Object.keys(dayMin).forEach(function(key) {
+      var m = dayMin[key];
+      var px = xScale.getPixelForValue(m.x);
+      if (px < xScale.left || px > xScale.right) return;
+      drawDayLabel(m.val, px, yScale.getPixelForValue(m.val), m.color, false);
+    });
+
+    ctx.restore();
+  }
+};
+
+// ── "Now" vertical marker line ───────────────────────────────────────
+var nowLinePlugin = {
+  id: 'nowLine',
+  beforeDraw: function(chart) {
+    var xScale = chart.scales.x;
+    var yScale = chart.scales.y;
+    if (!xScale || !yScale) return;
+    var nowPx = xScale.getPixelForValue(Date.now());
+    if (nowPx < xScale.left || nowPx > xScale.right) return;
+    var ctx = chart.ctx;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(xScale.left, yScale.top, xScale.right - xScale.left, yScale.bottom - yScale.top);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(248, 113, 113, 0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(nowPx, yScale.top);
+    ctx.lineTo(nowPx, yScale.bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(248,113,113,0.9)';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('NOW', nowPx + 3, yScale.top + 10);
+    ctx.restore();
+  }
+};
+
+// Module-level night-shading plugin – reads weatherState.sunEvents populated by renderWeatherCharts()
+var nightShadingPlugin = {
+  id: 'nightShading',
+  beforeDraw: function(chart) {
+    var se = weatherState.sunEvents;
+    if (!se || !se.length) return;
+    var xScale = chart.scales.x, yScale = chart.scales.y;
+    if (!xScale || !yScale) return;
+    var ctx = chart.ctx;
+    var top = yScale.top, bot = yScale.bottom, left = xScale.left, right = xScale.right;
+    var minX = xScale.min, maxX = xScale.max;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(left, top, right - left, bot - top); ctx.clip();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+    if (se[0].rise > minX) {
+      var x1 = Math.max(left, xScale.getPixelForValue(minX));
+      var x2 = Math.min(right, xScale.getPixelForValue(se[0].rise));
+      if (x2 > x1) ctx.fillRect(x1, top, x2 - x1, bot - top);
+    }
+    for (var i = 0; i < se.length; i++) {
+      var setX = xScale.getPixelForValue(se[i].set);
+      var nextRise = (i + 1 < se.length) ? se[i + 1].rise : maxX + 86400000;
+      var riseX = xScale.getPixelForValue(Math.min(nextRise, maxX));
+      var sx = Math.max(left, setX), rx = Math.min(right, riseX);
+      if (rx > sx) ctx.fillRect(sx, top, rx - sx, bot - top);
+    }
+    for (var j = 0; j < se.length; j++) {
+      var rPx = xScale.getPixelForValue(se[j].rise);
+      if (rPx >= left && rPx <= right) {
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(rPx, top); ctx.lineTo(rPx, bot); ctx.stroke();
+      }
+      var sPx = xScale.getPixelForValue(se[j].set);
+      if (sPx >= left && sPx <= right) {
+        ctx.strokeStyle = 'rgba(251, 146, 60, 0.45)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(sPx, top); ctx.lineTo(sPx, bot); ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+};
+
+// Module-level day-label plugin – draws Mon/Tue/Wed… centred in each day block at top of chart
+var dayLabelPlugin = {
+  id: 'dayLabel',
+  afterDraw: function(chart) {
+    var xScale = chart.scales.x, yScale = chart.scales.y;
+    if (!xScale || !yScale) return;
+    var minX = xScale.min, maxX = xScale.max;
+    if (maxX - minX < 2 * 86400000) return;
+    var ctx = chart.ctx;
+    var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var se = weatherState.sunEvents;
+    ctx.save();
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    if (se && se.length) {
+      // Centre label on the daylight window (sunrise → sunset) for each day
+      for (var i = 0; i < se.length; i++) {
+        var rise = se[i].rise, set = se[i].set;
+        if (set < minX || rise > maxX) continue;
+        var midMs = (rise + set) / 2;
+        var px = xScale.getPixelForValue(midMs);
+        if (px < xScale.left || px > xScale.right) continue;
+        ctx.fillText(DAYS[new Date(rise).getDay()], px, yScale.bottom + 3);
+      }
+    } else {
+      // Fallback: centre in each calendar day block
+      var day = new Date(minX);
+      day.setHours(24, 0, 0, 0);
+      while (day.getTime() < maxX) {
+        var midMs2 = day.getTime();
+        var nextDay = new Date(midMs2); nextDay.setDate(nextDay.getDate() + 1);
+        var px1 = Math.max(xScale.left, xScale.getPixelForValue(midMs2));
+        var px2 = Math.min(xScale.right, xScale.getPixelForValue(nextDay.getTime()));
+        ctx.fillText(DAYS[day.getDay()], (px1 + px2) / 2, yScale.bottom + 3);
+        day = nextDay;
+      }
+    }
+    ctx.restore();
+  }
+};
+
 function onSensorOptsChange() {
   var n = document.getElementById('ovNight');
   var h = document.getElementById('ovHarvest');
@@ -1658,6 +1972,20 @@ function baseChartOptions(yLabel, yMin, yMax) {
 
 function createOrUpdateCharts() {
   var e = state.filteredEntries;
+  // Sensor chart x-window: clip weather overlay to this range so it can't expand the axis
+  var _wxMin = e.length ? e[0].timestamp.getTime() : -Infinity;
+  var _wxMax = e.length ? e[e.length - 1].timestamp.getTime() : Infinity;
+  // Build overlay points from raw weather data (independent of weather section's time range)
+  var _wxOverlayTemp = [], _wxOverlayHum = [];
+  if ((window._sensorOpts || {}).wx && weatherState.data && weatherState.data.time) {
+    var _wd = weatherState.data;
+    for (var _wi = 0; _wi < _wd.time.length; _wi++) {
+      var _wt = new Date(_wd.time[_wi]).getTime();
+      if (_wt < _wxMin || _wt > _wxMax) continue;
+      if (_wd.temperature_2m[_wi] !== null) _wxOverlayTemp.push({ x: _wt, y: _wd.temperature_2m[_wi] });
+      if (_wd.relative_humidity_2m[_wi] !== null) _wxOverlayHum.push({ x: _wt, y: _wd.relative_humidity_2m[_wi] });
+    }
+  }
 
   // Update time axis config on all existing charts
   var timeCfg = getTimeAxisConfig();
@@ -1678,8 +2006,8 @@ function createOrUpdateCharts() {
   ];
   var hasTempData = tempDS.some(function (ds) { return ds.data.length > 0; });
   document.getElementById('tempEmpty').style.display = hasTempData ? 'none' : 'flex';
-  if ((window._sensorOpts || {}).wx && weatherState.tempPoints && weatherState.tempPoints.length) {
-    tempDS.push({ label: 'Open-Meteo Temp', data: weatherState.tempPoints,
+  if ((window._sensorOpts || {}).wx && _wxOverlayTemp.length) {
+    tempDS.push({ label: 'Open-Meteo Temp', data: _wxOverlayTemp,
       borderColor: '#f59e0b99', backgroundColor: 'transparent', borderWidth: 1.5,
       borderDash: [6, 4], pointRadius: 0, tension: 0.3, fill: false });
   }
@@ -1693,7 +2021,7 @@ function createOrUpdateCharts() {
     state.charts.temp = new Chart(document.getElementById('tempChart'), {
       type: 'line', data: { datasets: tempDS },
       options: _tOpts,
-      plugins: [sensorBandsPlugin],
+      plugins: [sensorBandsPlugin, dailyMinMaxPlugin],
     });
   }
 
@@ -1708,8 +2036,8 @@ function createOrUpdateCharts() {
   ];
   var hasHumData = humDS.some(function (ds) { return ds.data.length > 0; });
   document.getElementById('humEmpty').style.display = hasHumData ? 'none' : 'flex';
-  if ((window._sensorOpts || {}).wx && weatherState.humPoints && weatherState.humPoints.length) {
-    humDS.push({ label: 'Open-Meteo Humidity', data: weatherState.humPoints,
+  if ((window._sensorOpts || {}).wx && _wxOverlayHum.length) {
+    humDS.push({ label: 'Open-Meteo Humidity', data: _wxOverlayHum,
       borderColor: '#06b6d499', backgroundColor: 'transparent', borderWidth: 1.5,
       borderDash: [6, 4], pointRadius: 0, tension: 0.3, fill: false });
   }
@@ -1723,7 +2051,7 @@ function createOrUpdateCharts() {
     state.charts.hum = new Chart(document.getElementById('humChart'), {
       type: 'line', data: { datasets: humDS },
       options: _hOpts2,
-      plugins: [sensorBandsPlugin],
+      plugins: [sensorBandsPlugin, dailyMinMaxPlugin],
     });
   }
 
@@ -1975,15 +2303,21 @@ var weatherState = {
   tempPoints: [], humPoints: [],  // cached for sensor chart overlay
   charts: { temp: null, hum: null, precip: null, uv: null },
   fetching: false,
+  forecast: null,         // 7-day forecast hourly data
+  forecastDaily: null,    // forecast sunrise/sunset
+  forecastFetching: false,
+  sunEvents: [],          // populated each renderWeatherCharts() call for nightShadingPlugin
 };
 
 /** Fetch weather data -- tries cached file first, then Open-Meteo API */
 async function fetchWeatherData() {
   if (weatherState.fetching) return;
-  if (!state.filteredEntries.length) return;
+
+  // When no sensor data is loaded, still show weather using a 7-day lookback
+  var hasEntries = state.filteredEntries.length > 0;
 
   // --- Try cached weather (downloaded by download_data.ps1) ---
-  if (window.WEATHER_CACHE && window.WEATHER_CACHE.hourly && window.WEATHER_CACHE.hourly.time) {
+  if (hasEntries && window.WEATHER_CACHE && window.WEATHER_CACHE.hourly && window.WEATHER_CACHE.hourly.time) {
     var cached = window.WEATHER_CACHE.hourly;
     // Check if cache covers our sensor data range
     var first = state.filteredEntries[0].timestamp;
@@ -2005,8 +2339,15 @@ async function fetchWeatherData() {
   }
 
   // --- Fall back to live API ---
-  var first = state.filteredEntries[0].timestamp;
-  var last  = state.filteredEntries[state.filteredEntries.length - 1].timestamp;
+  var first, last;
+  if (hasEntries) {
+    first = state.filteredEntries[0].timestamp;
+    last  = state.filteredEntries[state.filteredEntries.length - 1].timestamp;
+  } else {
+    // No sensor data -- use last 7 days so weather still displays
+    last  = new Date();
+    first = new Date(last.getTime() - 7 * 86400000);
+  }
 
   // Pad range by 1 day each side for overlap
   var startDate = new Date(first.getTime() - 86400000);
@@ -2053,19 +2394,61 @@ async function fetchWeatherData() {
   }
 }
 
+async function fetchForecastData() {
+  if (weatherState.forecastFetching) return;
+  // Use cached forecast if fetched within last hour
+  if (weatherState.forecast && weatherState.forecast._fetchedAt &&
+      Date.now() - weatherState.forecast._fetchedAt < 3600000) {
+    renderWeatherCharts(); return;
+  }
+  weatherState.forecastFetching = true;
+  var today = new Date().toISOString().slice(0, 10);
+  var end   = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + WEATHER_LOCATION.lat +
+    '&longitude=' + WEATHER_LOCATION.lon +
+    '&start_date=' + today + '&end_date=' + end +
+    '&hourly=temperature_2m,relative_humidity_2m,precipitation,uv_index' +
+    '&daily=sunrise,sunset&timezone=auto';
+  console.log('[Weather] Fetching 7-day forecast:', url);
+  try {
+    var resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var json = await resp.json();
+    if (json.hourly && json.hourly.time) {
+      weatherState.forecast = json.hourly;
+      weatherState.forecast._timezone = json.timezone || '';
+      weatherState.forecast._location = WEATHER_LOCATION.name + ' (Forecast)';
+      weatherState.forecast._fetchedAt = Date.now();
+      if (json.daily) weatherState.forecastDaily = json.daily;
+      console.log('[Weather] Got ' + json.hourly.time.length + ' forecast hourly points');
+      renderWeatherCharts();
+    }
+  } catch (err) {
+    console.warn('[Weather] Forecast fetch failed:', err);
+  } finally {
+    weatherState.forecastFetching = false;
+  }
+}
+
 function renderWeatherCharts() {
-  var w = weatherState.data;
+  var _wxr = state.weatherTimeRange || 'all';
+  var w = (_wxr === 'forecast') ? weatherState.forecast : weatherState.data;
+  var activeDaily = (_wxr === 'forecast') ? weatherState.forecastDaily : weatherState.daily;
   if (!w || !w.time || !w.time.length) return;
 
   document.getElementById('weatherSection').style.display = '';
   var locEl = document.getElementById('weatherLocation');
   if (locEl) locEl.textContent = w._location + ' (' + w._timezone + ')';
 
-  // Determine visible time range from sensor data (or show all weather data)
+  // Determine visible time window from independent weather time-range selector
   var rangeStart = 0, rangeEnd = Infinity;
-  if (state.filteredEntries && state.filteredEntries.length >= 2) {
-    rangeStart = state.filteredEntries[0].timestamp.getTime() - 3600000;  // 1h padding
-    rangeEnd   = state.filteredEntries[state.filteredEntries.length - 1].timestamp.getTime() + 3600000;
+  if (_wxr === 'forecast') {
+    rangeStart = Date.now() - 3600000;
+    rangeEnd   = Date.now() + 7 * 86400000 + 3600000;
+  } else if (_wxr !== 'all') {
+    var _wxDays = _wxr === 'day' ? 1 : _wxr === 'week' ? 7 : 30;
+    rangeStart = Date.now() - _wxDays * 86400000;
+    rangeEnd   = Date.now() + 3600000;
   }
 
   // Build datasets, filtered to sensor time range
@@ -2081,97 +2464,31 @@ function renderWeatherCharts() {
   weatherState.tempPoints = tempPoints;
   weatherState.humPoints  = humPoints;
 
-  var timeCfg = getTimeAxisConfig();
+  // Forecast mode: show day names (Mon, Tue…) on x-axis; otherwise use sensor time range config
+  var _wxForecast = (_wxr === 'forecast');
+  var timeCfg = _wxForecast
+    ? { unit: 'day', displayFormats: { day: 'ccc' }, tooltipFormat: 'ccc d LLL HH:mm' }
+    : getTimeAxisConfig();
 
   // ── Build sun-event arrays for night shading ──
-  var sunEvents = [];  // [{rise: ms, set: ms}, ...]
-  var d = weatherState.daily;
+  // Populate weatherState.sunEvents for the module-level nightShadingPlugin
+  weatherState.sunEvents = [];
+  var d = activeDaily;
   if (d && d.sunrise && d.sunset) {
     for (var si = 0; si < d.sunrise.length; si++) {
-      sunEvents.push({
+      weatherState.sunEvents.push({
         rise: new Date(d.sunrise[si]).getTime(),
         set:  new Date(d.sunset[si]).getTime(),
       });
     }
   }
 
-  // Chart.js inline plugin -- draws night shading + sunrise/sunset lines
-  var nightShadingPlugin = {
-    id: 'nightShading',
-    beforeDraw: function(chart) {
-      if (!sunEvents.length) return;
-      var xScale = chart.scales.x;
-      var yScale = chart.scales.y;
-      if (!xScale || !yScale) return;
-      var ctx = chart.ctx;
-      var top = yScale.top;
-      var bot = yScale.bottom;
-      var left = xScale.left;
-      var right = xScale.right;
-      var minX = xScale.min;
-      var maxX = xScale.max;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(left, top, right - left, bot - top);
-      ctx.clip();
-
-      // Draw night shading (before first sunrise, between each sunset-sunrise, after last sunset)
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
-
-      // Before first sunrise
-      if (sunEvents[0].rise > minX) {
-        var x1 = Math.max(left, xScale.getPixelForValue(minX));
-        var x2 = Math.min(right, xScale.getPixelForValue(sunEvents[0].rise));
-        if (x2 > x1) ctx.fillRect(x1, top, x2 - x1, bot - top);
-      }
-
-      // Between each sunset and next sunrise
-      for (var i = 0; i < sunEvents.length; i++) {
-        var setX  = xScale.getPixelForValue(sunEvents[i].set);
-        var nextRise = (i + 1 < sunEvents.length) ? sunEvents[i + 1].rise : maxX + 86400000;
-        var riseX = xScale.getPixelForValue(Math.min(nextRise, maxX));
-        var sx = Math.max(left, setX);
-        var rx = Math.min(right, riseX);
-        if (rx > sx) ctx.fillRect(sx, top, rx - sx, bot - top);
-      }
-
-      // Draw subtle vertical lines at sunrise/sunset
-      for (var j = 0; j < sunEvents.length; j++) {
-        // Sunrise line (warm amber, dashed)
-        var rPx = xScale.getPixelForValue(sunEvents[j].rise);
-        if (rPx >= left && rPx <= right) {
-          ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)';
-          ctx.lineWidth = 1;
-          ctx.setLineDash([4, 4]);
-          ctx.beginPath();
-          ctx.moveTo(rPx, top);
-          ctx.lineTo(rPx, bot);
-          ctx.stroke();
-        }
-
-        // Sunset line (orange-red, dashed)
-        var sPx = xScale.getPixelForValue(sunEvents[j].set);
-        if (sPx >= left && sPx <= right) {
-          ctx.strokeStyle = 'rgba(251, 146, 60, 0.45)';
-          ctx.lineWidth = 1;
-          ctx.setLineDash([4, 4]);
-          ctx.beginPath();
-          ctx.moveTo(sPx, top);
-          ctx.lineTo(sPx, bot);
-          ctx.stroke();
-        }
-      }
-
-      ctx.restore();
-    }
-  };
-
-  // Helper: merge the nightShading plugin into chart options
+  // Helper: chart options
   function weatherChartOpts(label, yMin, yMax) {
     var opts = baseChartOptions(label, yMin, yMax);
     opts.plugins = opts.plugins || {};
-    opts.plugins.nightShading = true;
+    opts.scales.x.time = timeCfg;
+    opts.scales.x.ticks.color = (_wxr === 'day') ? '#64748b' : 'transparent';
     return opts;
   }
 
@@ -2190,13 +2507,14 @@ function renderWeatherCharts() {
   if (weatherState.charts.temp) {
     weatherState.charts.temp.data.datasets = tempDS;
     weatherState.charts.temp.options.scales.x.time = timeCfg;
+    weatherState.charts.temp.options.scales.x.ticks.color = (_wxr === 'day') ? '#64748b' : 'transparent';
     weatherState.charts.temp.update('none');
   } else {
     weatherState.charts.temp = new Chart(document.getElementById('weatherTempChart'), {
       type: 'line',
       data: { datasets: tempDS },
       options: weatherChartOpts('Weather Temp (\u00B0C)'),
-      plugins: [nightShadingPlugin],
+      plugins: [nightShadingPlugin, dayLabelPlugin, dailyMinMaxPlugin, nowLinePlugin],
     });
   }
 
@@ -2215,13 +2533,14 @@ function renderWeatherCharts() {
   if (weatherState.charts.hum) {
     weatherState.charts.hum.data.datasets = humDS;
     weatherState.charts.hum.options.scales.x.time = timeCfg;
+    weatherState.charts.hum.options.scales.x.ticks.color = (_wxr === 'day') ? '#64748b' : 'transparent';
     weatherState.charts.hum.update('none');
   } else {
     weatherState.charts.hum = new Chart(document.getElementById('weatherHumChart'), {
       type: 'line',
       data: { datasets: humDS },
       options: weatherChartOpts('Weather Humidity (%)', 0, 100),
-      plugins: [nightShadingPlugin],
+      plugins: [nightShadingPlugin, dayLabelPlugin, dailyMinMaxPlugin, nowLinePlugin],
     });
   }
 
@@ -2247,13 +2566,14 @@ function renderWeatherCharts() {
   if (weatherState.charts.precip) {
     weatherState.charts.precip.data.datasets = precipDS;
     weatherState.charts.precip.options.scales.x.time = timeCfg;
+    weatherState.charts.precip.options.scales.x.ticks.color = (_wxr === 'day') ? '#64748b' : 'transparent';
     weatherState.charts.precip.update('none');
   } else {
     weatherState.charts.precip = new Chart(document.getElementById('weatherPrecipChart'), {
       type: 'bar',
       data: { datasets: precipDS },
       options: precipOpts,
-      plugins: [nightShadingPlugin],
+      plugins: [nightShadingPlugin, dayLabelPlugin, dailyMinMaxPlugin, nowLinePlugin],
     });
   }
 
@@ -2276,6 +2596,7 @@ function renderWeatherCharts() {
   }];
 
   var uvOpts = weatherChartOpts('UV Index', 0);
+  uvOpts.scales.y.grace = '10%'; // headroom so peak labels aren't clipped
   uvOpts.plugins.legend = { display: false };
   uvOpts.plugins.tooltip = {
     mode: 'index', intersect: false,
@@ -2292,13 +2613,14 @@ function renderWeatherCharts() {
   if (weatherState.charts.uv) {
     weatherState.charts.uv.data.datasets = uvDS;
     weatherState.charts.uv.options.scales.x.time = timeCfg;
+    weatherState.charts.uv.options.scales.x.ticks.color = (_wxr === 'day') ? '#64748b' : 'transparent';
     weatherState.charts.uv.update('none');
   } else {
     weatherState.charts.uv = new Chart(document.getElementById('weatherUVChart'), {
       type: 'line',
       data: { datasets: uvDS },
       options: uvOpts,
-      plugins: [nightShadingPlugin],
+      plugins: [nightShadingPlugin, dayLabelPlugin, dailyMinMaxPlugin, nowLinePlugin],
     });
   }
 }
@@ -2331,6 +2653,9 @@ document.addEventListener('DOMContentLoaded', function () {
   if (window.SeaweedTides) {
     SeaweedTides.init('kenya');
   }
+
+  // ── Weather (always fetch on load -- no sensor data needed) ──
+  fetchWeatherData();
 
   // Auto-load merged_data.js if present (set by data/merged_data.js script tag)
   if (window.THINGSPEAK_DATA) {
