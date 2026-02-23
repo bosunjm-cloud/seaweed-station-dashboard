@@ -35,6 +35,7 @@ $ErrorActionPreference = "Stop"
 # Default channel definitions -- one per table
 $defaultChannels = @(
     @{ id = "perth";    name = "Perth Test Table";    channelId = "3262071"; apiKey = "VVHUX39KINYPLCVI"; dataFolder = "data_3262071_TT" }
+    @{ id = "wroom";    name = "Perth WROOM PTT";     channelId = "3246116"; apiKey = "7K00B1Y8DNOTEIM0"; dataFolder = "data_WROOM_PTT"; dualChannel = $true; channelId2 = "3256756"; apiKey2 = "D8TXB5B33KPWRIHO" }
     @{ id = "shangani"; name = "Shangani Aramani";    channelId = "";        apiKey = "";                 dataFolder = "data_Shangani" }
     @{ id = "funzi";    name = "Funzi Island";        channelId = "";        apiKey = "";                 dataFolder = "data_Funzi" }
 )
