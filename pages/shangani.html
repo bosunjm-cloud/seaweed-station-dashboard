@@ -1218,6 +1218,7 @@ function applyDateRange() {
   updateTimeButtons();
   updateChartSubheads();
   fetchWeatherData();
+  saveViewPrefs();
 }
 
 function clearDateRange() {
@@ -1226,6 +1227,38 @@ function clearDateRange() {
   state.dateStart = null;
   state.dateEnd = null;
   setTimeRange('all');
+  saveViewPrefs();
+}
+
+// --- View-preference persistence ---
+var VIEW_PREFS_KEY = 'seaweed_view_shangani';
+function saveViewPrefs() {
+  try {
+    var prefs = {
+      timeRange: state.timeRange,
+      dateStart: document.getElementById('dateStart').value || '',
+      dateEnd:   document.getElementById('dateEnd').value   || ''
+    };
+    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify(prefs));
+  } catch (e) { /* ignore */ }
+}
+function restoreViewPrefs() {
+  try {
+    var raw = localStorage.getItem(VIEW_PREFS_KEY);
+    if (!raw) return;
+    var p = JSON.parse(raw);
+    if (p.dateStart) {
+      document.getElementById('dateStart').value = p.dateStart;
+      state.dateStart = new Date(p.dateStart + 'T00:00:00');
+    }
+    if (p.dateEnd) {
+      document.getElementById('dateEnd').value = p.dateEnd;
+      state.dateEnd = new Date(p.dateEnd + 'T23:59:59');
+    }
+    if (p.timeRange && p.timeRange !== 'custom') {
+      state.timeRange = p.timeRange;
+    }
+  } catch (e) { /* ignore */ }
 }
 
 function applyTimeRange() {
@@ -2657,6 +2690,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ── Weather (always fetch on load -- no sensor data needed) ──
   fetchWeatherData();
+
+  // Restore saved date range preference
+  restoreViewPrefs();
 
   // Auto-load merged_data.js if present (set by data/merged_data.js script tag)
   if (window.THINGSPEAK_DATA) {
