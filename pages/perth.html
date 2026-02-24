@@ -257,6 +257,24 @@ body {
 }
 .two-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
+/* -- Battery Forecast info cards ----------------------------------- */
+.fc-info-chip {
+  display: inline-block; border: 1px solid; border-radius: 20px;
+  padding: 2px 12px; font-size: 0.72rem; margin: 2px 4px 6px 0;
+}
+.fc-cards {
+  display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;
+}
+.fc-card {
+  flex: 1 1 130px; max-width: 180px;
+  background: var(--bg-card-alt); border-radius: 8px; padding: 10px 12px;
+}
+.fc-card-sm { flex: 0 1 140px; max-width: 160px; }
+.fc-card-label { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 2px; }
+.fc-card-value { font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
+.fc-card-unit  { font-size: 0.7rem; font-weight: 400; }
+.fc-card-sub   { font-size: 0.68rem; color: var(--text-muted); }
+
 /* -- Health panel -------------------------------------------------- */
 .health-panel {
   background: var(--bg-card);
@@ -695,6 +713,26 @@ body {
       </section>
     </div>
 
+    <!-- -- Battery Forecast Chart --------------------------------- -->
+    <section class="chart-panel" id="forecastPanel">
+      <div class="chart-header">
+        <h3>&#128267; Battery Forecast</h3>
+        <div class="time-btns">
+          <button class="btn btn-sm active" id="fcToggleT0" title="Toggle T0 Gateway">T0</button>
+          <button class="btn btn-sm active" id="fcToggleSatA" title="Toggle Satellite A">Sat-A</button>
+          <button class="btn btn-sm" id="fcToggleSatB" title="Toggle Satellite B">Sat-B</button>
+          <span style="border-left:1px solid #334155;margin:0 8px;height:20px;display:inline-block"></span>
+          <button class="btn btn-sm active" id="fcAnchorAuto" title="Re-anchor prediction from latest reading">Auto</button>
+          <button class="btn btn-sm" id="fcAnchorLock" title="Lock anchor — click chart to pick point. Shows long-term drift.">&#128204; Lock</button>
+        </div>
+      </div>
+      <div class="chart-subhead">Solid = actual &nbsp;&bull;&nbsp; Dashed = predicted &nbsp;&bull;&nbsp; Red dashed = config change &nbsp;&bull;&nbsp; Click chart in Lock mode to set anchor</div>
+      <div id="fcInfoCards"></div>
+      <div class="chart-wrap" style="height:320px">
+        <canvas id="forecastChart"></canvas>
+      </div>
+    </section>
+
     <!-- -- Satellite Sync Reliability Chart ----------------------- -->
     <section class="chart-panel" id="syncChartPanel">
       <div class="chart-header">
@@ -745,6 +783,10 @@ body {
   try{var _s=JSON.parse(localStorage.getItem('seaweed_dashboard_config')||'{}');var _c=(_s.channels||[]).find(function(c){return c.id==='perth';});if(_c&&_c.dataFolder)_f=_c.dataFolder;}catch(e){}
   document.write('<scr'+'ipt src="../data/'+_f+'/merged_data.js" onerror="console.log(\'[Dashboard] No local data\')"><\/scr'+'ipt>');
 })();</script>
+
+<!-- Battery prediction engine (shared) -->
+<script src="battery_model.js"></script>
+<script src="battery_forecast_widget.js"></script>
 
 <!-- Tide prediction engine (shared) -->
 <script src="tides.js"></script>
@@ -927,11 +969,17 @@ function parseFeeds(rawFeeds) {
     var satASens  = csvParse(f.field5);   // t1,rh1,t2,rh2
     var satBStat  = csvParse(f.field6);   // batV,bat%,rssi,sampleId
     var satBSens  = csvParse(f.field7);   // t1,rh1,t2,rh2
-    var sys       = csvParse(f.field8);   // sdFreeKB,csq,uploadOk
+    // Split field8 at pipe: diag part (comma-sep) | config part
+    var f8raw = f.field8 || '';
+    var f8diag = f8raw;
+    var pipIdx = f8raw.indexOf('|');
+    if (pipIdx >= 0) f8diag = f8raw.substring(0, pipIdx);
+    var sys = csvParse(f8diag);   // sdFreeKB,csq,uploadOk,drift
 
     return {
       timestamp: ts,
       entryId:   f.entry_id,
+      _rawField8: f8raw,   // preserved for battery_model.js config parsing
       // T0
       t0BatPct:  numParse(f.field1),
       t0Temp1:   t0Sensors[0] != null ? t0Sensors[0] : null,
@@ -1251,6 +1299,9 @@ function renderDashboard() {
   updateDataHealth();
   updatePeaksTable();
   updateTimeButtons();
+
+  // Battery forecast (uses allEntries, not filtered)
+  if (window.BatteryForecast) BatteryForecast.init(state);
 
   // Fetch weather data for the loaded data range
   fetchWeatherData();
