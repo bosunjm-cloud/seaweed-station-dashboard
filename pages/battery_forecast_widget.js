@@ -15,9 +15,14 @@ window.BatteryForecast = (function () {
   var chart = null;
   var anchorMode = 'auto';   // 'auto' | 'locked'
   var lockedAnchorIdx = -1;  // index into allEntries when locked
-  var showT0  = true;
+  // Previous-Calculated tracking: keep prior projection visible when auto anchor drifts
+  var _lastKnownAnchorT = { t0: -1, satA: -1, satB: -1 };
+  var _prevCalcAnchorT  = { t0: -1, satA: -1, satB: -1 };
+  var showT0  = true;   // Always true — chart legend handles show/hide
   var showSatA = true;
   var showSatB = true;
+  var fcTimeRange = 'week'; // 'day' | 'week' | 'month' | 'all' | 'custom'
+  var fcStartDate = null;  // Date — set on first init from latest data; driven by the date picker
 
   // Persistent forecast state (survives renderDashboard calls)
   var lastConfig     = null;  // latest parsed device config
@@ -27,12 +32,173 @@ window.BatteryForecast = (function () {
   var C = {
     t0Actual:    '#3b82f6',
     t0Predict:   '#3b82f6',
+    t0Trend:     '#93c5fd',  // lighter blue for trend
     satAActual:  '#10b981',
     satAPredict: '#10b981',
+    satATrend:   '#6ee7b7',  // lighter green
     satBActual:  '#f59e0b',
     satBPredict: '#f59e0b',
+    satBTrend:   '#fcd34d',  // lighter amber
     configLine:  '#ef4444',
   };
+
+  // ========================================================================
+  // FORECAST TIME RANGE HELPERS
+  // ========================================================================
+  function applyFcRange() {
+    if (!chart || fcTimeRange === 'custom') return;
+    var start = fcStartDate ? fcStartDate.getTime() : undefined;
+    var end;
+    if (fcTimeRange === 'day') {
+      end = start + 1 * 24 * 3600 * 1000;
+    } else if (fcTimeRange === 'week') {
+      end = start + 7 * 24 * 3600 * 1000;
+    } else if (fcTimeRange === 'month') {
+      end = start + 30 * 24 * 3600 * 1000;
+    } else { // 'all'
+      end = undefined;
+    }
+    chart.options.scales.x.min = start;
+    chart.options.scales.x.max = end;
+    // Keep the date input in sync
+    var inp = document.getElementById('fcStartDate');
+    if (inp && fcStartDate) inp.value = fcStartDate.toISOString().slice(0, 10);
+  }
+
+  function setFcTimeRange(range) {
+    fcTimeRange = range;
+    applyFcRange();
+    if (chart) chart.update('none');
+    document.querySelectorAll('[data-fcrange]').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.fcrange === range);
+    });
+  }
+
+  // ========================================================================
+  // TREND ENGINE  (linear regression on actual discharge data)
+  // ========================================================================
+  // Window ladder: start small (48 h) and promote as data accumulates.
+  var TREND_WINDOWS = [
+    { ms:  2 * 86400000, label: '48 h', minPoints:  4 },
+    { ms:  5 * 86400000, label: '5 d',  minPoints:  8 },
+    { ms: 10 * 86400000, label: '10 d', minPoints: 12 },
+    { ms: 14 * 86400000, label: '2 wk', minPoints: 16 },
+    { ms: 28 * 86400000, label: '4 wk', minPoints: 24 },
+    { ms: 42 * 86400000, label: '6 wk', minPoints: 32 },
+    { ms: 56 * 86400000, label: '8 wk', minPoints: 40 },
+  ];
+
+  // Walk backwards from the newest point, stopping at charge events or gaps.
+  function usableStreak(pts) {
+    if (!pts || pts.length < 2) return [];
+    var CHARGE_DELTA = 3;          // % rise that signals a recharge
+    var GAP_MS       = 3 * 3600000; // 3 h gap breaks continuity
+    var toMs = function (x) { return x instanceof Date ? x.getTime() : +x; };
+    var streak = [pts[pts.length - 1]];
+    for (var i = pts.length - 2; i >= 0; i--) {
+      var tCur  = toMs(pts[i + 1].x);
+      var tPrev = toMs(pts[i].x);
+      if ((tCur - tPrev) > GAP_MS)                break; // gap
+      if ((pts[i + 1].y - pts[i].y) > CHARGE_DELTA) break; // charge event
+      streak.unshift(pts[i]);
+    }
+    return streak;
+  }
+
+  // Ordinary least-squares linear regression.
+  // Returns { slope (pct/ms), intercept, r2, t0 (origin ms) } or null.
+  function linReg(pts) {
+    var n = pts.length;
+    if (n < 2) return null;
+    var toMs = function (x) { return x instanceof Date ? x.getTime() : +x; };
+    var t0    = toMs(pts[0].x);
+    var sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    pts.forEach(function (p) {
+      var x = toMs(p.x) - t0;
+      sumX += x; sumY += p.y; sumXY += x * p.y; sumX2 += x * x;
+    });
+    var denom = n * sumX2 - sumX * sumX;
+    if (Math.abs(denom) < 1e-12) return null;
+    var slope     = (n * sumXY - sumX * sumY) / denom;
+    var intercept = (sumY - slope * sumX) / n;
+    var yMean = sumY / n, ssTot = 0, ssRes = 0;
+    pts.forEach(function (p) {
+      var yHat = slope * (toMs(p.x) - t0) + intercept;
+      ssTot += (p.y - yMean) * (p.y - yMean);
+      ssRes += (p.y - yHat)  * (p.y - yHat);
+    });
+    var r2 = ssTot > 1e-9 ? Math.max(0, 1 - ssRes / ssTot) : 0;
+    return { slope: slope, intercept: intercept, r2: r2, t0: t0 };
+  }
+
+  // Build a trend dataset from actual battery-% points.
+  // Returns null if data is insufficient or trend is non-negative (not discharging).
+  function buildTrendDataset(actualPts, deviceLabel, color) {
+    var streak = usableStreak(actualPts);
+    var toMs = function (x) { return x instanceof Date ? x.getTime() : +x; };
+
+    if (streak.length < 2) {
+      return { dataset: null, reason: 'No clean data' };
+    }
+    var streakSpanMs = toMs(streak[streak.length - 1].x) - toMs(streak[0].x);
+    var streakHours  = Math.round(streakSpanMs / 3600000);
+
+    // Pick the largest window that fits inside the streak with enough points.
+    var usedWindow = null;
+    for (var i = TREND_WINDOWS.length - 1; i >= 0; i--) {
+      var w = TREND_WINDOWS[i];
+      if (streakSpanMs < w.ms) continue;
+      var winStart = toMs(streak[streak.length - 1].x) - w.ms;
+      var trimmed  = streak.filter(function (p) { return toMs(p.x) >= winStart; });
+      if (trimmed.length >= w.minPoints) { usedWindow = { w: w, pts: trimmed }; break; }
+    }
+    if (!usedWindow) {
+      // Tell the user how far along they are toward the first window (48 h / 4 pts)
+      var first = TREND_WINDOWS[0];
+      var needMs   = first.ms;
+      var pctTime  = Math.min(99, Math.round(streakSpanMs / needMs * 100));
+      return { dataset: null, reason: 'Need 48 h clean (' + streakHours + 'h / ' + pctTime + '%)' };
+    }
+
+    var reg = linReg(usedWindow.pts);
+    if (!reg || reg.slope >= 0) {
+      return { dataset: null, reason: 'No discharge slope yet' };
+    }
+
+    // Project: back to start of regression window, forward until 0% (max 90 d).
+    var latestT  = toMs(usedWindow.pts[usedWindow.pts.length - 1].x);
+    var latestY  = usedWindow.pts[usedWindow.pts.length - 1].y;
+    var projMs   = Math.min((latestY / (-reg.slope * 86400000)) * 86400000 * 1.05, 90 * 86400000);
+    var startT   = toMs(usedWindow.pts[0].x);
+    var endT     = latestT + projMs;
+    var STEPS    = 80;
+    var trendData = [];
+    for (var s = 0; s <= STEPS; s++) {
+      var t = startT + ((endT - startT) * s / STEPS);
+      var y = reg.slope * (t - reg.t0) + reg.intercept;
+      if (y <= 0) { trendData.push({ x: new Date(t), y: 0 }); break; }
+      trendData.push({ x: new Date(t), y: parseFloat(y.toFixed(2)) });
+    }
+
+    return {
+      dataset: {
+        label: deviceLabel + ' Trending',
+        data:  trendData,
+        borderColor: color,
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        borderDash: [3, 3],
+        pointRadius: 0,
+        tension: 0,
+        fill: false,
+      },
+      windowLabel:       usedWindow.w.label,
+      r2:                reg.r2,
+      slope_pct_per_day: reg.slope * 86400000,
+      pointCount:        usedWindow.pts.length,
+      reason:            null,
+    };
+  }
 
   // ========================================================================
   // EXTRACT CONFIG FROM ENTRIES  (scan field8 for pipe-delimited config)
@@ -190,6 +356,8 @@ window.BatteryForecast = (function () {
       configAvailable: !!cfg,
       configSummary: BatteryModel.configSummary(cfg),
       configChanges: changes,
+      _trendConfidence:   [],   // { label, windowLabel, r2, color }
+      _trendInsufficient: [],   // { label, reason, color }
     };
 
     // --- T0 ---
@@ -225,7 +393,7 @@ window.BatteryForecast = (function () {
         );
         var t0PredictData = t0Proj.map(function (p) { return { x: p.time, y: p.pct }; });
         datasets.push({
-          label: 'T0 Predicted',
+          label: 'T0 Calculated',
           data: t0PredictData,
           borderColor: C.t0Predict,
           backgroundColor: 'transparent',
@@ -244,6 +412,48 @@ window.BatteryForecast = (function () {
         }
         // MAE
         info.t0Mae = computeMAE(entries, t0AnchorIdx, t0Proj, 't0BatPct');
+      }
+      // Previous Calculated — shown when auto anchor has advanced
+      if (anchorMode === 'auto' && t0AnchorIdx >= 0) {
+        var _curT0T = entries[t0AnchorIdx].timestamp.getTime();
+        if (_lastKnownAnchorT.t0 < 0) {
+          _lastKnownAnchorT.t0 = _curT0T;
+        } else if (_curT0T !== _lastKnownAnchorT.t0) {
+          _prevCalcAnchorT.t0 = _lastKnownAnchorT.t0;
+          _lastKnownAnchorT.t0 = _curT0T;
+        }
+        if (_prevCalcAnchorT.t0 > 0) {
+          var _pt0i = -1, _pt0d = Infinity;
+          for (var pi = 0; pi < entries.length; pi++) {
+            var _di = Math.abs(entries[pi].timestamp.getTime() - _prevCalcAnchorT.t0);
+            if (_di < _pt0d && entries[pi].t0BatPct > 0) { _pt0d = _di; _pt0i = pi; }
+          }
+          if (_pt0i >= 0) {
+            var _pt0Proj = BatteryModel.projectCurve(
+              entries[_pt0i].t0BatPct, entries[_pt0i].timestamp,
+              t0Result.dailyTotal_mAh, t0Result.batteryCapacity, t0Result.derating
+            );
+            datasets.push({
+              label: 'T0 Calc. (prior)',
+              data:  _pt0Proj.map(function (p) { return { x: p.time, y: p.pct }; }),
+              borderColor: C.t0Predict + '44',
+              backgroundColor: 'transparent',
+              borderWidth: 1,
+              borderDash: [2, 6],
+              pointRadius: 0,
+              tension: 0.3,
+              fill: false,
+            });
+          }
+        }
+      }
+      // Trending
+      var t0Trend = buildTrendDataset(t0Actual, 'T0', C.t0Trend);
+      if (t0Trend.dataset) {
+        datasets.push(t0Trend.dataset);
+        info._trendConfidence.push({ label: 'T0', windowLabel: t0Trend.windowLabel, r2: t0Trend.r2, color: C.t0Trend });
+      } else {
+        if (t0Actual.length > 0) info._trendInsufficient.push({ label: 'T0', reason: t0Trend.reason, color: C.t0Trend });
       }
     }
 
@@ -278,7 +488,7 @@ window.BatteryForecast = (function () {
         );
         var satAPredData = teProj.map(function (p) { return { x: p.time, y: p.pct }; });
         datasets.push({
-          label: 'Sat-A Predicted',
+          label: 'Sat-A Calculated',
           data: satAPredData,
           borderColor: C.satAPredict,
           backgroundColor: 'transparent',
@@ -291,12 +501,54 @@ window.BatteryForecast = (function () {
         });
         // Days remaining
         var latestSatA = getSatAAnchor(entries);
-        if (latestSatA >= 0 && anchorMode === 'auto') {
+        if (latestSatA >= 0) {
           var saEntry = entries[latestSatA];
           var saRemain = (saEntry.satABatPct / 100.0) * teResult.usable_mAh;
           info.satADaysLeft = teResult.dailyTotal_mAh > 0 ? saRemain / teResult.dailyTotal_mAh : null;
         }
         info.satAMae = computeMAE(entries, satAAnchorIdx, teProj, 'satABatPct');
+      }
+      // Previous Calculated
+      if (anchorMode === 'auto' && satAAnchorIdx >= 0) {
+        var _curSaT = entries[satAAnchorIdx].timestamp.getTime();
+        if (_lastKnownAnchorT.satA < 0) {
+          _lastKnownAnchorT.satA = _curSaT;
+        } else if (_curSaT !== _lastKnownAnchorT.satA) {
+          _prevCalcAnchorT.satA = _lastKnownAnchorT.satA;
+          _lastKnownAnchorT.satA = _curSaT;
+        }
+        if (_prevCalcAnchorT.satA > 0) {
+          var _psai = -1, _psad = Infinity;
+          for (var psi = 0; psi < entries.length; psi++) {
+            var _dsa = Math.abs(entries[psi].timestamp.getTime() - _prevCalcAnchorT.satA);
+            if (_dsa < _psad && entries[psi].satABatPct > 0) { _psad = _dsa; _psai = psi; }
+          }
+          if (_psai >= 0) {
+            var _psaProj = BatteryModel.projectCurve(
+              entries[_psai].satABatPct, entries[_psai].timestamp,
+              teResult.dailyTotal_mAh, teResult.batteryCapacity, teResult.derating
+            );
+            datasets.push({
+              label: 'Sat-A Calc. (prior)',
+              data:  _psaProj.map(function (p) { return { x: p.time, y: p.pct }; }),
+              borderColor: C.satAPredict + '44',
+              backgroundColor: 'transparent',
+              borderWidth: 1,
+              borderDash: [2, 6],
+              pointRadius: 0,
+              tension: 0.3,
+              fill: false,
+            });
+          }
+        }
+      }
+      // Trending
+      var satATrend = buildTrendDataset(satAActual, 'Sat-A', C.satATrend);
+      if (satATrend.dataset) {
+        datasets.push(satATrend.dataset);
+        info._trendConfidence.push({ label: 'Sat-A', windowLabel: satATrend.windowLabel, r2: satATrend.r2, color: C.satATrend });
+      } else {
+        if (satAActual.length > 0) info._trendInsufficient.push({ label: 'Sat-A', reason: satATrend.reason, color: C.satATrend });
       }
     }
 
@@ -331,7 +583,7 @@ window.BatteryForecast = (function () {
         );
         var satBPredData = teProjB.map(function (p) { return { x: p.time, y: p.pct }; });
         datasets.push({
-          label: 'Sat-B Predicted',
+          label: 'Sat-B Calculated',
           data: satBPredData,
           borderColor: C.satBPredict,
           backgroundColor: 'transparent',
@@ -343,12 +595,54 @@ window.BatteryForecast = (function () {
           hidden: satBActual.length === 0,
         });
         var latestSatB = getSatBAnchor(entries);
-        if (latestSatB >= 0 && anchorMode === 'auto') {
+        if (latestSatB >= 0) {
           var sbEntry = entries[latestSatB];
           var sbRemain = (sbEntry.satBBatPct / 100.0) * teResult.usable_mAh;
           info.satBDaysLeft = teResult.dailyTotal_mAh > 0 ? sbRemain / teResult.dailyTotal_mAh : null;
         }
         info.satBMae = computeMAE(entries, satBAnchorIdx, teProjB, 'satBBatPct');
+      }
+      // Previous Calculated
+      if (anchorMode === 'auto' && satBAnchorIdx >= 0) {
+        var _curSbT = entries[satBAnchorIdx].timestamp.getTime();
+        if (_lastKnownAnchorT.satB < 0) {
+          _lastKnownAnchorT.satB = _curSbT;
+        } else if (_curSbT !== _lastKnownAnchorT.satB) {
+          _prevCalcAnchorT.satB = _lastKnownAnchorT.satB;
+          _lastKnownAnchorT.satB = _curSbT;
+        }
+        if (_prevCalcAnchorT.satB > 0) {
+          var _psbi = -1, _psbd = Infinity;
+          for (var pbsi = 0; pbsi < entries.length; pbsi++) {
+            var _dsb = Math.abs(entries[pbsi].timestamp.getTime() - _prevCalcAnchorT.satB);
+            if (_dsb < _psbd && entries[pbsi].satBBatPct > 0) { _psbd = _dsb; _psbi = pbsi; }
+          }
+          if (_psbi >= 0) {
+            var _psbProj = BatteryModel.projectCurve(
+              entries[_psbi].satBBatPct, entries[_psbi].timestamp,
+              teResult.dailyTotal_mAh, teResult.batteryCapacity, teResult.derating
+            );
+            datasets.push({
+              label: 'Sat-B Calc. (prior)',
+              data:  _psbProj.map(function (p) { return { x: p.time, y: p.pct }; }),
+              borderColor: C.satBPredict + '44',
+              backgroundColor: 'transparent',
+              borderWidth: 1,
+              borderDash: [2, 6],
+              pointRadius: 0,
+              tension: 0.3,
+              fill: false,
+            });
+          }
+        }
+      }
+      // Trending
+      var satBTrend = buildTrendDataset(satBActual, 'Sat-B', C.satBTrend);
+      if (satBTrend.dataset) {
+        datasets.push(satBTrend.dataset);
+        info._trendConfidence.push({ label: 'Sat-B', windowLabel: satBTrend.windowLabel, r2: satBTrend.r2, color: C.satBTrend });
+      } else {
+        if (satBActual.length > 0) info._trendInsufficient.push({ label: 'Sat-B', reason: satBTrend.reason, color: C.satBTrend });
       }
     }
 
@@ -420,6 +714,51 @@ window.BatteryForecast = (function () {
   };
 
   // ========================================================================
+  // TREND CONFIDENCE OVERLAY PLUGIN (top-right of chart area)
+  // ========================================================================
+  var trendConfidencePlugin = {
+    id: 'trendConfidence',
+    afterDraw: function (chartInstance) {
+      var tInfo   = chartInstance._trendInfo        || [];
+      var tInsuff = chartInstance._trendInsufficient || [];
+      var allRows = tInfo.length + tInsuff.length;
+      if (!allRows) return;
+      var xAxis = chartInstance.scales.x;
+      var yAxis = chartInstance.scales.y;
+      if (!xAxis || !yAxis) return;
+      var ctx = chartInstance.ctx;
+      ctx.save();
+      var lineH = 14;
+      var pad   = 5;
+      var boxW  = 210;
+      var boxH  = allRows * lineH + pad * 2;
+      var boxX  = xAxis.right - boxW - 4;
+      var boxY  = yAxis.top + 4;
+      ctx.fillStyle = 'rgba(15,23,42,0.80)';
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(boxX, boxY, boxW, boxH, 4)
+                    : ctx.rect(boxX, boxY, boxW, boxH);
+      ctx.fill();
+      ctx.font      = '10px sans-serif';
+      ctx.textAlign = 'right';
+      var textX = xAxis.right - 8;
+      var textY = boxY + pad + 10;
+      tInfo.forEach(function (t) {
+        var pct = Math.round(t.r2 * 100);
+        ctx.fillStyle = t.color;
+        ctx.fillText(t.label + ' trend: ' + t.windowLabel + '  (' + pct + '% fit)', textX, textY);
+        textY += lineH;
+      });
+      tInsuff.forEach(function (t) {
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(t.label + ' trend: ' + t.reason, textX, textY);
+        textY += lineH;
+      });
+      ctx.restore();
+    }
+  };
+
+  // ========================================================================
   // RENDER INFO CARDS
   // ========================================================================
   function renderInfoCards(info) {
@@ -436,35 +775,26 @@ window.BatteryForecast = (function () {
            +  '\u26A0 ' + info.configChanges.length + ' config change' + (info.configChanges.length > 1 ? 's' : '') + ' detected</div>';
     }
 
-    // Days remaining cards
-    function daysCard(label, days, color) {
+    // Days remaining cards — accuracy merged in when available
+    function daysCard(label, days, mae, color) {
       if (days === null) return '';
       var dStr = days < 1 ? '< 1' : Math.round(days).toString();
       var mStr = (days / 30.44).toFixed(1);
+      var accLine = mae
+        ? '<div class="fc-card-sub">\u00b1' + mae.mae.toFixed(1) + '% accuracy (' + mae.samples + ' pts)</div>'
+        : '';
       return '<div class="fc-card" style="border-top:3px solid ' + color + '">'
            + '<div class="fc-card-label">' + label + '</div>'
            + '<div class="fc-card-value" style="color:' + color + '">' + dStr + ' <span class="fc-card-unit">days</span></div>'
            + '<div class="fc-card-sub">' + mStr + ' months</div>'
+           + accLine
            + '</div>';
     }
 
     html += '<div class="fc-cards">';
-    html += daysCard('T0 Gateway', info.t0DaysLeft, C.t0Actual);
-    html += daysCard('Satellite A', info.satADaysLeft, C.satAActual);
-    html += daysCard('Satellite B', info.satBDaysLeft, C.satBActual);
-
-    // MAE cards
-    function maeCard(label, mae, color) {
-      if (!mae) return '';
-      return '<div class="fc-card fc-card-sm">'
-           + '<div class="fc-card-label">' + label + ' Accuracy</div>'
-           + '<div class="fc-card-value" style="color:' + color + '">\u00B1' + mae.mae.toFixed(1) + ' <span class="fc-card-unit">%</span></div>'
-           + '<div class="fc-card-sub">MAE over ' + mae.samples + ' points</div>'
-           + '</div>';
-    }
-    html += maeCard('T0', info.t0Mae, C.t0Actual);
-    html += maeCard('Sat-A', info.satAMae, C.satAActual);
-    html += maeCard('Sat-B', info.satBMae, C.satBActual);
+    html += daysCard('T0 Gateway',  info.t0DaysLeft,   info.t0Mae,   C.t0Actual);
+    html += daysCard('Satellite A', info.satADaysLeft, info.satAMae, C.satAActual);
+    html += daysCard('Satellite B', info.satBDaysLeft, info.satBMae, C.satBActual);
     html += '</div>';
 
     var el = document.getElementById('fcInfoCards');
@@ -489,7 +819,11 @@ window.BatteryForecast = (function () {
 
     if (chart) {
       chart.data.datasets = result.datasets;
+      chart._trendInfo = result.info._trendConfidence || [];
+      chart._trendInsufficient = result.info._trendInsufficient || [];
+      chart._trendInsufficient = result.info._trendInsufficient || [];
       chart._forecastAnchorTime = anchorTime;
+      applyFcRange();
       chart.update('none');
     } else {
       chart = new Chart(canvas, {
@@ -539,13 +873,15 @@ window.BatteryForecast = (function () {
             }
             if (best >= 0) {
               lockedAnchorIdx = best;
+              try { localStorage.setItem('fc_anchor_time', entries[best].timestamp.toISOString()); } catch (e) {}
               update(state);
             }
           }
         },
-        plugins: [configAnnotationPlugin, anchorLinePlugin],
-      });
-      chart._forecastAnchorTime = anchorTime;
+        plugins: [configAnnotationPlugin, anchorLinePlugin, trendConfidencePlugin],
+      });      chart._trendInfo = result.info._trendConfidence || [];      chart._forecastAnchorTime = anchorTime;
+      applyFcRange();
+      chart.update('none');
     }
 
     // Update anchor mode button state
@@ -561,37 +897,110 @@ window.BatteryForecast = (function () {
     if (_inited) { update(state); return; }
     _inited = true;
 
-    // Wire up toggle buttons
-    var btnT0   = document.getElementById('fcToggleT0');
-    var btnSatA = document.getElementById('fcToggleSatA');
-    var btnSatB = document.getElementById('fcToggleSatB');
     var btnAuto = document.getElementById('fcAnchorAuto');
     var btnLock = document.getElementById('fcAnchorLock');
 
-    if (btnT0) btnT0.addEventListener('click', function () {
-      showT0 = !showT0; this.classList.toggle('active', showT0); update(state);
+    // Restore anchor mode from localStorage
+    try {
+      var _savedMode = localStorage.getItem('fc_anchor_mode');
+      var _savedAnchorTs = localStorage.getItem('fc_anchor_time');
+      if (_savedMode === 'locked' && _savedAnchorTs) {
+        var _targetMs = new Date(_savedAnchorTs).getTime();
+        if (!isNaN(_targetMs)) {
+          anchorMode = 'locked';
+          var _bst = -1, _bstD = Infinity;
+          for (var _ai = 0; _ai < state.allEntries.length; _ai++) {
+            var _ad = Math.abs(state.allEntries[_ai].timestamp.getTime() - _targetMs);
+            if (_ad < _bstD) { _bstD = _ad; _bst = _ai; }
+          }
+          lockedAnchorIdx = _bst;
+        }
+      }
+    } catch (e) {}
+
+    // Restore or default start date.
+    // Priority: (1) localStorage, (2) 24 hours before now.
+    if (!fcStartDate) {
+      var saved = null;
+      try { saved = localStorage.getItem('fc_start_date'); } catch (e) {}
+      if (saved) {
+        var parsed = new Date(saved + 'T00:00:00');
+        fcStartDate = isNaN(parsed.getTime()) ? null : parsed;
+      }
+      if (!fcStartDate) {
+        // Default: midnight of yesterday (24 h before now, rounded to day boundary)
+        var d24 = new Date(Date.now() - 24 * 3600 * 1000);
+        d24.setHours(0, 0, 0, 0);
+        fcStartDate = d24;
+      }
+    }
+
+    // Date picker — updates fcStartDate, persists to localStorage, re-applies span
+    var fcDateEl = document.getElementById('fcStartDate');
+    if (fcDateEl) {
+      fcDateEl.value = fcStartDate.toISOString().slice(0, 10);
+      fcDateEl.addEventListener('change', function () {
+        var d = new Date(this.value + 'T00:00:00');
+        if (!isNaN(d.getTime())) {
+          fcStartDate = d;
+          try { localStorage.setItem('fc_start_date', this.value); } catch (e) {}
+          if (fcTimeRange === 'custom') fcTimeRange = 'week';
+          setFcTimeRange(fcTimeRange);
+        }
+      });
+    }
+
+    // Forecast span buttons (Day / Week / Month / All)
+    document.querySelectorAll('[data-fcrange]').forEach(function (btn) {
+      btn.addEventListener('click', function () { setFcTimeRange(this.dataset.fcrange); });
     });
-    if (btnSatA) btnSatA.addEventListener('click', function () {
-      showSatA = !showSatA; this.classList.toggle('active', showSatA); update(state);
-    });
-    if (btnSatB) btnSatB.addEventListener('click', function () {
-      showSatB = !showSatB; this.classList.toggle('active', showSatB); update(state);
-    });
+
+    // Scroll-wheel zoom on forecast chart
+    var fcCanvas = document.getElementById('forecastChart');
+    if (fcCanvas) {
+      fcCanvas.addEventListener('wheel', function (e) {
+        e.preventDefault();
+        if (!chart) return;
+        var xScale  = chart.scales.x;
+        var curMin  = xScale.min;
+        var curMax  = xScale.max;
+        var range   = curMax - curMin;
+        var factor  = e.deltaY > 0 ? 1.2 : (1 / 1.2);
+        var rect    = fcCanvas.getBoundingClientRect();
+        var ratio   = (e.clientX - rect.left) / rect.width;
+        var newRange = range * factor;
+        var newMin   = curMin + ratio * (range - newRange);
+        chart.options.scales.x.min = newMin;
+        chart.options.scales.x.max = newMin + newRange;
+        fcTimeRange = 'custom';
+        document.querySelectorAll('[data-fcrange]').forEach(function (b) { b.classList.remove('active'); });
+        chart.update('none');
+      }, { passive: false });
+    }
+
     if (btnAuto) btnAuto.addEventListener('click', function () {
-      anchorMode = 'auto'; lockedAnchorIdx = -1; update(state);
+      anchorMode = 'auto'; lockedAnchorIdx = -1;
+      try { localStorage.setItem('fc_anchor_mode', 'auto'); localStorage.removeItem('fc_anchor_time'); } catch (e) {}
+      update(state);
     });
     if (btnLock) btnLock.addEventListener('click', function () {
       if (anchorMode === 'locked') {
         // Toggle back to auto
         anchorMode = 'auto'; lockedAnchorIdx = -1;
+        try { localStorage.setItem('fc_anchor_mode', 'auto'); localStorage.removeItem('fc_anchor_time'); } catch (e) {}
       } else {
         anchorMode = 'locked';
-        // Default lock to first available entry
-        for (var i = 0; i < state.allEntries.length; i++) {
+        // Default lock to latest available T0 entry
+        for (var i = state.allEntries.length - 1; i >= 0; i--) {
           if (state.allEntries[i].t0BatPct !== null && state.allEntries[i].t0BatPct > 0) {
             lockedAnchorIdx = i; break;
           }
         }
+        try {
+          localStorage.setItem('fc_anchor_mode', 'locked');
+          if (lockedAnchorIdx >= 0)
+            localStorage.setItem('fc_anchor_time', state.allEntries[lockedAnchorIdx].timestamp.toISOString());
+        } catch (e) {}
       }
       update(state);
     });
@@ -608,6 +1017,7 @@ window.BatteryForecast = (function () {
     init:    init,
     update:  update,
     destroy: destroy,
+    setRange: setFcTimeRange,
   };
 
 })();

@@ -592,6 +592,7 @@ body {
         <div class="detail-grid">
           <div class="detail-item"><div class="detail-label">Voltage</div><div class="detail-value" id="satABatV">--</div></div>
           <div class="detail-item"><div class="detail-label">RSSI</div><div class="detail-value" id="satARssi">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="satASyncDrift" title="Satellite SYNC arrival drift vs expected">--</div></div>
           <div class="detail-item"><div class="detail-label">Sample ID</div><div class="detail-value" id="satASampleId">--</div></div>
           <div class="detail-item"><div class="detail-label">Sensors</div><div class="detail-value" id="satASensors">--</div></div>
           <div class="detail-item"><div class="detail-label">Sync Rate (24h)</div><div class="detail-value" id="satASyncRate">--</div></div>
@@ -614,6 +615,7 @@ body {
         <div class="detail-grid">
           <div class="detail-item"><div class="detail-label">Voltage</div><div class="detail-value" id="satBBatV">--</div></div>
           <div class="detail-item"><div class="detail-label">RSSI</div><div class="detail-value" id="satBRssi">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="satBSyncDrift" title="Satellite SYNC arrival drift vs expected">--</div></div>
           <div class="detail-item"><div class="detail-label">Sample ID</div><div class="detail-value" id="satBSampleId">--</div></div>
           <div class="detail-item"><div class="detail-label">Sensors</div><div class="detail-value" id="satBSensors">--</div></div>
           <div class="detail-item"><div class="detail-label">Sync Rate (24h)</div><div class="detail-value" id="satBSyncRate">--</div></div>
@@ -636,6 +638,7 @@ body {
         <div class="detail-grid">
           <div class="detail-item"><div class="detail-label">Cell Signal</div><div class="detail-value" id="sysCSQ">--</div></div>
           <div class="detail-item"><div class="detail-label">Upload OK</div><div class="detail-value" id="sysUploadOk">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="sysSyncDrift" title="Max satellite sync timing drift (seconds) since last upload">--</div></div>
           <div class="detail-item"><div class="detail-label">Total Entries</div><div class="detail-value" id="sysTotalEntries">--</div></div>
           <div class="detail-item"><div class="detail-label">Sample Period</div><div class="detail-value" id="sysSamplePeriod">--</div></div>
           <div class="detail-item" style="grid-column:1/-1" title="SD space consumed since first recorded entry"><div class="detail-label">Data Written (SD)</div><div class="detail-value" id="sysSDUsed">--</div></div>
@@ -734,21 +737,26 @@ body {
     <!-- -- Battery Forecast Chart --------------------------------- -->
     <section class="chart-panel" id="forecastPanel">
       <div class="chart-header">
-        <h3>&#128267; Battery Forecast</h3>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <h3>&#128267; Battery Forecast</h3>
+          <span style="font-size:11px;color:#64748b;">From</span>
+          <input type="date" id="fcStartDate" style="background:#0f172a;border:1px solid #334155;border-radius:4px;color:#94a3b8;font-size:11px;padding:2px 6px;cursor:pointer;">
+        </div>
         <div class="time-btns">
-          <button class="btn btn-sm active" id="fcToggleT0" title="Toggle T0 Gateway">T0</button>
-          <button class="btn btn-sm active" id="fcToggleSatA" title="Toggle Satellite A">Sat-A</button>
-          <button class="btn btn-sm" id="fcToggleSatB" title="Toggle Satellite B">Sat-B</button>
+          <button class="btn btn-sm" data-fcrange="day">Day</button>
+          <button class="btn btn-sm active" data-fcrange="week">Week</button>
+          <button class="btn btn-sm" data-fcrange="month">Month</button>
+          <button class="btn btn-sm" data-fcrange="all">All</button>
           <span style="border-left:1px solid #334155;margin:0 8px;height:20px;display:inline-block"></span>
           <button class="btn btn-sm active" id="fcAnchorAuto" title="Re-anchor prediction from latest reading">Auto</button>
           <button class="btn btn-sm" id="fcAnchorLock" title="Lock anchor — click chart to pick point. Shows long-term drift.">&#128204; Lock</button>
         </div>
       </div>
-      <div class="chart-subhead">Solid = actual &nbsp;&bull;&nbsp; Dashed = predicted &nbsp;&bull;&nbsp; Red dashed = config change &nbsp;&bull;&nbsp; Click chart in Lock mode to set anchor</div>
-      <div id="fcInfoCards"></div>
+      <div class="chart-subhead">Solid = actual &nbsp;&bull;&nbsp; Dashed = predicted &nbsp;&bull;&nbsp; Red dashed = config change &nbsp;&bull;&nbsp; Click chart in Lock mode to set anchor &nbsp;&bull;&nbsp; Click legend to show/hide &nbsp;&bull;&nbsp; Scroll to zoom</div>
       <div class="chart-wrap" style="height:320px">
         <canvas id="forecastChart"></canvas>
       </div>
+      <div id="fcInfoCards"></div>
     </section>
 
     <!-- -- Data Health --------------------------------------------- -->
@@ -1079,6 +1087,7 @@ function parseFeeds(rawFeeds) {
       satABatPct:   satAStat[1] != null ? satAStat[1] : null,
       satARssi:     satAStat[2] != null ? satAStat[2] : null,
       satASampleId: satAStat[3] != null ? satAStat[3] : null,
+      satASyncDrift: satAStat[5] != null ? satAStat[5] : null,
       satATemp1:    satASens[0] != null ? satASens[0] : null,
       satAHum1:     satASens[1] != null ? satASens[1] : null,
       satATemp2:    satASens[2] != null ? satASens[2] : null,
@@ -1088,14 +1097,16 @@ function parseFeeds(rawFeeds) {
       satBBatPct:   satBStat[1] != null ? satBStat[1] : null,
       satBRssi:     satBStat[2] != null ? satBStat[2] : null,
       satBSampleId: satBStat[3] != null ? satBStat[3] : null,
+      satBSyncDrift: satBStat[5] != null ? satBStat[5] : null,
       satBTemp1:    satBSens[0] != null ? satBSens[0] : null,
       satBHum1:     satBSens[1] != null ? satBSens[1] : null,
       satBTemp2:    satBSens[2] != null ? satBSens[2] : null,
       satBHum2:     satBSens[3] != null ? satBSens[3] : null,
       // System
-      sdFreeKB:  sys[0] != null ? sys[0] : null,
-      csq:       sys[1] != null ? sys[1] : null,
-      uploadOk:  sys[2] != null ? sys[2] : null,
+      sdFreeKB:   sys[0] != null ? sys[0] : null,
+      csq:        sys[1] != null ? sys[1] : null,
+      uploadOk:   sys[2] != null ? sys[2] : null,
+      syncDrift:  sys[3] != null ? sys[3] : null,
     };
   }).filter(function (e) { return !isNaN(e.timestamp.getTime()); })
     .sort(function (a, b) { return a.timestamp - b.timestamp; });
@@ -1577,6 +1588,10 @@ function updateStatusCards() {
   document.getElementById('satABatPct').textContent   = satAPct !== null ? satAPct.toFixed(1) + '%' : '--';
   document.getElementById('satABatV').textContent     = (lastSatA && lastSatA.satABatV != null) ? lastSatA.satABatV.toFixed(2) + 'V' : '--';
   document.getElementById('satARssi').textContent     = (lastSatA && lastSatA.satARssi != null && lastSatA.satARssi !== 0) ? lastSatA.satARssi + ' dBm' : 'N/A';
+  var _satADrift = lastSatA ? lastSatA.satASyncDrift : null;
+  var _satADriftEl = document.getElementById('satASyncDrift');
+  _satADriftEl.textContent = _satADrift !== null ? (_satADrift >= 0 ? '+' : '') + _satADrift + 's' : '--';
+  _satADriftEl.className = 'detail-value ' + (_satADrift === null ? '' : Math.abs(_satADrift) <= 5 ? 'ok-text' : Math.abs(_satADrift) <= 20 ? 'warn-text' : 'error-text');
   document.getElementById('satASampleId').textContent = (lastSatA && lastSatA.satASampleId != null) ? lastSatA.satASampleId : '--';
 
   var satAHasSensors = lastSatA ? (lastSatA.satATemp1 !== null || lastSatA.satATemp2 !== null) : false;
@@ -1602,6 +1617,10 @@ function updateStatusCards() {
   document.getElementById('satBBatPct').textContent   = satBPct !== null ? satBPct.toFixed(1) + '%' : '--';
   document.getElementById('satBBatV').textContent     = (lastSatB && lastSatB.satBBatV != null) ? lastSatB.satBBatV.toFixed(2) + 'V' : '--';
   document.getElementById('satBRssi').textContent     = (lastSatB && lastSatB.satBRssi != null && lastSatB.satBRssi !== 0) ? lastSatB.satBRssi + ' dBm' : 'N/A';
+  var _satBDrift = lastSatB ? lastSatB.satBSyncDrift : null;
+  var _satBDriftEl = document.getElementById('satBSyncDrift');
+  _satBDriftEl.textContent = _satBDrift !== null ? (_satBDrift >= 0 ? '+' : '') + _satBDrift + 's' : '--';
+  _satBDriftEl.className = 'detail-value ' + (_satBDrift === null ? '' : Math.abs(_satBDrift) <= 5 ? 'ok-text' : Math.abs(_satBDrift) <= 20 ? 'warn-text' : 'error-text');
   document.getElementById('satBSampleId').textContent = (lastSatB && lastSatB.satBSampleId != null) ? lastSatB.satBSampleId : '--';
 
   var satBHasSensors = lastSatB ? (lastSatB.satBTemp1 !== null || lastSatB.satBTemp2 !== null) : false;
@@ -1623,6 +1642,10 @@ function updateStatusCards() {
   document.getElementById('sysSDFree').textContent      = fmtBytes(latest.sdFreeKB);
   document.getElementById('sysCSQ').textContent          = (latest.csq !== null && latest.csq > 0) ? latest.csq : 'N/A';
   document.getElementById('sysUploadOk').textContent     = latest.uploadOk !== null ? latest.uploadOk : '--';
+  var _drift = latest.syncDrift;
+  var _driftEl = document.getElementById('sysSyncDrift');
+  _driftEl.textContent = _drift !== null ? (_drift >= 0 ? '+' : '') + _drift + 's' : '--';
+  _driftEl.className = 'detail-value ' + (_drift === null ? '' : Math.abs(_drift) <= 5 ? 'ok-text' : Math.abs(_drift) <= 30 ? 'warn-text' : 'error-text');
   document.getElementById('sysTotalEntries').textContent  = state.allEntries.length.toLocaleString();
   document.getElementById('sysChannelName').textContent   = state.channelInfo ? state.channelInfo.name : '--';
   var _peakFreeKB = null;

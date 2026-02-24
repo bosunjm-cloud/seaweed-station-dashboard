@@ -332,13 +332,24 @@ window.BatteryModel = (function () {
   // ========================================================================
   function configSummary(cfg) {
     if (!cfg) return 'No config received';
-    var mode = cfg.deployMode === 0 ? 'WiFi' : 'Cell';
+    var mode  = cfg.deployMode === 0 ? 'WiFi' : 'Cell';
     var sleep = cfg.sleepEnable ? 'Sleep ON' : 'Sleep OFF';
-    var sp = cfg.samplePeriod_s >= 3600
+    var sp    = cfg.samplePeriod_s >= 3600
       ? (cfg.samplePeriod_s / 3600).toFixed(1) + 'h'
       : (cfg.samplePeriod_s / 60).toFixed(0) + 'm';
-    var sats = (cfg.satAInstalled ? 1 : 0) + (cfg.satBInstalled ? 1 : 0);
-    return mode + ' | ' + sleep + ' | Sample ' + sp + ' | ' + sats + ' sat';
+    var sats  = (cfg.satAInstalled ? 1 : 0) + (cfg.satBInstalled ? 1 : 0);
+    var webSync = cfg.tsBulkFreqHours != null
+      ? (cfg.tsBulkFreqHours >= 1
+          ? cfg.tsBulkFreqHours.toFixed(0) + 'h'
+          : (cfg.tsBulkFreqHours * 60).toFixed(0) + 'm')
+      : '?';
+    var satSync = cfg.espnowSyncPeriod_s != null
+      ? (cfg.espnowSyncPeriod_s >= 3600
+          ? (cfg.espnowSyncPeriod_s / 3600).toFixed(1) + 'h'
+          : (cfg.espnowSyncPeriod_s / 60).toFixed(0) + 'm')
+      : '?';
+    return mode + ' | ' + sleep + ' | Sample ' + sp + ' | ' + sats + ' sat'
+         + ' | Web ' + webSync + ' | Sat sync ' + satSync;
   }
 
   // ========================================================================
