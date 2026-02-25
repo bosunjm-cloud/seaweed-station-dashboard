@@ -59,13 +59,45 @@ window.BatteryModel = (function () {
     sensorMs:           25,
     sensorCurrent_mA:   40,
     sensorCount:        2,
-    listenMs:           400,      // normal listen window
-    listenLongMs:       1200,     // extended listen window
+    listenMs:           400,      // normal listen window per exchange
+    listenLongMs:       1200,     // extended listen window per exchange
     listenEveryN:       10,       // every Nth wake uses long listen
     retries:            2,
+    preWakeMargin_s:    5,        // T-Energy wakes this many seconds before expected SYNC
+                                  // (SLEEP_WAKE_MARGIN_S in firmware) — active MCU idle time
+                                  // before exchange starts; only costs energy when sleep enabled
     batteryDerating:    0.85,
     batteryCapacity_mAh: 3000,
   };
+
+  // ========================================================================
+  // DRIFT + LISTEN-WINDOW HELPERS (mirror SatelliteProtocol.h computeXxx)
+  // ========================================================================
+  // ESP32 RTC drift: 300 ppm, 3× safety factor on guard windows.
+  var DRIFT_PPM = 300;
+  var DRIFT_SAFETY = 3;
+
+  // Listen-EARLY window (ms): gate opens this far before expected SYNC. Floor 20 s.
+  function computeListenEarlyMs(period_s) {
+    var drift_ms = Math.floor(period_s * DRIFT_PPM * DRIFT_SAFETY / 1000);
+    return Math.max(20000, drift_ms);
+  }
+
+  // Sync-GRACE window (ms): gate stays open this far after expected SYNC. Floor 45 s.
+  function computeSyncGraceMs(period_s) {
+    var drift_ms = Math.floor(period_s * DRIFT_PPM * DRIFT_SAFETY * 2 / 1000);
+    return Math.max(45000, drift_ms);
+  }
+
+  // Total guard window (ms) = early + grace.
+  function computeTotalListenWindowMs(period_s) {
+    return computeListenEarlyMs(period_s) + computeSyncGraceMs(period_s);
+  }
+
+  // Expected peak drift (s) at 300 ppm.
+  function computeExpectedDriftSec(period_s) {
+    return period_s * DRIFT_PPM * 1e-6;
+  }
 
   // ========================================================================
   // T0 ENERGY MODEL  (from battery_estimator.html runT0Estimate)
@@ -202,11 +234,26 @@ window.BatteryModel = (function () {
     var syncWakeCount   = periodsMatch ? samplesPerDay : syncsPerDay;
     var bootWakeCount   = periodsMatch ? sampleWakeCount : (sampleWakeCount + syncWakeCount);
 
+    // Pre-wake margin: T-Energy wakes SLEEP_WAKE_MARGIN_S=5s before expected SYNC.
+    // Only adds measurable cost when sleep is enabled (always-on boards already idle
+    // during that window at the same current).
+    var preWakeMargin_ms = sleepEn ? (hw.preWakeMargin_s * 1000) : 0;
+
     var sampleWakeMs = boot_ms + i2c_ms + flash_ms;
-    var syncWakeMs   = boot_ms + tx_ms + avgListenMs + sync_ms;
+    var syncWakeMs   = boot_ms + preWakeMargin_ms + tx_ms + avgListenMs + sync_ms;
     var totalActiveMs = periodsMatch
-      ? (sampleWakeCount * (sampleWakeMs + tx_ms + avgListenMs + sync_ms))
+      ? (sampleWakeCount * (sampleWakeMs + preWakeMargin_ms + tx_ms + avgListenMs + sync_ms))
       : (sampleWakeCount * sampleWakeMs) + (syncWakeCount * syncWakeMs);
+
+    // Guard window (early+grace): worst-case active time when a single SYNC is missed
+    var listenEarlyMs    = computeListenEarlyMs(syncPeriod);
+    var syncGraceMs      = computeSyncGraceMs(syncPeriod);
+    var guardWindowMs    = listenEarlyMs + syncGraceMs;
+    var expectedDrift_s  = computeExpectedDriftSec(syncPeriod);
+    // Energy cost of one missed sync: radio on for guardWindowMs at rxCurrent_mA
+    var guardWindowMahPerMiss = (hw.rxCurrent_mA * guardWindowMs / 3600000.0);
+    // Total guard window active time per day IF all syncs were missed (for display context)
+    var guardWorstCasePerDayMs = syncsPerDay * guardWindowMs;
     var totalMsDay   = 86400 * 1000;
     var sleepMsDay   = Math.max(0, totalMsDay - totalActiveMs);
 
@@ -245,6 +292,22 @@ window.BatteryModel = (function () {
       usable_mAh:      usable_mAh,
       batteryCapacity: battCap,
       derating:        derating,
+      // Breakdown
+      activeMah:       (e_active_uAh / 1000.0),
+      sleepMah:        (e_sleep_uAh  / 1000.0),
+      preWakeActiveMs: syncWakeCount * preWakeMargin_ms, // ms/day T-Energy is awake before exchange
+      // Guard window info (for drift analysis display)
+      guardWindowMs:        guardWindowMs,        // total guard per period (ms)
+      listenEarlyMs:        listenEarlyMs,        // early gate (ms)
+      syncGraceMs:          syncGraceMs,          // grace gate (ms)
+      expectedDrift_s:      expectedDrift_s,      // expected ±peak drift at 300 ppm (s)
+      guardWindowMahPerMiss: guardWindowMahPerMiss, // extra mAh cost per missed SYNC
+      guardWorstCasePerDayMs: guardWorstCasePerDayMs, // if ALL syncs missed (ms/day)
+      // Echo
+      samplePeriod_s:  samplePeriod,
+      syncPeriod_s:    syncPeriod,
+      syncsPerDay:     syncsPerDay,
+      sleepEnabled:    sleepEn,
     };
   }
 
@@ -347,22 +410,33 @@ window.BatteryModel = (function () {
           ? (cfg.espnowSyncPeriod_s / 3600).toFixed(1) + 'h'
           : (cfg.espnowSyncPeriod_s / 60).toFixed(0) + 'm')
       : '?';
+    // Guard window annotation (only show if period is long enough to matter)
+    var guardNote = '';
+    if (cfg.espnowSyncPeriod_s != null && cfg.espnowSyncPeriod_s >= 21600) {
+      var gMs = computeTotalListenWindowMs(cfg.espnowSyncPeriod_s);
+      guardNote = ' (' + Math.round(gMs / 1000) + 's guard)';
+    }
     return mode + ' | ' + sleep + ' | Sample ' + sp + ' | ' + sats + ' sat'
-         + ' | Web ' + webSync + ' | Sat sync ' + satSync;
+         + ' | Web ' + webSync + ' | Sat sync ' + satSync + guardNote;
   }
 
   // ========================================================================
   // PUBLIC API
   // ========================================================================
   return {
-    calcT0Daily:       calcT0Daily,
-    calcTEDaily:       calcTEDaily,
-    projectCurve:      projectCurve,
-    parseField8Config: parseField8Config,
-    configChanged:     configChanged,
-    configSummary:     configSummary,
-    HW_T0:             HW_T0,
-    HW_TE:             HW_TE,
+    calcT0Daily:              calcT0Daily,
+    calcTEDaily:              calcTEDaily,
+    projectCurve:             projectCurve,
+    parseField8Config:        parseField8Config,
+    configChanged:            configChanged,
+    configSummary:            configSummary,
+    // Drift + listen-window helpers (match SatelliteProtocol.h inline functions)
+    computeListenEarlyMs:     computeListenEarlyMs,
+    computeSyncGraceMs:       computeSyncGraceMs,
+    computeTotalListenWindowMs: computeTotalListenWindowMs,
+    computeExpectedDriftSec:  computeExpectedDriftSec,
+    HW_T0:                    HW_T0,
+    HW_TE:                    HW_TE,
   };
 
 })();

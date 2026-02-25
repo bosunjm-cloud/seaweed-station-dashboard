@@ -513,7 +513,7 @@
       </div>
       <div class="field">
         <label>ESP-NOW Sync Period <span class="unit">(minutes)</span></label>
-        <input type="number" id="sharedSyncPeriod" value="60" min="1" max="1440" step="1">
+        <input type="number" id="sharedSyncPeriod" value="60" min="1" max="1440" step="1" oninput="autoDriftWindow()">
       </div>
       <div class="field">
         <label>T-Energy Nodes <span class="unit">(0–2 — satellite boards)</span></label>
@@ -797,7 +797,8 @@
     <div class="panel-title te-title" style="margin-top:16px;">RC Drift Estimator Advanced</div>
     <div class="info-box" style="margin-bottom:10px;font-size:0.75rem;">
       These values feed the <strong>RC Oscillator Drift Estimator</strong> panel below.
-      <code>LISTEN_EARLY_MS</code> and <code>SYNC_GRACE_MS</code> should match what is compiled into T-Energy firmware (<a href="#" style="color:var(--accent3);">SyncState.h</a>).
+      <strong>Listen window fields auto-compute from the ESP-NOW Sync Period</strong> using the firmware formula
+      (300&nbsp;ppm &times; 3&times; safety).  Override manually if needed for testing.
     </div>
     <div class="grid">
       <div class="field">
@@ -813,12 +814,14 @@
         <input type="number" id="dr_rcWorst" value="5.0" min="0.1" max="20" step="0.1" oninput="calcDriftEst()">
       </div>
       <div class="field">
-        <label>LISTEN_EARLY_MS <span class="unit">(s &mdash; window opens before expected sync)</span></label>
-        <input type="number" id="dr_listenEarly" value="15" min="1" max="3600" step="1" oninput="calcDriftEst()">
+        <label>Listen-Early Window <span class="unit">(s &mdash; auto from period, overrideable)</span></label>
+        <input type="number" id="dr_listenEarly" value="20" min="1" max="3600" step="1" oninput="calcDriftEst()"
+               style="background:rgba(0,198,212,0.08);border-color:var(--accent3)" title="Auto-computed: 300ppm × 3× safety. Edit to override.">
       </div>
       <div class="field">
-        <label>SYNC_GRACE_MS <span class="unit">(s &mdash; window stays open after expected sync)</span></label>
-        <input type="number" id="dr_syncGrace" value="45" min="1" max="3600" step="1" oninput="calcDriftEst()">
+        <label>Sync-Grace Window <span class="unit">(s &mdash; auto from period, overrideable)</span></label>
+        <input type="number" id="dr_syncGrace" value="45" min="1" max="3600" step="1" oninput="calcDriftEst()"
+               style="background:rgba(0,198,212,0.08);border-color:var(--accent3)" title="Auto-computed: 300ppm × 6× safety. Edit to override.">
       </div>
       <div class="field">
         <label>Active Time per Cycle <span class="unit">(s &mdash; awake per sample wake)</span></label>
@@ -1127,7 +1130,7 @@ function runAllEstimates() {
   saveSettings();
   runT0Estimate();
   runTEEstimate();
-  calcDriftEst();
+  autoDriftWindow();    // re-compute listen window from period, then run drift est
   calcDataEst();
 }
 function clearAllResults() {
@@ -1445,10 +1448,15 @@ function runTEEstimate() {
   const sampleWakeCount = samplesPerDay;
   const syncWakeCount   = periodsMatch ? samplesPerDay : syncsPerDay;
   const bootWakeCount   = periodsMatch ? sampleWakeCount : (sampleWakeCount + syncWakeCount);
+
+  // Pre-wake margin: T-Energy wakes 5 s before expected SYNC (SLEEP_WAKE_MARGIN_S).
+  // Only adds to energy when sleep is enabled (always-on boards already idle at that current).
+  const preWakeMargin_ms = sleepEn ? 5000 : 0;
+
   const sampleWakeMs    = boot_ms + i2c_ms + flash_ms;
-  const syncWakeMs      = boot_ms + tx_ms + avgListenMs + sync_ms;
+  const syncWakeMs      = boot_ms + preWakeMargin_ms + tx_ms + avgListenMs + sync_ms;
   const totalActiveMs   = periodsMatch
-    ? (sampleWakeCount * (sampleWakeMs + tx_ms + avgListenMs + sync_ms))
+    ? (sampleWakeCount * (sampleWakeMs + preWakeMargin_ms + tx_ms + avgListenMs + sync_ms))
     : (sampleWakeCount * sampleWakeMs) + (syncWakeCount * syncWakeMs);
   const totalMsDay      = 86400 * 1000;
   const sleepMsDay      = Math.max(0, totalMsDay - totalActiveMs);
@@ -1559,6 +1567,20 @@ function exportTECSV() {
 // ============================================================================
 // DRIFT ESTIMATOR
 // ============================================================================
+
+// Auto-populate listen-window fields from the current sync period.
+// Called when sharedSyncPeriod changes.  Fields can be overridden manually.
+function autoDriftWindow() {
+  const syncPeriod_s = getVal('sharedSyncPeriod', 60) * 60;
+  if (typeof BatteryModel !== 'undefined') {
+    const earlyS = Math.round(BatteryModel.computeListenEarlyMs(syncPeriod_s) / 1000);
+    const graceS = Math.round(BatteryModel.computeSyncGraceMs(syncPeriod_s)   / 1000);
+    document.getElementById('dr_listenEarly').value = earlyS;
+    document.getElementById('dr_syncGrace').value   = graceS;
+  }
+  calcDriftEst();
+}
+
 function calcDriftEst() {
   const samplePeriod_s  = getVal('sharedSamplePeriod', 10) * 60;
   const syncPeriod_s    = getVal('sharedSyncPeriod', 60) * 60;
@@ -1635,10 +1657,12 @@ function calcDriftEst() {
     const needed_s   = Math.ceil(driftTypical_s * 1.5);
     const half       = Math.ceil(needed_s / 2);
     rec = `<div class="info-box" style="border-color:var(--danger);margin-top:0;">
-      <strong style="color:var(--danger);">&#9888; Window too narrow — T-Energy will likely miss T0&rsquo;s sync.</strong><br>
+      <strong style="color:var(--danger);">&#9888; Window too narrow — T-Energy will likely miss T0's sync.</strong><br>
       Typical drift (${formatS(driftTypical_s)}) exceeds the ${formatS(windowTotal_s)} listen window across ${cycleLabel}.<br><br>
       <strong>Options:</strong><br>
-      &bull; Widen: <code>LISTEN_EARLY_MS = ${half}s, SYNC_GRACE_MS = ${half}s</code> (${formatS(needed_s)} total window)<br>
+      &bull; <strong>Firmware auto-adjusts</strong>: updated firmware sizes the guard to
+             ${formatS(BatteryModel.computeTotalListenWindowMs(syncPeriod_s) / 1000)} at this period (300&nbsp;ppm &times; 3&times;).
+             Ensure both boards are flashed and using a preset interval.<br>
       &bull; Reduce sync period to match sample period (${formatS(samplePeriod_s)}) &mdash; re-anchor every wake<br>
       &bull; Solder 32.768&nbsp;kHz crystal to GPIO15/16 &mdash; reduces drift to ~1&ndash;5&nbsp;s over 24&nbsp;hr
     </div>`;
@@ -1647,7 +1671,8 @@ function calcDriftEst() {
     rec = `<div class="info-box" style="border-color:var(--warn);margin-top:0;">
       <strong style="color:var(--warn);">&#9888; Window is tight — cold or warm boards may miss sync.</strong><br>
       Typical drift (${formatS(driftTypical_s)}) uses ${(driftTypical_s / windowTotal_s * 100).toFixed(0)}% of the window.
-      Consider adding ~${extra_s}&nbsp;s to <code>SYNC_GRACE_MS</code> for comfortable headroom.
+      Firmware auto-computes a ${formatS(BatteryModel.computeTotalListenWindowMs(syncPeriod_s) / 1000)} guard window at this period
+      (300&nbsp;ppm &times; 3&times; safety). If you see missed syncs, try the next-longer preset interval.
     </div>`;
   } else if (driftWorst_s > windowTotal_s) {
     rec = `<div class="info-box" style="border-color:var(--warn);margin-top:0;">
@@ -1673,7 +1698,7 @@ window.addEventListener('DOMContentLoaded', () => {
   syncSharedPeriod();
   loadResults();        // restore saved rows (renders them)
   calcDataEst();        // data estimate reads its own inputs
-  calcDriftEst();       // drift reads shared sync/sample period inputs
+  autoDriftWindow();    // auto-computes listen-window from period, then runs drift est
 });
 </script>
 

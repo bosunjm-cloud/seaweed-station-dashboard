@@ -889,11 +889,26 @@ function parseThingSpeakMerge(tempFeeds, humFeeds) {
       var key = roundMin(ts);
       if (!entries[key]) entries[key] = { timestamp: ts };
       var e = entries[key];
-      for (var s = 1; s <= Math.min(SENSOR_COUNT, 8); s++) {
-        var val = numParse(f['field' + s]);
-        e['t' + s] = val;
-        // Mark ok if we got a reading
-        if (e['ok' + s] === undefined) e['ok' + s] = (val !== null && val !== 0) ? 1 : 0;
+
+      // Detect PTT (single-channel CSV-packed) format:
+      // field2 contains comma-separated temps, field3 has comma-separated RH
+      if (f.field2 && f.field2.indexOf(',') !== -1) {
+        var tParts  = f.field2.split(',');
+        var rhParts = (f.field3 || '').split(',');
+        for (var s = 1; s <= SENSOR_COUNT; s++) {
+          var tv = (s - 1 < tParts.length)  ? numParse(tParts[s - 1])  : null;
+          var hv = (s - 1 < rhParts.length) ? numParse(rhParts[s - 1]) : null;
+          e['t'  + s] = tv;
+          e['rh' + s] = hv;
+          if (e['ok' + s] === undefined) e['ok' + s] = (tv !== null || hv !== null) ? 1 : 0;
+        }
+      } else {
+        // Old dual-channel format: field1-fieldN are individual temps
+        for (var s = 1; s <= Math.min(SENSOR_COUNT, 8); s++) {
+          var val = numParse(f['field' + s]);
+          e['t' + s] = val;
+          if (e['ok' + s] === undefined) e['ok' + s] = (val !== null && val !== 0) ? 1 : 0;
+        }
       }
     });
   }

@@ -198,7 +198,7 @@ var TABLES = [
     id: 'perth',
     name: 'Perth Test Table',
     location: 'Noranda, WA',
-    page: 'pages/perth.html',
+    page: 'pages/station.html?table=perth',
     dataFile: 'data/data_3262071_TT/merged_data.js',
     weather: { lat: -31.87, lon: 115.90 },
     channelId: '3262071',
@@ -208,7 +208,7 @@ var TABLES = [
     id: 'shangani',
     name: 'Shangani Aramani',
     location: 'Kwale County, Kenya',
-    page: 'pages/shangani.html',
+    page: 'pages/station.html?table=shangani',
     dataFile: 'data/data_Shangani/merged_data.js',
     weather: { lat: -4.55, lon: 39.50 },
     channelId: '',
@@ -218,7 +218,7 @@ var TABLES = [
     id: 'funzi',
     name: 'Funzi Island',
     location: 'Funzi Island, Kenya',
-    page: 'pages/funzi.html',
+    page: 'pages/station.html?table=funzi',
     dataFile: 'data/data_Funzi/merged_data.js',
     weather: { lat: -4.55, lon: 39.45 },
     channelId: '',
@@ -694,18 +694,26 @@ function renderTableCard(table, summary) {
   card.className = 'table-card';
   card.onclick = function() { window.location.href = table.page; };
 
-  if (!summary) {
-    card.innerHTML =
-      '<div class="table-card-header">' +
-        '<div><h2>' + table.name + '</h2><div class="location">' + table.location + '</div></div>' +
-        '<span class="table-badge badge-nc">No Data</span>' +
-      '</div>' +
-      '<div class="loading-text">No data file found. Set up this table in <a href="pages/settings.html">Settings</a>, or click to open the page.</div>';
-    return card;
+  var noData = !summary;
+  if (noData) {
+    summary = {
+      freshness: 'nc', lastUpdate: null, entries: 0,
+      t0:   { status: 'nc', bat: null, lastSeen: null, fw: null },
+      satA: { status: 'nc', bat: null, lastSeen: null, fw: null },
+      satB: { status: 'nc', bat: null, lastSeen: null, fw: null },
+      dayTempHigh: null, dayTempLow: null, dayHumHigh: null,
+      weekTempHigh: null, weekHumHigh: null,
+      monthTempHigh: null, monthHumHigh: null,
+      sparkTemp: [], sparkHum: [],
+    };
   }
 
-  var badgeClass = summary.freshness === 'ok' ? 'badge-ok' : (summary.freshness === 'warn' ? 'badge-warn' : 'badge-err');
-  var badgeText  = summary.freshness === 'ok' ? 'Online' : (summary.freshness === 'warn' ? 'Stale' : 'Offline');
+  var badgeClass, badgeText;
+  if (noData) { badgeClass = 'badge-nc'; badgeText = 'No Data'; }
+  else {
+    badgeClass = summary.freshness === 'ok' ? 'badge-ok' : (summary.freshness === 'warn' ? 'badge-warn' : 'badge-err');
+    badgeText  = summary.freshness === 'ok' ? 'Online' : (summary.freshness === 'warn' ? 'Stale' : 'Offline');
+  }
 
   var fmt = function(v, unit, dp) {
     if (v === null || v === undefined) return '--';
@@ -750,7 +758,8 @@ function renderTableCard(table, summary) {
     '</div>' +
 
     '<div style="font-size:0.7rem;color:var(--text-muted);text-align:right">' +
-      'Last update: ' + timeAgo(summary.lastUpdate) + ' &bull; ' + summary.entries + ' entries total' +
+      (noData ? 'No sensor data yet &mdash; sensors not deployed' :
+        'Last update: ' + timeAgo(summary.lastUpdate) + ' &bull; ' + summary.entries + ' entries total') +
     '</div>';
 
   return card;
@@ -891,7 +900,27 @@ function loadTableData(table) {
 
   return new Promise(function(resolve) {
     var jsUrl = table.dataFile;
-    if (!jsUrl) { resolve(null); return; }
+
+    // Fallback: read from the localStorage cache written by station.html when
+    // the user fetches live data on that page.
+    function resolveFromCache() {
+      try {
+        var raw = localStorage.getItem('seaweed_cache_' + table.id);
+        if (raw) {
+          var cached = JSON.parse(raw);
+          if (cached.allEntries && cached.allEntries.length) {
+            var entries = cached.allEntries.map(function(e) {
+              e.timestamp = new Date(e.timestamp);
+              return e;
+            }).filter(function(e) { return !isNaN(e.timestamp.getTime()); });
+            if (entries.length) { resolve(entries); return; }
+          }
+        }
+      } catch (e) {}
+      resolve(null);
+    }
+
+    if (!jsUrl) { resolveFromCache(); return; }
 
     var script = document.createElement('script');
     script.src = jsUrl;
@@ -900,14 +929,14 @@ function loadTableData(table) {
         var data = window.THINGSPEAK_DATA;
         delete window.THINGSPEAK_DATA;
         var entries = (data.feeds || []).map(parseEntry).filter(function(e) { return !isNaN(e.timestamp.getTime()); });
-        resolve(entries);
+        if (entries.length) { resolve(entries); } else { resolveFromCache(); }
       } else {
-        resolve(null);
+        resolveFromCache();
       }
       script.remove();
     };
     script.onerror = function() {
-      resolve(null);
+      resolveFromCache();
       script.remove();
     };
     document.head.appendChild(script);
@@ -946,16 +975,10 @@ async function init() {
 
     var entries = await loadTableData(table);
 
-    // Tables with no sensor data: fall back to weather-only card
+    // Tables with no sensor data: render same card layout with '--' values
     if (!entries) {
-      if (weatherPromises[table.id]) {
-        var wx = await weatherPromises[table.id];
-        var wxCard = renderWeatherOnlyCard(table, wx);
-        cards.push({ card: wxCard, table: table, summary: null });
-      } else {
-        var noCard = renderTableCard(table, null);
-        cards.push({ card: noCard, table: table, summary: null });
-      }
+      var noCard = renderTableCard(table, null);
+      cards.push({ card: noCard, table: table, summary: null });
       continue;
     }
 

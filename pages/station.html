@@ -1,0 +1,2884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script>if(sessionStorage.getItem('sw_auth')!=='ok'){location.replace('../login.html?r='+encodeURIComponent(location.href));}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="pageTitle">Seaweed T/H Monitoring</title>
+
+<!-- Chart.js + Luxon date adapter (required for time-series axes) -->
+<script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+
+<style>
+/* ===================================================================
+   CSS -- Dark monitoring dashboard theme  (unified template)
+   =================================================================== */
+:root {
+  --bg:          #0f172a;
+  --bg-card:     #1e293b;
+  --bg-card-alt: #1a2332;
+  --bg-hover:    #334155;
+  --text:        #f1f5f9;
+  --text-sec:    #94a3b8;
+  --text-muted:  #64748b;
+  --accent:      #0ea5e9;
+  --accent-dim:  #0284c7;
+  --success:     #22c55e;
+  --success-dim: #166534;
+  --warning:     #f59e0b;
+  --warning-dim: #92400e;
+  --danger:      #ef4444;
+  --danger-dim:  #991b1b;
+  --border:      #334155;
+  --radius:      10px;
+  --shadow:      0 4px 12px rgba(0,0,0,0.3);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* -- Header --------------------------------------------------------- */
+.header {
+  background: linear-gradient(135deg, #0c4a6e 0%, #1e293b 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 240px;
+}
+.header-left h1 { font-size: 1.3rem; font-weight: 600; letter-spacing: -0.02em; }
+.header-left .sub { font-size: 0.75rem; color: var(--text-sec); margin-top: -2px; }
+.header-left .wave { font-size: 1.5rem; }
+.header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.header-meta {
+  font-size: 0.78rem;
+  color: var(--text-sec);
+  width: 100%;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+.header-meta .label { color: var(--text-muted); }
+
+/* -- Buttons -------------------------------------------------------- */
+.btn {
+  padding: 7px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn:hover { background: var(--bg-hover); border-color: var(--accent); }
+.btn-primary { background: var(--accent-dim); border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent); }
+.btn-sm { padding: 4px 12px; font-size: 0.75rem; }
+.btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* -- Main container ------------------------------------------------- */
+.main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* -- Network At-A-Glance Bar --------------------------------------- */
+.network-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+.net-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 16px;
+  flex: 1;
+  min-width: 180px;
+}
+.net-chip .chip-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.net-chip .chip-label { font-size: 0.78rem; color: var(--text-sec); }
+.net-chip .chip-value { font-size: 0.95rem; font-weight: 600; }
+.net-chip .chip-detail { font-size: 0.7rem; color: var(--text-muted); }
+
+/* -- Freshness banner ---------------------------------------------- */
+.freshness-banner {
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+.freshness-banner.show { display: flex; }
+.freshness-banner.fresh { background: var(--success-dim); border: 1px solid var(--success); }
+.freshness-banner.stale { background: var(--warning-dim); border: 1px solid var(--warning); }
+.freshness-banner.old   { background: var(--danger-dim);  border: 1px solid var(--danger); }
+
+/* -- Date range bar ------------------------------------------------ */
+.date-range-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 16px;
+}
+.date-range-label { font-size: 0.8rem; font-weight: 600; color: var(--text-sec); }
+.date-range-sep { font-size: 0.8rem; color: var(--text-muted); }
+.date-range-bar input[type="date"] {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 8px; color: var(--text); font-size: 0.82rem; width: 145px;
+}
+.date-range-bar input[type="date"]:focus { outline: none; border-color: var(--accent); }
+
+/* -- Sensor placement map ------------------------------------------ */
+.sensor-map-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.sensor-map-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: none; border: none; color: var(--text-muted);
+  font-size: 0.82rem; font-weight: 600; cursor: pointer; letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.sensor-map-toggle:hover { color: var(--text); }
+.sensor-map-chevron { font-size: 0.75rem; transition: transform 0.2s; color: var(--text-muted); }
+.sensor-map-chevron.open { transform: rotate(180deg); }
+.sensor-map-body { border-top: 1px solid var(--border); }
+.sensor-map-inner { padding: 14px 20px 18px; }
+.rack-svg { width: 100%; max-width: 760px; display: block; margin: 0 auto 14px; }
+.sensor-map-legend { display: flex; flex-wrap: wrap; gap: 10px 22px; justify-content: center; }
+.sml-item { display: flex; align-items: center; gap: 7px; font-size: 0.8rem; font-weight: 600; }
+.sml-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* -- Status cards grid --------------------------------------------- */
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.status-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.status-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--border);
+}
+.status-card.ok::before    { background: var(--success); }
+.status-card.warn::before  { background: var(--warning); }
+.status-card.error::before { background: var(--danger); }
+.status-card.nc::before    { background: var(--text-muted); }
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.card-header h3 {
+  font-size: 0.85rem; color: var(--text-sec);
+  text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500;
+}
+.card-badge {
+  font-size: 0.65rem; padding: 2px 8px; border-radius: 10px;
+  text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em;
+}
+.badge-ok    { background: var(--success-dim); color: var(--success); }
+.badge-warn  { background: var(--warning-dim); color: var(--warning); }
+.badge-error { background: var(--danger-dim);  color: var(--danger); }
+.badge-nc    { background: #1e293b; color: var(--text-muted); border: 1px solid var(--border); }
+
+.big-number { font-size: 2.2rem; font-weight: 700; line-height: 1.1; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+.big-label  { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 14px; }
+
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.detail-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.detail-value { font-size: 0.9rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.detail-value.warn-text  { color: var(--warning); }
+.detail-value.error-text { color: var(--danger); }
+.detail-value.ok-text    { color: var(--success); }
+.detail-value.nc-text    { color: var(--text-muted); }
+
+.card-footer {
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+  font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.dot-green { background: var(--success); }
+.dot-amber { background: var(--warning); }
+.dot-red   { background: var(--danger); }
+.dot-grey  { background: var(--text-muted); }
+
+/* -- Chart panels -------------------------------------------------- */
+.chart-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.chart-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 4px; flex-wrap: wrap; gap: 8px;
+}
+.chart-header h3 { font-size: 1rem; font-weight: 600; }
+.chart-subhead { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px; }
+.time-btns { display: flex; gap: 4px; }
+.chart-wrap { position: relative; height: 320px; }
+.chart-empty {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); font-size: 0.9rem;
+  pointer-events: none; text-align: center; padding: 20px;
+}
+.two-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+/* -- Battery Forecast info cards ----------------------------------- */
+.fc-info-chip {
+  display: inline-block; border: 1px solid; border-radius: 20px;
+  padding: 2px 12px; font-size: 0.72rem; margin: 2px 4px 6px 0;
+}
+.fc-cards {
+  display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;
+}
+.fc-card {
+  flex: 1 1 130px; max-width: 180px;
+  background: var(--bg-card-alt); border-radius: 8px; padding: 10px 12px;
+}
+.fc-card-sm { flex: 0 1 140px; max-width: 160px; }
+.fc-card-label { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 2px; }
+.fc-card-value { font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
+.fc-card-unit  { font-size: 0.7rem; font-weight: 400; }
+.fc-card-sub   { font-size: 0.68rem; color: var(--text-muted); }
+
+/* -- Health panel -------------------------------------------------- */
+.health-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.health-panel h3 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.health-item { background: var(--bg); border-radius: 8px; padding: 12px 14px; }
+.health-item .h-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.health-item .h-value { font-size: 1.1rem; font-weight: 600; margin-top: 2px; }
+
+/* -- Daily peaks table --------------------------------------------- */
+.peaks-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+}
+.peaks-panel h3 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+.peaks-panel .peaks-sub { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px; }
+.peaks-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.peaks-table th, .peaks-table td {
+  padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.peaks-table th {
+  color: var(--text-muted); font-weight: 500; text-transform: uppercase;
+  font-size: 0.7rem; letter-spacing: 0.04em; position: sticky; top: 0; background: var(--bg-card);
+}
+.peaks-table td:first-child, .peaks-table th:first-child { text-align: left; }
+.peaks-table tbody tr:hover { background: var(--bg-hover); }
+.peaks-nc { color: var(--text-muted); font-style: italic; }
+
+/* -- Loading / empty state ----------------------------------------- */
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-sec); }
+.empty-state h2 { font-size: 1.3rem; margin-bottom: 8px; color: var(--text); }
+.empty-state p { font-size: 0.9rem; margin-bottom: 20px; max-width: 520px; margin-left: auto; margin-right: auto; }
+.spinner {
+  display: inline-block; width: 18px; height: 18px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* -- Footer -------------------------------------------------------- */
+.footer { text-align: center; padding: 20px; font-size: 0.75rem; color: var(--text-muted); }
+
+/* -- Print --------------------------------------------------------- */
+@media print {
+  body { background: #fff; color: #000; }
+  .header { background: #f8f8f8; }
+  .status-card, .chart-panel, .health-panel, .peaks-panel { box-shadow: none; border-color: #ddd; background: #fff; }
+  .btn, .header-actions { display: none !important; }
+}
+
+/* -- Responsive ---------------------------------------------------- */
+@media (max-width: 900px) { .two-charts { grid-template-columns: 1fr; } }
+@media (max-width: 768px) {
+  .header { padding: 12px 16px; }
+  .header-left h1 { font-size: 1.05rem; }
+  .main { padding: 12px; gap: 12px; }
+  .status-grid { grid-template-columns: 1fr; }
+  .chart-wrap { height: 260px; }
+  .big-number { font-size: 1.8rem; }
+  .network-bar { flex-direction: column; }
+}
+
+/* -- Tides & Moon Phase -------------------------------------------- */
+.tide-moon-row { display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:12px 0; }
+#moonInfo { display:flex; align-items:center; gap:10px; }
+#moonDetails { display:flex; gap:12px; flex-wrap:wrap; }
+.moon-next { display:flex; flex-direction:column; gap:1px; background:var(--card); padding:6px 12px; border-radius:8px; font-size:0.8rem; }
+.mn-label { color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; }
+.mn-date { font-weight:600; }
+.harvest-info { display:flex; align-items:center; gap:10px; border-radius:8px; padding:10px 14px; font-size:0.85rem; color:var(--text-sec); margin:6px 0 10px; }
+.harvest-info.harvest-active { background:#22c55e18; border:1px solid #22c55e44; }
+.harvest-info.harvest-upcoming { background:#3b82f610; border:1px solid #3b82f633; }
+.harvest-icon { font-size:1.5rem; }
+.harvest-calendar { display:flex; gap:16px; flex-wrap:wrap; padding:4px 0; }
+.cal-month { flex:1; min-width:230px; }
+.cal-title { font-weight:700; font-size:0.85rem; margin-bottom:6px; color:var(--text); }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.cal-dow { font-size:0.65rem; color:var(--text-muted); text-align:center; padding:2px 0; font-weight:600; }
+.cal-day { font-size:0.75rem; text-align:center; padding:5px 2px; border-radius:4px; cursor:default; color:var(--text-sec); position:relative; }
+.cal-day.harvest { background:rgba(34,197,94,0.18); color:#22c55e; font-weight:700; }
+.cal-day.today { outline:2px solid var(--accent); outline-offset:-1px; font-weight:700; color:var(--text); }
+.cal-day.moon { color:#fbbf24; }
+.cal-day .moon-icon { font-size:0.55rem; position:absolute; top:-1px; right:1px; line-height:1; }
+.cal-day.empty { background:transparent; }
+.low-tide-table { width:100%; border-collapse:collapse; font-size:0.8rem; margin-top:6px; }
+.low-tide-table th { text-align:left; color:var(--text-muted); font-weight:600; padding:5px 8px; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.5px; }
+.low-tide-table td { padding:5px 8px; border-bottom:1px solid var(--border); }
+@media (max-width:768px) { .harvest-calendar { flex-direction:column; } }
+</style>
+</head>
+<body>
+
+<!-- ===================================================================
+     HEADER
+     =================================================================== -->
+<header class="header">
+  <div class="header-left">
+    <span class="wave">&#127754;</span>
+    <div>
+      <h1 id="stationTitle">Station</h1>
+      <div class="sub" id="stationSubtitle">Seaweed Table T/H Monitoring</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <a class="btn btn-sm" href="../ESP32_Weather_Station_Dashboard.html" title="All tables overview">&#9664; Overview</a>
+    <button class="btn btn-primary" id="btnFetch" onclick="fetchLiveData()">Fetch Live</button>
+    <button class="btn" id="btnLoadFile" onclick="document.getElementById('fileInput').click()">Load JSON</button>
+    <input type="file" id="fileInput" multiple accept=".json" style="display:none"
+           onchange="handleFileUpload(this.files)">
+    <button class="btn" id="btnExportCSV" onclick="exportCSV()" title="Export processed data as CSV" style="display:none">Export CSV</button>
+    <a class="btn btn-sm" href="settings.html">&#9881; Settings</a>
+  </div>
+  <div class="header-meta">
+    <span><span class="label">Source:</span> <span id="dataSourceLabel">No data loaded</span></span>
+    <span><span class="label">Entries:</span> <span id="entryCountLabel">0</span></span>
+    <span><span class="label">Range:</span> <span id="dateRangeLabel">--</span></span>
+    <span><span class="label">Channel:</span> <span id="channelLabel">--</span></span>
+    <span><span class="label">Times shown in:</span> <span id="tzLabel">--</span></span>
+  </div>
+</header>
+
+<!-- ===================================================================
+     MAIN CONTENT
+     =================================================================== -->
+<main class="main">
+
+  <!-- Freshness banner -->
+  <div class="freshness-banner" id="freshnessBanner">
+    <span id="freshnessIcon"></span>
+    <span id="freshnessText"></span>
+    <span style="margin-left:auto;font-size:0.75rem" id="autoRefreshLabel"></span>
+  </div>
+
+  <!-- Empty state (shown when no data loaded) -->
+  <div class="empty-state" id="emptyState">
+    <h2>No Data Loaded</h2>
+    <p>Click <strong>Fetch Live</strong> to download directly from ThingSpeak,
+       <strong>Load JSON</strong> to load a downloaded file, or run
+       <code>download_data.ps1</code> to set up automatic data loading.</p>
+    <button class="btn btn-primary" onclick="fetchLiveData()" style="margin-top:10px">Fetch Live Now</button>
+  </div>
+
+  <!-- Date Range Filter (always visible) -->
+  <section class="date-range-bar" id="dateRangeBar" style="display:none">
+    <span class="date-range-label">Date Range:</span>
+    <input type="date" id="dateStart" title="Start date (leave empty for earliest)">
+    <span class="date-range-sep">to</span>
+    <input type="date" id="dateEnd" title="End date (leave empty for latest)">
+    <button class="btn btn-sm" onclick="applyDateRange()">Apply</button>
+    <button class="btn btn-sm" onclick="clearDateRange()" title="Reset to all data">Clear</button>
+  </section>
+
+  <!-- Sensor Placement Map (populated per-station by JS) -->
+  <div class="sensor-map-panel" id="sensorMapPanel" style="display:none">
+    <button class="sensor-map-toggle" id="sensorMapToggle" onclick="toggleSensorMap()" aria-expanded="false">
+      <span>&#9741; Sensor Placement Reference</span>
+      <span class="sensor-map-chevron" id="sensorMapChevron">&#9660;</span>
+    </button>
+    <div class="sensor-map-body" id="sensorMapBody" style="display:none">
+      <div class="sensor-map-inner" id="sensorMapInner">
+        <!-- SVG injected by JS based on station config -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard content (hidden until data loaded) -->
+  <div id="dashboardContent" style="display:none">
+
+    <!-- -- Network At-A-Glance Bar -------------------------------- -->
+    <section class="network-bar" id="networkBar"></section>
+
+    <!-- -- Status Cards ------------------------------------------- -->
+    <section class="status-grid">
+      <!-- T0 Gateway -->
+      <div class="status-card" id="cardT0">
+        <div class="card-header">
+          <h3>T0 Gateway</h3>
+          <span class="card-badge badge-nc" id="t0Badge">No Data</span>
+        </div>
+        <div class="big-number" id="t0BatPct">--</div>
+        <div class="big-label">Battery %</div>
+        <div class="detail-grid">
+          <div class="detail-item"><div class="detail-label">Voltage</div><div class="detail-value" id="t0BatV">--</div></div>
+          <div class="detail-item"><div class="detail-label">RSSI</div><div class="detail-value" id="t0Rssi">--</div></div>
+          <div class="detail-item"><div class="detail-label">Boot Count</div><div class="detail-value" id="t0Boot">--</div></div>
+          <div class="detail-item"><div class="detail-label">Free Heap</div><div class="detail-value" id="t0Heap">--</div></div>
+          <div class="detail-item"><div class="detail-label">T0 Sensors</div><div class="detail-value" id="t0Sensors">--</div></div>
+          <div class="detail-item"><div class="detail-label">Firmware</div><div class="detail-value" id="t0Firmware">--</div></div>
+          <div class="detail-item"><div class="detail-label">Data Span</div><div class="detail-value" id="t0Uptime">--</div></div>
+        </div>
+        <div class="card-footer">
+          <span class="dot dot-grey" id="t0Dot"></span>
+          <span>Last upload: <span id="t0LastSeen">--</span></span>
+        </div>
+      </div>
+
+      <!-- Satellite A -->
+      <div class="status-card" id="cardSatA">
+        <div class="card-header">
+          <h3>Satellite A</h3>
+          <span class="card-badge badge-nc" id="satABadge">No Data</span>
+        </div>
+        <div class="big-number" id="satABatPct">--</div>
+        <div class="big-label">Battery %</div>
+        <div class="detail-grid">
+          <div class="detail-item"><div class="detail-label">Voltage</div><div class="detail-value" id="satABatV">--</div></div>
+          <div class="detail-item"><div class="detail-label">RSSI</div><div class="detail-value" id="satARssi">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="satASyncDrift" title="Satellite SYNC arrival drift vs expected">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sample ID</div><div class="detail-value" id="satASampleId">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sensors</div><div class="detail-value" id="satASensors">--</div></div>
+          <div class="detail-item"><div class="detail-label">Firmware</div><div class="detail-value" id="satAFirmware">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sync Rate (24h)</div><div class="detail-value" id="satASyncRate">--</div></div>
+          <div class="detail-item"><div class="detail-label">Missed (24h)</div><div class="detail-value" id="satAMissed">--</div></div>
+        </div>
+        <div class="card-footer">
+          <span class="dot dot-grey" id="satADot"></span>
+          <span>Last synced: <span id="satALastSeen">--</span></span>
+        </div>
+      </div>
+
+      <!-- Satellite B -->
+      <div class="status-card" id="cardSatB">
+        <div class="card-header">
+          <h3>Satellite B</h3>
+          <span class="card-badge badge-nc" id="satBBadge">No Data</span>
+        </div>
+        <div class="big-number" id="satBBatPct">--</div>
+        <div class="big-label">Battery %</div>
+        <div class="detail-grid">
+          <div class="detail-item"><div class="detail-label">Voltage</div><div class="detail-value" id="satBBatV">--</div></div>
+          <div class="detail-item"><div class="detail-label">RSSI</div><div class="detail-value" id="satBRssi">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="satBSyncDrift" title="Satellite SYNC arrival drift vs expected">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sample ID</div><div class="detail-value" id="satBSampleId">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sensors</div><div class="detail-value" id="satBSensors">--</div></div>
+          <div class="detail-item"><div class="detail-label">Firmware</div><div class="detail-value" id="satBFirmware">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sync Rate (24h)</div><div class="detail-value" id="satBSyncRate">--</div></div>
+          <div class="detail-item"><div class="detail-label">Missed (24h)</div><div class="detail-value" id="satBMissed">--</div></div>
+        </div>
+        <div class="card-footer">
+          <span class="dot dot-grey" id="satBDot"></span>
+          <span>Last synced: <span id="satBLastSeen">--</span></span>
+        </div>
+      </div>
+
+      <!-- System -->
+      <div class="status-card" id="cardSystem">
+        <div class="card-header">
+          <h3>System</h3>
+          <span class="card-badge badge-nc" id="sysBadge">No Data</span>
+        </div>
+        <div class="big-number" id="sysSDFree">--</div>
+        <div class="big-label">SD Free Space</div>
+        <div class="detail-grid">
+          <div class="detail-item"><div class="detail-label">Cell Signal</div><div class="detail-value" id="sysCSQ">--</div></div>
+          <div class="detail-item"><div class="detail-label">Upload OK</div><div class="detail-value" id="sysUploadOk">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="sysSyncDrift" title="Max satellite sync timing drift (seconds) since last upload">--</div></div>
+          <div class="detail-item"><div class="detail-label">Total Entries</div><div class="detail-value" id="sysTotalEntries">--</div></div>
+          <div class="detail-item"><div class="detail-label">Sample Period</div><div class="detail-value" id="sysSamplePeriod">--</div></div>
+          <div class="detail-item" style="grid-column:1/-1" title="SD space consumed since first recorded entry"><div class="detail-label">Data Written (SD)</div><div class="detail-value" id="sysSDUsed">--</div></div>
+        </div>
+        <div class="card-footer">
+          <span class="dot dot-grey" id="sysDot"></span>
+          <span>Channel: <span id="sysChannelName">--</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sensor Chart Overlay Controls -->
+    <div style="display:flex;align-items:center;gap:16px;padding:8px 14px;margin-bottom:8px;background:#0a1628;border-radius:8px;border:1px solid #1e293b;flex-wrap:wrap">
+      <span style="color:#475569;font-size:0.75rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">Chart overlays:</span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="ovNight" checked style="accent-color:#94a3b8;width:14px;height:14px" onchange="onSensorOptsChange()">
+        <span style="color:#94a3b8;font-size:0.82rem">&#127769; Night/Day</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="ovHarvest" checked style="accent-color:#22c55e;width:14px;height:14px" onchange="onSensorOptsChange()">
+        <span style="color:#22c55e;font-size:0.82rem">&#127807; Harvest Windows</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="ovWx" style="accent-color:#f59e0b;width:14px;height:14px" onchange="onSensorOptsChange()">
+        <span style="color:#f59e0b;font-size:0.82rem">&#9729; Open-Meteo overlay</span>
+      </label>
+    </div>
+
+    <!-- -- Temperature Chart -------------------------------------- -->
+    <section class="chart-panel">
+      <div class="chart-header">
+        <h3>Temperature (&#176;C)</h3>
+        <div class="time-btns">
+          <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
+          <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
+          <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
+          <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
+        </div>
+      </div>
+      <div class="chart-subhead" id="tempSubhead">
+        Sensor 1 = Water / Table probe &nbsp;|&nbsp; Sensor 2 = Air / Ambient probe &nbsp;|&nbsp; Showing: All data
+      </div>
+      <div class="chart-wrap">
+        <canvas id="tempChart"></canvas>
+        <div class="chart-empty" id="tempEmpty">No temperature sensor data yet -- probes may not be connected</div>
+      </div>
+    </section>
+
+    <!-- -- Humidity Chart ----------------------------------------- -->
+    <section class="chart-panel">
+      <div class="chart-header">
+        <h3>Humidity (%RH)</h3>
+        <div class="time-btns">
+          <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
+          <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
+          <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
+          <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
+        </div>
+      </div>
+      <div class="chart-subhead" id="humSubhead">Showing: All data</div>
+      <div class="chart-wrap">
+        <canvas id="humChart"></canvas>
+        <div class="chart-empty" id="humEmpty">No humidity sensor data yet -- probes may not be connected</div>
+      </div>
+    </section>
+
+    <!-- -- Local Weather (Open-Meteo hindcast) --------------------- -->
+    <section class="chart-panel" id="weatherSection" style="display:none">
+      <div class="chart-header">
+        <h3>&#127326; Local Weather (Open-Meteo)</h3>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="chart-subhead" id="weatherLocation" style="margin:0"></span>
+          <div class="time-btns">
+            <button class="btn btn-sm" data-wxrange="day" onclick="setWeatherTimeRange('day')">Day</button>
+            <button class="btn btn-sm active" data-wxrange="week" onclick="setWeatherTimeRange('week')">Week</button>
+            <button class="btn btn-sm" data-wxrange="month" onclick="setWeatherTimeRange('month')">Month</button>
+            <button class="btn btn-sm" data-wxrange="all" onclick="setWeatherTimeRange('all')">All</button>
+            <button class="btn btn-sm" data-wxrange="forecast" onclick="setWeatherTimeRange('forecast')">7-Day &#x2197;</button>
+          </div>
+        </div>
+      </div>
+      <div class="chart-subhead" id="weatherSubhead">Hourly weather from Open-Meteo</div>
+      <div class="two-charts" style="margin-top:8px">
+        <div class="chart-wrap">
+          <canvas id="weatherTempChart"></canvas>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="weatherHumChart"></canvas>
+        </div>
+      </div>
+      <div class="two-charts" style="margin-top:8px">
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="weatherPrecipChart"></canvas>
+        </div>
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="weatherUVChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- -- Tides & Moon Phase ------------------------------------- -->
+    <section class="chart-panel" id="tidesSection" style="display:none">
+      <div class="chart-header">
+        <h3>&#127754; Tides &amp; Moon Phase</h3>
+        <span class="chart-subhead" id="tideStation" style="margin:0"></span>
+      </div>
+
+      <!-- Harvest threshold control -->
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;margin-bottom:12px;background:#0a1628;border-radius:8px;border:1px solid #1e293b;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none">
+          <input type="checkbox" id="harvestThreshEnabled" checked style="accent-color:#22c55e;width:15px;height:15px" onchange="onHarvestCtrlChange()">
+          <span style="color:#22c55e;font-weight:600;font-size:0.85rem">&#127807; Show harvest</span>
+        </label>
+        <span style="color:#64748b;font-size:0.82rem">when tide is below</span>
+        <input type="number" id="harvestThreshHeight" value="0.50" min="0" max="5" step="0.05"
+          style="width:64px;background:#1e293b;color:#f1f5f9;border:1px solid #334155;border-radius:6px;padding:3px 8px;font-size:0.85rem"
+          oninput="onHarvestCtrlChange()" onchange="onHarvestCtrlChange()">
+        <span style="color:#64748b;font-size:0.82rem">m</span>
+      </div>
+
+      <!-- Moon info -->
+      <div class="tide-moon-row">
+        <div id="moonInfo"></div>
+        <div id="moonDetails"></div>
+      </div>
+
+      <!-- Harvest window banner -->
+      <div id="harvestInfo" class="harvest-info"></div>
+
+      <!-- 7-day detailed tide chart -->
+      <div class="chart-subhead">7-Day Tide Forecast <span style="color:#22c55e">&#9632;</span> = harvest window</div>
+      <div class="chart-wrap" style="height:290px">
+        <canvas id="tideChartDetail"></canvas>
+      </div>
+
+      <!-- 60-day overview -->
+      <div class="chart-subhead" style="margin-top:16px">60-Day Tide Overview &amp; Harvest Windows</div>
+      <div class="chart-wrap" style="height:250px">
+        <canvas id="tideChartOverview"></canvas>
+      </div>
+
+      <!-- Upcoming low tides table -->
+      <div class="chart-subhead" id="tideTableSubhead" style="margin-top:16px">Upcoming Low Tides (next 14 days)</div>
+      <table class="low-tide-table">
+        <thead><tr><th>Date</th><th>Time</th><th>Height</th><th></th></tr></thead>
+        <tbody id="lowTideTable"></tbody>
+      </table>
+      <button class="btn btn-sm" style="margin-top:10px;width:100%;color:#64748b;border-color:#1e293b"
+        onclick="if(window.SeaweedTides)window.SeaweedTides.loadMoreTides()">Load next 14 days &darr;</button>
+
+      <!-- Harvest calendar -->
+      <div class="chart-subhead" style="margin-top:16px">Harvest Calendar (3 months)</div>
+      <div id="harvestCalendar" class="harvest-calendar"></div>
+    </section>
+
+    <!-- -- Battery Charts (side by side: % and Voltage) ----------- -->
+    <div class="two-charts">
+      <section class="chart-panel">
+        <div class="chart-header">
+          <h3>Battery %</h3>
+          <div class="time-btns">
+            <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
+            <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
+            <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
+            <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
+          </div>
+        </div>
+        <div class="chart-subhead" id="batSubhead">Showing: All data</div>
+        <div class="chart-wrap">
+          <canvas id="batChart"></canvas>
+        </div>
+      </section>
+
+      <section class="chart-panel">
+        <div class="chart-header">
+          <h3>Battery Voltage (V)</h3>
+        </div>
+        <div class="chart-subhead" id="voltSubhead">Raw voltage -- useful for spotting charge/discharge cycles</div>
+        <div class="chart-wrap">
+          <canvas id="voltChart"></canvas>
+        </div>
+      </section>
+    </div>
+
+    <!-- -- Battery Forecast Chart --------------------------------- -->
+    <section class="chart-panel" id="forecastPanel">
+      <div class="chart-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <h3>&#128267; Battery Forecast</h3>
+          <span style="font-size:11px;color:#64748b;">From</span>
+          <input type="date" id="fcStartDate" style="background:#0f172a;border:1px solid #334155;border-radius:4px;color:#94a3b8;font-size:11px;padding:2px 6px;cursor:pointer;">
+        </div>
+        <div class="time-btns">
+          <button class="btn btn-sm" data-fcrange="day">Day</button>
+          <button class="btn btn-sm active" data-fcrange="week">Week</button>
+          <button class="btn btn-sm" data-fcrange="month">Month</button>
+          <button class="btn btn-sm" data-fcrange="all">All</button>
+          <span style="border-left:1px solid #334155;margin:0 8px;height:20px;display:inline-block"></span>
+          <button class="btn btn-sm active" id="fcAnchorAuto" title="Re-anchor prediction from latest reading">Auto</button>
+          <button class="btn btn-sm" id="fcAnchorLock" title="Lock anchor — click chart to pick point. Shows long-term drift.">&#128204; Lock</button>
+        </div>
+      </div>
+      <div class="chart-subhead">Solid = actual &nbsp;&bull;&nbsp; Dashed = predicted &nbsp;&bull;&nbsp; Red dashed = config change &nbsp;&bull;&nbsp; Click chart in Lock mode to set anchor &nbsp;&bull;&nbsp; Click legend to show/hide &nbsp;&bull;&nbsp; Scroll to zoom</div>
+      <div class="chart-wrap" style="height:320px">
+        <canvas id="forecastChart"></canvas>
+      </div>
+      <div id="fcInfoCards"></div>
+    </section>
+
+    <!-- -- Satellite Sync Reliability Chart ----------------------- -->
+    <section class="chart-panel" id="syncChartPanel">
+      <div class="chart-header">
+        <h3>&#128225; Satellite Sync Reliability</h3>
+        <div class="time-btns">
+          <button class="btn btn-sm active" id="syncGroupDay" onclick="setSyncGroup('day')">Daily</button>
+          <button class="btn btn-sm" id="syncGroupWeek" onclick="setSyncGroup('week')">Weekly</button>
+        </div>
+      </div>
+      <div class="chart-subhead" id="syncSubhead">Missed syncs per day/week &mdash; Sat-A and Sat-B stacked (green/blue = synced, red/orange = missed)</div>
+      <div class="chart-wrap" style="height:260px">
+        <canvas id="syncChart"></canvas>
+      </div>
+    </section>
+
+    <!-- -- Sync Drift & RSSI Over Time ----------------------------- -->
+    <section class="chart-panel" id="driftChartPanel">
+      <div class="chart-header">
+        <h3>&#8635; Satellite Sync Drift &amp; RSSI</h3>
+      </div>
+      <div class="chart-subhead" id="driftSubhead">Sync drift (seconds) and receive signal strength per upload cycle</div>
+      <div class="chart-wrap" style="height:240px">
+        <canvas id="driftChart"></canvas>
+      </div>
+      <div class="chart-wrap" style="height:200px;margin-top:8px">
+        <canvas id="rssiChart"></canvas>
+      </div>
+    </section>
+
+    <!-- -- Data Health --------------------------------------------- -->
+    <section class="health-panel" id="healthPanel">
+      <h3>Data Health &amp; Network Reliability</h3>
+      <div class="health-grid" id="healthGrid"></div>
+    </section>
+
+    <!-- -- Daily Summary Table ------------------------------------ -->
+    <section class="peaks-panel" id="peaksPanel">
+      <h3>Daily Summary</h3>
+      <div class="peaks-sub" id="peaksSub">Battery trends + sensor peaks per day -- most recent first</div>
+      <table class="peaks-table">
+        <thead id="peaksHead"></thead>
+        <tbody id="peaksBody"></tbody>
+      </table>
+    </section>
+
+  </div> <!-- /dashboardContent -->
+
+</main>
+
+<footer class="footer">
+  <span id="footerName">Station</span> &mdash; ThingSpeak Channel
+  <span id="footerChannel">--</span>
+  &mdash; Seaweed Table T/H Monitoring
+</footer>
+
+<!-- ===================================================================
+     AUTO-LOAD: merged_data.js + weather_data.js (injected by boot script)
+     =================================================================== -->
+<script id="bootLoader">
+// Boot loader: reads ?table= param, injects data scripts
+(function(){
+  var params = new URLSearchParams(window.location.search);
+  var tableId = params.get('table') || 'perth';
+  window.__TABLE_ID = tableId;
+
+  // Station definitions (per-table config)
+  var STATIONS = {
+    perth: {
+      id: 'perth',
+      title: 'Perth Test Table',
+      subtitle: 'Noranda, WA -- Seaweed Table T/H Monitoring',
+      channelId: '3262071',
+      apiKey: 'VVHUX39KINYPLCVI',
+      dataFolder: 'data_3262071_TT',
+      weather: { name: 'Perth / Noranda', lat: -31.87, lon: 115.90 },
+      tideStation: 'perth',
+      satellites: 2,
+      sensorMap: 'perth',
+    },
+    shangani: {
+      id: 'shangani',
+      title: 'Shangani Aramani',
+      subtitle: 'Kwale County, Kenya -- Seaweed Table T/H Monitoring',
+      channelId: '',
+      apiKey: '',
+      dataFolder: 'data_Shangani',
+      weather: { name: 'Shangani Aramani, Kenya', lat: -4.55, lon: 39.50 },
+      tideStation: 'kenya',
+      satellites: 2,
+      sensorMap: 'shangani',
+    },
+    funzi: {
+      id: 'funzi',
+      title: 'Funzi Island',
+      subtitle: 'Funzi Island, Kenya -- Seaweed Table T/H Monitoring',
+      channelId: '',
+      apiKey: '',
+      dataFolder: 'data_Funzi',
+      weather: { name: 'Funzi Island, Kenya', lat: -4.55, lon: 39.45 },
+      tideStation: 'kenya',
+      satellites: 2,
+      sensorMap: 'funzi',
+    },
+  };
+  window.__STATIONS = STATIONS;
+  var cfg = STATIONS[tableId];
+  if (!cfg) { cfg = STATIONS.perth; window.__TABLE_ID = 'perth'; }
+  window.__STATION = cfg;
+
+  // Override from localStorage settings if available
+  try {
+    var s = JSON.parse(localStorage.getItem('seaweed_dashboard_config') || '{}');
+    if (s.channels) {
+      var ch = s.channels.find(function(c) { return c.id === tableId; });
+      if (ch) {
+        if (ch.channelId) cfg.channelId = ch.channelId;
+        if (ch.apiKey)    cfg.apiKey = ch.apiKey;
+        if (ch.dataFolder) cfg.dataFolder = ch.dataFolder;
+      }
+    }
+  } catch(e) {}
+
+  // Inject merged_data.js
+  var df = cfg.dataFolder;
+  document.write('<scr'+'ipt src="../data/'+df+'/merged_data.js" onerror="console.log(\'[Dashboard] No local data\')"><\/scr'+'ipt>');
+})();
+</script>
+
+<!-- Battery prediction engine (shared) -->
+<script src="battery_model.js"></script>
+<script src="battery_forecast_widget.js"></script>
+
+<!-- Tide prediction engine (shared) -->
+<script src="tides.js"></script>
+
+<!-- Cached weather data -->
+<script>
+(function(){
+  var df = window.__STATION ? window.__STATION.dataFolder : 'data_3262071_TT';
+  document.write('<scr'+'ipt src="../data/'+df+'/weather_data.js" onerror="console.log(\'[Weather] No cached weather data\')"><\/scr'+'ipt>');
+})();
+</script>
+
+<!-- =================================================================
+     SECTION 3: CONFIGURATION, STATE, UTILITIES
+     ================================================================= -->
+<script>
+"use strict";
+
+// =====================================================================
+// STATION CONFIG (resolved from boot loader)
+// =====================================================================
+var TABLE_ID = window.__TABLE_ID || 'perth';
+var STATION  = window.__STATION;
+
+var DEFAULTS = {
+  channelId:      STATION.channelId,
+  apiKey:         STATION.apiKey,
+  autoRefreshMin: 15,
+};
+
+var WEATHER_LOCATION = STATION.weather;
+
+// =====================================================================
+// STATE
+// =====================================================================
+var state = {
+  allEntries:       [],
+  filteredEntries:  [],
+  timeRange:        'week',
+  dateStart:        null,
+  dateEnd:          null,
+  channelInfo:      null,
+  dataSource:       '',
+  charts:           { temp: null, hum: null, bat: null, volt: null, weather: null, sync: null, drift: null, rssi: null },
+  syncGroupBy:      'day',
+  _syncBuckets:     {},
+  _syncBucketKeys:  [],
+  weatherTimeRange: 'week',
+  autoRefreshTimer: null,
+};
+
+// =====================================================================
+// SENSOR MAP SVGs (per-station)
+// =====================================================================
+var SENSOR_MAPS = {
+  perth: {
+    viewBox: '0 0 820 280',
+    label: 'Perth test table sensor placement diagram',
+    svg:
+      '<rect x="0" y="256" width="700" height="8" fill="#334155" rx="2"/>' +
+      '<rect x="60" y="60" width="18" height="196" fill="#8B7355" rx="3"/>' +
+      '<rect x="340" y="60" width="18" height="196" fill="#8B7355" rx="3"/>' +
+      '<rect x="618" y="60" width="18" height="196" fill="#8B7355" rx="3"/>' +
+      '<line x1="69" y1="252" x2="55" y2="268" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="69" y1="252" x2="83" y2="268" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="349" y1="252" x2="335" y2="268" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="349" y1="252" x2="363" y2="268" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="627" y1="252" x2="613" y2="268" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="627" y1="252" x2="641" y2="268" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<rect x="60" y="82" width="578" height="12" fill="#C8A96E" rx="2"/>' +
+      '<rect x="60" y="102" width="578" height="12" fill="#C8A96E" rx="2"/>' +
+      '<rect x="60" y="162" width="578" height="12" fill="#C8A96E" rx="2"/>' +
+      '<rect x="60" y="182" width="578" height="12" fill="#C8A96E" rx="2"/>' +
+      '<rect x="52" y="76" width="34" height="30" fill="#7A6040" rx="3"/>' +
+      '<rect x="332" y="76" width="34" height="30" fill="#7A6040" rx="3"/>' +
+      '<rect x="610" y="76" width="34" height="30" fill="#7A6040" rx="3"/>' +
+      '<rect x="52" y="156" width="34" height="30" fill="#7A6040" rx="3"/>' +
+      '<rect x="332" y="156" width="34" height="30" fill="#7A6040" rx="3"/>' +
+      '<rect x="610" y="156" width="34" height="30" fill="#7A6040" rx="3"/>' +
+      '<rect x="638" y="90" width="24" height="8" fill="#C8A96E" rx="2"/>' +
+      '<rect x="638" y="170" width="24" height="8" fill="#C8A96E" rx="2"/>' +
+      '<rect x="120" y="48" width="120" height="26" rx="4" fill="none" stroke="#a855f7" stroke-width="2"/>' +
+      '<text x="180" y="66" font-family="sans-serif" font-size="13" font-weight="700" fill="#a855f7" text-anchor="middle">S4 - TL (Top Left)</text>' +
+      '<rect x="390" y="48" width="130" height="26" rx="4" fill="none" stroke="#ef4444" stroke-width="2"/>' +
+      '<text x="455" y="66" font-family="sans-serif" font-size="13" font-weight="700" fill="#ef4444" text-anchor="middle">S5 - TR (Top Right)</text>' +
+      '<rect x="120" y="200" width="120" height="26" rx="4" fill="none" stroke="#38bdf8" stroke-width="2"/>' +
+      '<text x="180" y="218" font-family="sans-serif" font-size="13" font-weight="700" fill="#38bdf8" text-anchor="middle">S1 - BL (Bot Left)</text>' +
+      '<rect x="390" y="200" width="130" height="26" rx="4" fill="none" stroke="#eab308" stroke-width="2"/>' +
+      '<text x="455" y="218" font-family="sans-serif" font-size="13" font-weight="700" fill="#eab308" text-anchor="middle">S3 - BR (Bot Right)</text>' +
+      '<line x1="662" y1="133" x2="682" y2="133" stroke="#22c55e88" stroke-width="1.5" stroke-dasharray="4 3"/>' +
+      '<rect x="682" y="120" width="110" height="26" rx="4" fill="none" stroke="#22c55e" stroke-width="2"/>' +
+      '<text x="737" y="138" font-family="sans-serif" font-size="13" font-weight="700" fill="#22c55e" text-anchor="middle">S2 - CTRL</text>' +
+      '<text x="349" y="280" text-anchor="middle" fill="#64748b" font-size="9">Wooden Rack (3 posts)</text>',
+    legend: [
+      { color: '#38bdf8', label: 'S1 \u2014 BL (Bottom Left)' },
+      { color: '#22c55e', label: 'S2 \u2014 CTRL (Control)' },
+      { color: '#eab308', label: 'S3 \u2014 BR (Bottom Right)' },
+      { color: '#a855f7', label: 'S4 \u2014 TL (Top Left)' },
+      { color: '#ef4444', label: 'S5 \u2014 TR (Top Right)' },
+    ],
+  },
+  shangani: {
+    viewBox: '0 0 960 280',
+    label: 'Shangani sensor placement diagram',
+    svg: '<rect x="55" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
+      '<rect x="223" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
+      '<rect x="391" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
+      '<rect x="559" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
+      '<rect x="727" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
+      '<line x1="58" y1="132" x2="58" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
+      '<line x1="226" y1="132" x2="226" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
+      '<line x1="394" y1="132" x2="394" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
+      '<line x1="562" y1="132" x2="562" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
+      '<line x1="730" y1="132" x2="730" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
+      '<rect x="55" y="132" width="684" height="8" fill="#3a7d44" rx="2"/>' +
+      '<rect x="55" y="144" width="684" height="8" fill="#3a7d44" rx="2"/>' +
+      '<line x1="55" y1="134" x2="739" y2="134" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>' +
+      '<line x1="55" y1="146" x2="739" y2="146" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>' +
+      '<rect x="55" y="194" width="684" height="8" fill="#3a7d44" rx="2"/>' +
+      '<rect x="55" y="206" width="684" height="8" fill="#3a7d44" rx="2"/>' +
+      '<line x1="55" y1="196" x2="739" y2="196" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>' +
+      '<line x1="55" y1="208" x2="739" y2="208" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>' +
+      '<rect x="50" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="50" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
+      '<rect x="218" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="218" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
+      '<rect x="386" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="386" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
+      '<rect x="554" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="554" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
+      '<rect x="722" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="722" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
+      '<line x1="30" y1="252" x2="755" y2="252" stroke="#888" stroke-width="2"/>' +
+      '<rect x="48" y="249" width="26" height="6" fill="#555" rx="1"/><rect x="216" y="249" width="26" height="6" fill="#555" rx="1"/>' +
+      '<rect x="384" y="249" width="26" height="6" fill="#555" rx="1"/><rect x="552" y="249" width="26" height="6" fill="#555" rx="1"/>' +
+      '<rect x="720" y="249" width="26" height="6" fill="#555" rx="1"/>' +
+      '<line x1="61" y1="240" x2="61" y2="255" stroke="#888" stroke-width="1.5"/>' +
+      '<line x1="229" y1="240" x2="229" y2="255" stroke="#888" stroke-width="1.5"/>' +
+      '<line x1="397" y1="240" x2="397" y2="255" stroke="#888" stroke-width="1.5"/>' +
+      '<line x1="565" y1="240" x2="565" y2="255" stroke="#888" stroke-width="1.5"/>' +
+      '<line x1="733" y1="240" x2="733" y2="255" stroke="#888" stroke-width="1.5"/>' +
+      '<rect x="85" y="74" width="120" height="36" fill="#7e22ce" fill-opacity="0.15" stroke="#a855f7" stroke-width="1.5" rx="5"/>' +
+      '<text x="145" y="88" text-anchor="middle" fill="#a855f7" font-size="12" font-weight="700">S4</text>' +
+      '<text x="145" y="103" text-anchor="middle" fill="#a855f7" font-size="10">Upper West</text>' +
+      '<rect x="421" y="74" width="120" height="36" fill="#15803d" fill-opacity="0.15" stroke="#22c55e" stroke-width="1.5" rx="5"/>' +
+      '<text x="481" y="88" text-anchor="middle" fill="#22c55e" font-size="12" font-weight="700">S2</text>' +
+      '<text x="481" y="103" text-anchor="middle" fill="#22c55e" font-size="10">Upper East</text>' +
+      '<rect x="85" y="220" width="120" height="36" fill="#0369a1" fill-opacity="0.15" stroke="#38bdf8" stroke-width="1.5" rx="5"/>' +
+      '<text x="145" y="234" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700">S1</text>' +
+      '<text x="145" y="249" text-anchor="middle" fill="#38bdf8" font-size="10">Lower West</text>' +
+      '<rect x="421" y="220" width="120" height="36" fill="#854d0e" fill-opacity="0.15" stroke="#eab308" stroke-width="1.5" rx="5"/>' +
+      '<text x="481" y="234" text-anchor="middle" fill="#eab308" font-size="12" font-weight="700">S3</text>' +
+      '<text x="481" y="249" text-anchor="middle" fill="#eab308" font-size="10">Lower East</text>' +
+      '<line x1="739" y1="138" x2="804" y2="138" stroke="#f97316" stroke-width="1.5" stroke-dasharray="6,4"/>' +
+      '<rect x="804" y="120" width="120" height="36" fill="#9a3412" fill-opacity="0.15" stroke="#f97316" stroke-width="1.5" rx="5"/>' +
+      '<text x="864" y="134" text-anchor="middle" fill="#f97316" font-size="12" font-weight="700">Control</text>' +
+      '<text x="864" y="149" text-anchor="middle" fill="#f97316" font-size="10">External Ref</text>' +
+      '<text x="397" y="270" text-anchor="middle" fill="#64748b" font-size="9">Green Metal Rack (5 posts)</text>',
+    legend: [
+      { color: '#38bdf8', label: 'S1 — Lower West' },
+      { color: '#22c55e', label: 'S2 — Upper East' },
+      { color: '#eab308', label: 'S3 — Lower East' },
+      { color: '#a855f7', label: 'S4 — Upper West' },
+      { color: '#f97316', label: 'Control — External Ref' },
+    ],
+  },
+  funzi: {
+    viewBox: '0 0 930 280',
+    label: 'Funzi sensor placement diagram',
+    svg: '<rect x="55" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
+      '<rect x="265" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
+      '<rect x="475" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
+      '<rect x="685" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
+      '<line x1="58" y1="132" x2="58" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
+      '<line x1="268" y1="132" x2="268" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
+      '<line x1="478" y1="132" x2="478" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
+      '<line x1="688" y1="132" x2="688" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
+      '<rect x="55" y="132" width="642" height="8" fill="#3a7d44" rx="2"/>' +
+      '<rect x="55" y="144" width="642" height="8" fill="#3a7d44" rx="2"/>' +
+      '<line x1="55" y1="134" x2="697" y2="134" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>' +
+      '<line x1="55" y1="146" x2="697" y2="146" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>' +
+      '<rect x="55" y="194" width="642" height="8" fill="#3a7d44" rx="2"/>' +
+      '<rect x="55" y="206" width="642" height="8" fill="#3a7d44" rx="2"/>' +
+      '<line x1="55" y1="196" x2="697" y2="196" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>' +
+      '<line x1="55" y1="208" x2="697" y2="208" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>' +
+      '<rect x="50" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="50" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
+      '<rect x="260" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="260" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
+      '<rect x="470" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="470" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
+      '<rect x="680" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="680" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
+      '<line x1="30" y1="252" x2="720" y2="252" stroke="#888" stroke-width="2"/>' +
+      '<rect x="48" y="249" width="26" height="6" fill="#555" rx="1"/><rect x="258" y="249" width="26" height="6" fill="#555" rx="1"/>' +
+      '<rect x="468" y="249" width="26" height="6" fill="#555" rx="1"/><rect x="678" y="249" width="26" height="6" fill="#555" rx="1"/>' +
+      '<line x1="61" y1="240" x2="61" y2="255" stroke="#888" stroke-width="1.5"/>' +
+      '<line x1="271" y1="240" x2="271" y2="255" stroke="#888" stroke-width="1.5"/>' +
+      '<line x1="481" y1="240" x2="481" y2="255" stroke="#888" stroke-width="1.5"/>' +
+      '<line x1="691" y1="240" x2="691" y2="255" stroke="#888" stroke-width="1.5"/>' +
+      '<rect x="107" y="74" width="120" height="36" fill="#7e22ce" fill-opacity="0.15" stroke="#a855f7" stroke-width="1.5" rx="5"/>' +
+      '<text x="167" y="88" text-anchor="middle" fill="#a855f7" font-size="12" font-weight="700">S4</text>' +
+      '<text x="167" y="103" text-anchor="middle" fill="#a855f7" font-size="10">Upper West</text>' +
+      '<rect x="527" y="74" width="120" height="36" fill="#15803d" fill-opacity="0.15" stroke="#22c55e" stroke-width="1.5" rx="5"/>' +
+      '<text x="587" y="88" text-anchor="middle" fill="#22c55e" font-size="12" font-weight="700">S2</text>' +
+      '<text x="587" y="103" text-anchor="middle" fill="#22c55e" font-size="10">Upper East</text>' +
+      '<rect x="107" y="220" width="120" height="36" fill="#0369a1" fill-opacity="0.15" stroke="#38bdf8" stroke-width="1.5" rx="5"/>' +
+      '<text x="167" y="234" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700">S1</text>' +
+      '<text x="167" y="249" text-anchor="middle" fill="#38bdf8" font-size="10">Lower West</text>' +
+      '<rect x="527" y="220" width="120" height="36" fill="#854d0e" fill-opacity="0.15" stroke="#eab308" stroke-width="1.5" rx="5"/>' +
+      '<text x="587" y="234" text-anchor="middle" fill="#eab308" font-size="12" font-weight="700">S3</text>' +
+      '<text x="587" y="249" text-anchor="middle" fill="#eab308" font-size="10">Lower East</text>' +
+      '<line x1="697" y1="138" x2="762" y2="138" stroke="#f97316" stroke-width="1.5" stroke-dasharray="6,4"/>' +
+      '<rect x="762" y="120" width="120" height="36" fill="#9a3412" fill-opacity="0.15" stroke="#f97316" stroke-width="1.5" rx="5"/>' +
+      '<text x="822" y="134" text-anchor="middle" fill="#f97316" font-size="12" font-weight="700">Control</text>' +
+      '<text x="822" y="149" text-anchor="middle" fill="#f97316" font-size="10">External Ref</text>' +
+      '<text x="376" y="270" text-anchor="middle" fill="#64748b" font-size="9">Green Metal Rack (4 posts)</text>',
+    legend: [
+      { color: '#38bdf8', label: 'S1 — Lower West' },
+      { color: '#22c55e', label: 'S2 — Upper East' },
+      { color: '#eab308', label: 'S3 — Lower East' },
+      { color: '#a855f7', label: 'S4 — Upper West' },
+      { color: '#f97316', label: 'Control — External Ref' },
+    ],
+  },
+};
+
+// =====================================================================
+// CONFIGURATION (persisted in localStorage)
+// =====================================================================
+function getConfig() {
+  try {
+    var s = JSON.parse(localStorage.getItem('seaweed_dashboard_config'));
+    if (!s) return {};
+    if (s.channels && s.channels.length) {
+      var ch = s.channels.find(function(c) { return c.id === TABLE_ID; });
+      if (ch) {
+        return { channelId: ch.channelId, apiKey: ch.apiKey, autoRefreshMin: s.autoRefreshMin, dataFolder: ch.dataFolder };
+      }
+    }
+    return s;
+  } catch (e) { return {}; }
+}
+
+// =====================================================================
+// AUTO-REFRESH
+// =====================================================================
+function setupAutoRefresh() {
+  if (state.autoRefreshTimer) clearInterval(state.autoRefreshTimer);
+  state.autoRefreshTimer = null;
+
+  var cfg  = getConfig();
+  var mins = cfg.autoRefreshMin != null ? cfg.autoRefreshMin : DEFAULTS.autoRefreshMin;
+  var label = document.getElementById('autoRefreshLabel');
+
+  if (mins > 0) {
+    state.autoRefreshTimer = setInterval(function () {
+      console.log('[Dashboard] Auto-refresh triggered');
+      fetchLiveData(true);
+    }, mins * 60000);
+    if (label) label.textContent = 'Auto-refresh: every ' + mins + 'm';
+  } else {
+    if (label) label.textContent = 'Auto-refresh: off';
+  }
+}
+
+// =====================================================================
+// UTILITIES
+// =====================================================================
+function csvParse(fieldVal) {
+  if (!fieldVal || fieldVal === 'null') return [];
+  return fieldVal.split(',').map(function (v) {
+    v = v.trim();
+    if (v === 'NC' || v === '' || v === 'null' || v === 'nan') return null;
+    var n = parseFloat(v);
+    return isNaN(n) ? null : n;
+  });
+}
+
+function numParse(v) {
+  if (v === null || v === undefined || v === '' || v === 'null') return null;
+  var n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
+
+function fmtDate(d) {
+  if (!d) return '--';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+       + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtBytes(kb) {
+  if (kb === null || kb === undefined) return '--';
+  if (kb >= 1048576) return (kb / 1048576).toFixed(1) + ' GB';
+  if (kb >= 1024)    return (kb / 1024).toFixed(1) + ' MB';
+  return kb + ' KB';
+}
+
+function timeAgo(date) {
+  if (!date || isNaN(date.getTime())) return 'never';
+  var ms = Date.now() - date.getTime();
+  if (ms < 0) return 'in the future';
+  var mins = Math.floor(ms / 60000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ' + (mins % 60) + 'm ago';
+  var days = Math.floor(hrs / 24);
+  return days + 'd ' + (hrs % 24) + 'h ago';
+}
+
+function getTimezoneLabel() {
+  try {
+    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    var offset = new Date().getTimezoneOffset();
+    var sign = offset <= 0 ? '+' : '-';
+    var absH = Math.floor(Math.abs(offset) / 60);
+    var absM = Math.abs(offset) % 60;
+    return tz + ' (UTC' + sign + absH + (absM ? ':' + String(absM).padStart(2, '0') : '') + ')';
+  } catch (e) { return 'Local time'; }
+}
+
+function timeRangeLabel() {
+  if (!state.filteredEntries.length) return 'No data';
+  var first = state.filteredEntries[0].timestamp;
+  var last  = state.filteredEntries[state.filteredEntries.length - 1].timestamp;
+  var rangeText = { day: 'Last 24 hours', week: 'Last 7 days', month: 'Last 30 days', all: 'All data', custom: 'Custom range' };
+  return (rangeText[state.timeRange] || 'All data') + ' | ' +
+    first.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' - ' +
+    last.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) +
+    ' (' + state.filteredEntries.length + ' points)';
+}
+
+function toggleSensorMap() {
+  var body = document.getElementById('sensorMapBody');
+  var chevron = document.getElementById('sensorMapChevron');
+  var toggle = document.getElementById('sensorMapToggle');
+  var open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  chevron.classList.toggle('open', open);
+  toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function findLastEntryWith(entries, key) {
+  for (var i = entries.length - 1; i >= 0; i--) {
+    if (entries[i][key] !== null) return entries[i];
+  }
+  return null;
+}
+
+function countRecentMissing(entries, key, hoursBack) {
+  if (!entries.length) return { total: 0, missing: 0 };
+  var cutoff = new Date(entries[entries.length - 1].timestamp.getTime() - hoursBack * 3600000);
+  var recent  = entries.filter(function (e) { return e.timestamp >= cutoff; });
+  var missing = recent.filter(function (e) { return e[key] === null; }).length;
+  return { total: recent.length, missing: missing };
+}
+</script>
+
+<!-- =================================================================
+     SECTION 4: DATA PARSING + LOADING
+     ================================================================= -->
+<script>
+"use strict";
+
+// =====================================================================
+// DATA PARSING (ThingSpeak field mapping)
+// =====================================================================
+// field1: T0 Battery % (numeric)
+// field2: T0 Sensors "t1,rh1,t2,rh2"
+// field3: T0 Status  "batV,rssi,bootCnt,heap"
+// field4: Sat-A Status "batV,bat%,rssi,sampleId"
+// field5: Sat-A Sensors "t1,rh1,t2,rh2"
+// field6: Sat-B Status "batV,bat%,rssi,sampleId"
+// field7: Sat-B Sensors "t1,rh1,t2,rh2"
+// field8: System "sdFreeKB,csq,uploadOk" | config | fw
+//
+function parseFeeds(rawFeeds) {
+  return rawFeeds.map(function (f) {
+    var ts = new Date(f.created_at);
+    var t0Sensors = csvParse(f.field2);
+    var t0Status  = csvParse(f.field3);
+    var satAStat  = csvParse(f.field4);
+    var satASens  = csvParse(f.field5);
+    var satBStat  = csvParse(f.field6);
+    var satBSens  = csvParse(f.field7);
+
+    // Split field8 at pipe: diag | config | fw
+    var f8raw = f.field8 || '';
+    var f8sections = f8raw.split('|');
+    var f8diag = f8sections[0] || '';
+    var sys = csvParse(f8diag);
+
+    // Extract firmware versions
+    var satAFw = null, satBFw = null, t0Fw = null, t0BuildDate = null;
+    if (f.field4) {
+      var parts4 = f.field4.split(',');
+      if (parts4.length > 6 && parts4[6]) satAFw = parts4[6].trim();
+    }
+    if (f.field6) {
+      var parts6 = f.field6.split(',');
+      if (parts6.length > 6 && parts6[6]) satBFw = parts6[6].trim();
+    }
+    if (f8sections.length > 2) {
+      var fwParts = f8sections[2].split(',');
+      t0Fw = fwParts[0] ? fwParts[0].trim() : null;
+      t0BuildDate = fwParts[1] ? fwParts[1].trim() : null;
+    }
+
+    return {
+      timestamp: ts,
+      entryId:   f.entry_id,
+      _rawField8: f8raw,
+      // T0
+      t0BatPct:  numParse(f.field1),
+      t0Temp1:   t0Sensors[0] != null ? t0Sensors[0] : null,
+      t0Hum1:    t0Sensors[1] != null ? t0Sensors[1] : null,
+      t0Temp2:   t0Sensors[2] != null ? t0Sensors[2] : null,
+      t0Hum2:    t0Sensors[3] != null ? t0Sensors[3] : null,
+      t0BatV:    t0Status[0]  != null ? t0Status[0]  : null,
+      t0Rssi:    t0Status[1]  != null ? t0Status[1]  : null,
+      t0Boot:    t0Status[2]  != null ? t0Status[2]  : null,
+      t0Heap:    t0Status[3]  != null ? t0Status[3]  : null,
+      // Sat-A
+      satABatV:     satAStat[0] != null ? satAStat[0] : null,
+      satABatPct:   satAStat[1] != null ? satAStat[1] : null,
+      satARssi:     satAStat[2] != null ? satAStat[2] : null,
+      satASampleId: satAStat[3] != null ? satAStat[3] : null,
+      satASyncDrift: satAStat[5] != null ? satAStat[5] : null,
+      satATemp1:    satASens[0] != null ? satASens[0] : null,
+      satAHum1:     satASens[1] != null ? satASens[1] : null,
+      satATemp2:    satASens[2] != null ? satASens[2] : null,
+      satAHum2:     satASens[3] != null ? satASens[3] : null,
+      // Sat-B
+      satBBatV:     satBStat[0] != null ? satBStat[0] : null,
+      satBBatPct:   satBStat[1] != null ? satBStat[1] : null,
+      satBRssi:     satBStat[2] != null ? satBStat[2] : null,
+      satBSampleId: satBStat[3] != null ? satBStat[3] : null,
+      satBSyncDrift: satBStat[5] != null ? satBStat[5] : null,
+      satBTemp1:    satBSens[0] != null ? satBSens[0] : null,
+      satBHum1:     satBSens[1] != null ? satBSens[1] : null,
+      satBTemp2:    satBSens[2] != null ? satBSens[2] : null,
+      satBHum2:     satBSens[3] != null ? satBSens[3] : null,
+      // System
+      sdFreeKB:   sys[0] != null ? sys[0] : null,
+      csq:        sys[1] != null ? sys[1] : null,
+      uploadOk:   sys[2] != null ? sys[2] : null,
+      syncDrift:  sys[3] != null ? sys[3] : null,
+      // Firmware
+      t0FwVersion: t0Fw,
+      t0BuildDate: t0BuildDate,
+      satAFwVersion: satAFw,
+      satBFwVersion: satBFw,
+    };
+  }).filter(function (e) { return !isNaN(e.timestamp.getTime()); })
+    .sort(function (a, b) { return a.timestamp - b.timestamp; });
+}
+
+// =====================================================================
+// DATA LOADING + DEDUPLICATION
+// =====================================================================
+function handleNewData(data, sourceLabel) {
+  if (!data || !data.feeds || !data.feeds.length) {
+    console.warn('[Dashboard] No feed data in source:', sourceLabel);
+    return;
+  }
+
+  var newEntries = parseFeeds(data.feeds);
+  var entryMap   = new Map();
+  state.allEntries.forEach(function (e) { entryMap.set(e.entryId, e); });
+  newEntries.forEach(function (e) { entryMap.set(e.entryId, e); });
+  state.allEntries = Array.from(entryMap.values()).sort(function (a, b) { return a.timestamp - b.timestamp; });
+
+  state.channelInfo = data.channel || state.channelInfo;
+  state.dataSource  = sourceLabel;
+
+  applyTimeRange();
+  renderDashboard();
+
+  try {
+    localStorage.setItem('seaweed_cache_' + TABLE_ID, JSON.stringify({
+      allEntries:  state.allEntries,
+      channelInfo: state.channelInfo,
+      savedAt:     Date.now()
+    }));
+  } catch (e) { console.warn('[Cache] localStorage save failed:', e); }
+}
+
+async function fetchLiveData(silent) {
+  var _cfg = getConfig();
+  var ch  = (_cfg.channelId || DEFAULTS.channelId).trim();
+  var key = (_cfg.apiKey    || DEFAULTS.apiKey).trim();
+  if (!ch || !key) {
+    if (!silent) { alert('Configure Channel ID and Read API Key in settings.html.'); }
+    return;
+  }
+
+  var btn = document.getElementById('btnFetch');
+  btn.innerHTML = '<span class="spinner"></span> Fetching...';
+  btn.disabled  = true;
+
+  try {
+    var url = 'https://api.thingspeak.com/channels/' + ch + '/feeds.json?api_key=' + key + '&results=8000';
+    var res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + res.statusText);
+    var data = await res.json();
+    handleNewData(data, 'Live fetch (' + new Date().toLocaleTimeString('en-GB') + ')');
+  } catch (err) {
+    console.error('[Dashboard] Fetch failed:', err);
+    if (!silent) {
+      alert('Fetch failed: ' + err.message + '\n\nCheck your Channel ID/API Key and internet access.\nIf using file:// protocol, try "Load JSON" instead.');
+    }
+  } finally {
+    btn.innerHTML = 'Fetch Live';
+    btn.disabled  = false;
+  }
+}
+
+function handleFileUpload(files) {
+  Array.from(files).forEach(function (file) {
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      try {
+        var data = JSON.parse(ev.target.result);
+        handleNewData(data, 'File: ' + file.name);
+      } catch (err) {
+        alert('Error parsing ' + file.name + ': ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+  document.getElementById('fileInput').value = '';
+}
+
+// =====================================================================
+// CSV EXPORT
+// =====================================================================
+function exportCSV() {
+  var entries = state.allEntries;
+  if (!entries.length) return;
+
+  var headers = [
+    'Timestamp_UTC', 'Timestamp_Local', 'Entry_ID',
+    'T0_Bat%', 'T0_BatV', 'T0_RSSI', 'T0_BootCnt', 'T0_Heap',
+    'T0_Temp1', 'T0_Hum1', 'T0_Temp2', 'T0_Hum2',
+    'SatA_BatV', 'SatA_Bat%', 'SatA_RSSI', 'SatA_SampleID',
+    'SatA_Temp1', 'SatA_Hum1', 'SatA_Temp2', 'SatA_Hum2',
+    'SatB_BatV', 'SatB_Bat%', 'SatB_RSSI', 'SatB_SampleID',
+    'SatB_Temp1', 'SatB_Hum1', 'SatB_Temp2', 'SatB_Hum2',
+    'SD_FreeKB', 'CSQ', 'UploadOK',
+  ];
+
+  var rows = entries.map(function (e) {
+    function v(x) { return (x === null || x === undefined) ? '' : x; }
+    return [
+      e.timestamp.toISOString(),
+      e.timestamp.toLocaleString('en-GB'),
+      e.entryId,
+      v(e.t0BatPct), v(e.t0BatV), v(e.t0Rssi), v(e.t0Boot), v(e.t0Heap),
+      v(e.t0Temp1), v(e.t0Hum1), v(e.t0Temp2), v(e.t0Hum2),
+      v(e.satABatV), v(e.satABatPct), v(e.satARssi), v(e.satASampleId),
+      v(e.satATemp1), v(e.satAHum1), v(e.satATemp2), v(e.satAHum2),
+      v(e.satBBatV), v(e.satBBatPct), v(e.satBRssi), v(e.satBSampleId),
+      v(e.satBTemp1), v(e.satBHum1), v(e.satBTemp2), v(e.satBHum2),
+      v(e.sdFreeKB), v(e.csq), v(e.uploadOk),
+    ].join(',');
+  });
+
+  var csv  = headers.join(',') + '\n' + rows.join('\n');
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'seaweed_' + TABLE_ID + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// =====================================================================
+// TIME RANGE
+// =====================================================================
+function setTimeRange(range) {
+  state.timeRange = range;
+  applyTimeRange();
+  updateCharts();
+  updatePeaksTable();
+  updateTimeButtons();
+  updateChartSubheads();
+  renderWeatherCharts();
+}
+
+function setWeatherTimeRange(r) {
+  state.weatherTimeRange = r;
+  document.querySelectorAll('[data-wxrange]').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.wxrange === r);
+  });
+  if (r === 'forecast') { fetchForecastData(); } else { renderWeatherCharts(); }
+}
+
+function applyDateRange() {
+  var startVal = document.getElementById('dateStart').value;
+  var endVal   = document.getElementById('dateEnd').value;
+  state.dateStart = startVal ? new Date(startVal + 'T00:00:00') : null;
+  state.dateEnd   = endVal   ? new Date(endVal   + 'T23:59:59') : null;
+  state.timeRange = 'custom';
+  applyTimeRange();
+  updateCharts();
+  updatePeaksTable();
+  updateTimeButtons();
+  updateChartSubheads();
+  fetchWeatherData();
+  saveViewPrefs();
+}
+
+function clearDateRange() {
+  document.getElementById('dateStart').value = '';
+  document.getElementById('dateEnd').value = '';
+  state.dateStart = null;
+  state.dateEnd = null;
+  setTimeRange('week');
+  saveViewPrefs();
+}
+
+var VIEW_PREFS_KEY = 'seaweed_view_' + TABLE_ID;
+function saveViewPrefs() {
+  try {
+    var prefs = {
+      timeRange: state.timeRange,
+      dateStart: document.getElementById('dateStart').value || '',
+      dateEnd:   document.getElementById('dateEnd').value   || ''
+    };
+    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify(prefs));
+  } catch (e) { /* ignore */ }
+}
+function restoreViewPrefs() {
+  try {
+    var raw = localStorage.getItem(VIEW_PREFS_KEY);
+    if (!raw) return;
+    var p = JSON.parse(raw);
+    if (p.dateStart) {
+      document.getElementById('dateStart').value = p.dateStart;
+      state.dateStart = new Date(p.dateStart + 'T00:00:00');
+    }
+    if (p.dateEnd) {
+      document.getElementById('dateEnd').value = p.dateEnd;
+      state.dateEnd = new Date(p.dateEnd + 'T23:59:59');
+    }
+    if (p.timeRange && p.timeRange !== 'custom') {
+      state.timeRange = p.timeRange;
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function applyTimeRange() {
+  if (!state.allEntries.length) { state.filteredEntries = []; return; }
+  var latest = state.allEntries[state.allEntries.length - 1].timestamp;
+  var start, end;
+
+  if (state.timeRange === 'custom') {
+    start = state.dateStart || new Date(0);
+    end   = state.dateEnd   || latest;
+  } else {
+    switch (state.timeRange) {
+      case 'day':   start = new Date(latest.getTime() - 24 * 3600000); break;
+      case 'week':  start = new Date(latest.getTime() - 7 * 24 * 3600000); break;
+      case 'month': start = new Date(latest.getTime() - 30 * 24 * 3600000); break;
+      default:      start = new Date(0);
+    }
+    end = latest;
+  }
+  state.filteredEntries = state.allEntries.filter(function (e) {
+    return e.timestamp >= start && e.timestamp <= end;
+  });
+}
+
+function getTimeAxisConfig() {
+  var range = state.timeRange;
+  if (range === 'custom' && state.filteredEntries.length >= 2) {
+    var spanMs = state.filteredEntries[state.filteredEntries.length-1].timestamp - state.filteredEntries[0].timestamp;
+    var spanDays = spanMs / 86400000;
+    if (spanDays <= 1.5)       range = 'day';
+    else if (spanDays <= 10)   range = 'week';
+    else if (spanDays <= 45)   range = 'month';
+    else                       range = 'all';
+  }
+  switch (range) {
+    case 'day':
+      return { unit: 'hour', displayFormats: { hour: 'HH:mm' }, tooltipFormat: 'd LLL HH:mm' };
+    case 'week':
+      return { unit: 'day', displayFormats: { day: 'd LLL' }, tooltipFormat: 'd LLL HH:mm' };
+    case 'month':
+      return { unit: 'day', displayFormats: { day: 'd LLL' }, tooltipFormat: 'd LLL HH:mm' };
+    default:
+      return { unit: 'week', displayFormats: { week: 'd LLL' }, tooltipFormat: 'd LLL HH:mm' };
+  }
+}
+
+function updateTimeButtons() {
+  document.querySelectorAll('.time-btns .btn-sm').forEach(function (btn) {
+    var isActive = btn.dataset.range === state.timeRange;
+    if (state.timeRange === 'custom') isActive = false;
+    btn.classList.toggle('active', isActive);
+  });
+}
+
+function updateChartSubheads() {
+  var label = timeRangeLabel();
+  var el = document.getElementById('tempSubhead');
+  if (el) el.innerHTML = 'Sensor 1 = Water / Table probe &nbsp;|&nbsp; Sensor 2 = Air / Ambient probe &nbsp;|&nbsp; ' + label;
+  var humSub = document.getElementById('humSubhead');
+  if (humSub) humSub.textContent = label;
+  var batSub = document.getElementById('batSubhead');
+  if (batSub) batSub.textContent = label;
+}
+</script>
+
+<!-- =================================================================
+     SECTION 5: RENDERING (status cards, network bar, header, health)
+     ================================================================= -->
+<script>
+"use strict";
+
+// =====================================================================
+// RENDER: FULL DASHBOARD
+// =====================================================================
+function renderDashboard() {
+  var hasData = state.allEntries.length > 0;
+  document.getElementById('emptyState').style.display      = hasData ? 'none' : 'block';
+  document.getElementById('dashboardContent').style.display = hasData ? 'block' : 'none';
+  document.getElementById('dateRangeBar').style.display     = hasData ? 'flex' : 'none';
+  document.getElementById('btnExportCSV').style.display     = hasData ? '' : 'none';
+  if (!hasData) return;
+
+  updateHeaderInfo();
+  updateFreshnessBanner();
+  updateNetworkBar();
+  updateStatusCards();
+  createOrUpdateCharts();
+  updateChartSubheads();
+  updateDataHealth();
+  updatePeaksTable();
+  updateTimeButtons();
+
+  // Battery forecast
+  if (window.BatteryForecast) BatteryForecast.init(state);
+
+  // Fetch weather data
+  fetchWeatherData();
+}
+
+// =====================================================================
+// RENDER: HEADER INFO
+// =====================================================================
+function updateHeaderInfo() {
+  var e = state.allEntries;
+  document.getElementById('dataSourceLabel').textContent = state.dataSource;
+  document.getElementById('entryCountLabel').textContent = e.length.toLocaleString();
+  document.getElementById('channelLabel').textContent    = state.channelInfo ? state.channelInfo.id : '--';
+  document.getElementById('footerChannel').textContent   = state.channelInfo ? String(state.channelInfo.id) : '';
+  document.getElementById('tzLabel').textContent         = getTimezoneLabel();
+
+  if (e.length) {
+    document.getElementById('dateRangeLabel').textContent =
+      fmtDate(e[0].timestamp) + ' \u2192 ' + fmtDate(e[e.length - 1].timestamp);
+  }
+}
+
+// =====================================================================
+// RENDER: FRESHNESS BANNER
+// =====================================================================
+function updateFreshnessBanner() {
+  var banner = document.getElementById('freshnessBanner');
+  if (!state.allEntries.length) { banner.classList.remove('show'); return; }
+
+  var latest = state.allEntries[state.allEntries.length - 1].timestamp;
+  var ageHrs = (Date.now() - latest.getTime()) / 3600000;
+
+  banner.classList.add('show');
+  banner.classList.remove('fresh', 'stale', 'old');
+
+  var icon = document.getElementById('freshnessIcon');
+  var text = document.getElementById('freshnessText');
+
+  if (ageHrs < 2) {
+    banner.classList.add('fresh');
+    icon.textContent = '\u2705';
+    text.textContent = 'Data is fresh -- latest entry ' + timeAgo(latest);
+  } else if (ageHrs < 24) {
+    banner.classList.add('stale');
+    icon.textContent = '\u26A0\uFE0F';
+    text.textContent = 'Data is ' + timeAgo(latest) + ' old -- consider fetching latest';
+  } else {
+    banner.classList.add('old');
+    icon.textContent = '\uD83D\uDD34';
+    text.textContent = 'Data is ' + timeAgo(latest) + ' old -- fetch or run download_data.ps1';
+  }
+}
+
+// =====================================================================
+// RENDER: NETWORK AT-A-GLANCE BAR
+// =====================================================================
+function updateNetworkBar() {
+  var e = state.allEntries;
+  if (!e.length) return;
+  var latest = e[e.length - 1];
+
+  var lastSatA = findLastEntryWith(e, 'satABatV');
+  var lastSatB = findLastEntryWith(e, 'satBBatV');
+
+  var ageHrs = (Date.now() - latest.timestamp.getTime()) / 3600000;
+
+  var t0Color = ageHrs < 2 ? '#22c55e' : ageHrs < 24 ? '#f59e0b' : '#ef4444';
+  var t0Text  = ageHrs < 2 ? 'Online' : ageHrs < 24 ? 'Stale' : 'Offline';
+
+  var satAAge   = lastSatA ? (Date.now() - lastSatA.timestamp.getTime()) / 3600000 : Infinity;
+  var satAColor = satAAge < 2 ? '#22c55e' : satAAge < 24 ? '#f59e0b' : satAAge < Infinity ? '#ef4444' : '#64748b';
+  var satAText  = satAAge < 2 ? 'Syncing' : satAAge < 24 ? 'Stale' : (lastSatA ? 'Lost' : 'Never seen');
+
+  var satBAge   = lastSatB ? (Date.now() - lastSatB.timestamp.getTime()) / 3600000 : Infinity;
+  var satBColor = satBAge < 2 ? '#22c55e' : satBAge < 24 ? '#f59e0b' : satBAge < Infinity ? '#ef4444' : '#64748b';
+  var satBText  = satBAge < 2 ? 'Syncing' : satBAge < 24 ? 'Stale' : (lastSatB ? 'Lost' : 'Never seen');
+
+  var hasSensors = e.some(function (x) {
+    return x.t0Temp1 !== null || x.satATemp1 !== null || x.satBTemp1 !== null;
+  });
+  var sensorColor = hasSensors ? '#22c55e' : '#f59e0b';
+  var sensorText  = hasSensors ? 'Data flowing' : 'All NC';
+
+  function batStr(pct) { return pct != null ? pct.toFixed(0) + '%' : '--'; }
+
+  document.getElementById('networkBar').innerHTML =
+    '<div class="net-chip">' +
+      '<div class="chip-dot" style="background:' + t0Color + '"></div>' +
+      '<div>' +
+        '<div class="chip-label">T0 Gateway</div>' +
+        '<div class="chip-value">' + t0Text + '</div>' +
+        '<div class="chip-detail">Bat: ' + batStr(latest.t0BatPct) + ' | ' + timeAgo(latest.timestamp) + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="net-chip">' +
+      '<div class="chip-dot" style="background:' + satAColor + '"></div>' +
+      '<div>' +
+        '<div class="chip-label">Satellite A</div>' +
+        '<div class="chip-value">' + satAText + '</div>' +
+        '<div class="chip-detail">Bat: ' + batStr(lastSatA ? lastSatA.satABatPct : null) + ' | ' + (lastSatA ? timeAgo(lastSatA.timestamp) : 'never') + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="net-chip">' +
+      '<div class="chip-dot" style="background:' + satBColor + '"></div>' +
+      '<div>' +
+        '<div class="chip-label">Satellite B</div>' +
+        '<div class="chip-value">' + satBText + '</div>' +
+        '<div class="chip-detail">Bat: ' + batStr(lastSatB ? lastSatB.satBBatPct : null) + ' | ' + (lastSatB ? timeAgo(lastSatB.timestamp) : 'never') + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="net-chip">' +
+      '<div class="chip-dot" style="background:' + sensorColor + '"></div>' +
+      '<div>' +
+        '<div class="chip-label">Sensors</div>' +
+        '<div class="chip-value">' + sensorText + '</div>' +
+        '<div class="chip-detail">' + state.allEntries.length + ' total entries | ' + (state.channelInfo ? state.channelInfo.name : 'Ch ' + (state.channelInfo ? state.channelInfo.id : '')) + '</div>' +
+      '</div>' +
+    '</div>';
+}
+
+// =====================================================================
+// RENDER: STATUS CARDS
+// =====================================================================
+function updateStatusCards() {
+  var e = state.allEntries;
+  if (!e.length) return;
+  var latest = e[e.length - 1];
+
+  // -- T0 --
+  var t0Pct = latest.t0BatPct;
+  document.getElementById('t0BatPct').textContent = t0Pct !== null ? t0Pct.toFixed(1) + '%' : '--';
+  document.getElementById('t0BatV').textContent   = latest.t0BatV !== null ? latest.t0BatV.toFixed(2) + 'V' : '--';
+  document.getElementById('t0Rssi').textContent   = (latest.t0Rssi !== null && latest.t0Rssi !== 0) ? latest.t0Rssi + ' dBm' : 'N/A';
+  document.getElementById('t0Boot').textContent   = latest.t0Boot !== null ? latest.t0Boot.toLocaleString() : '--';
+  document.getElementById('t0Heap').textContent   = latest.t0Heap !== null ? (latest.t0Heap / 1024).toFixed(0) + ' KB' : '--';
+  document.getElementById('t0LastSeen').textContent = timeAgo(latest.timestamp);
+
+  var t0HasSensors = latest.t0Temp1 !== null || latest.t0Temp2 !== null;
+  document.getElementById('t0Sensors').textContent = t0HasSensors ? 'Connected' : 'NC';
+  document.getElementById('t0Sensors').className   = 'detail-value ' + (t0HasSensors ? 'ok-text' : 'nc-text');
+  var _t0Fw = latest.t0FwVersion;
+  document.getElementById('t0Firmware').textContent = _t0Fw ? 'v' + _t0Fw + (latest.t0BuildDate ? ' (' + latest.t0BuildDate + ')' : '') : '--';
+
+  if (e.length >= 2) {
+    var span = latest.timestamp - e[0].timestamp;
+    var days = Math.floor(span / 86400000);
+    document.getElementById('t0Uptime').textContent = days + ' days of data';
+  }
+
+  setCardStatus('cardT0', 't0Badge', 't0Dot', t0Pct, t0HasSensors, true);
+
+  // -- Sat-A --
+  var lastSatA = findLastEntryWith(e, 'satABatV');
+  var satAPct  = lastSatA ? lastSatA.satABatPct : null;
+  document.getElementById('satABatPct').textContent   = satAPct !== null ? satAPct.toFixed(1) + '%' : '--';
+  document.getElementById('satABatV').textContent     = (lastSatA && lastSatA.satABatV != null) ? lastSatA.satABatV.toFixed(2) + 'V' : '--';
+  document.getElementById('satARssi').textContent     = (lastSatA && lastSatA.satARssi != null && lastSatA.satARssi !== 0) ? lastSatA.satARssi + ' dBm' : 'N/A';
+  var _satADrift = lastSatA ? lastSatA.satASyncDrift : null;
+  var _satADriftEl = document.getElementById('satASyncDrift');
+  _satADriftEl.textContent = _satADrift !== null ? (_satADrift >= 0 ? '+' : '') + _satADrift + 's' : '--';
+  _satADriftEl.className = 'detail-value ' + (_satADrift === null ? '' : Math.abs(_satADrift) <= 5 ? 'ok-text' : Math.abs(_satADrift) <= 20 ? 'warn-text' : 'error-text');
+  document.getElementById('satASampleId').textContent = (lastSatA && lastSatA.satASampleId != null) ? lastSatA.satASampleId : '--';
+
+  var satAHasSensors = lastSatA ? (lastSatA.satATemp1 !== null || lastSatA.satATemp2 !== null) : false;
+  document.getElementById('satASensors').textContent = satAHasSensors ? 'Connected' : 'NC';
+  document.getElementById('satASensors').className   = 'detail-value ' + (satAHasSensors ? 'ok-text' : 'nc-text');
+  document.getElementById('satAFirmware').textContent = (lastSatA && lastSatA.satAFwVersion) ? 'v' + lastSatA.satAFwVersion : '--';
+
+  var satAMissed24 = countRecentMissing(e, 'satABatV', 24);
+  var satASyncPct  = satAMissed24.total > 0 ? ((satAMissed24.total - satAMissed24.missing) / satAMissed24.total * 100) : 0;
+  document.getElementById('satASyncRate').textContent = satAMissed24.total > 0 ? satASyncPct.toFixed(0) + '%' : '--';
+  document.getElementById('satASyncRate').className   = 'detail-value ' + (satASyncPct > 80 ? 'ok-text' : satASyncPct > 50 ? 'warn-text' : 'error-text');
+  document.getElementById('satAMissed').textContent   = satAMissed24.total > 0 ? satAMissed24.missing + ' / ' + satAMissed24.total : '--';
+  document.getElementById('satAMissed').className     = 'detail-value ' + (satAMissed24.missing === 0 ? 'ok-text' : satAMissed24.missing < 5 ? 'warn-text' : 'error-text');
+  document.getElementById('satALastSeen').textContent = lastSatA ? timeAgo(lastSatA.timestamp) : 'Never';
+  setCardStatus('cardSatA', 'satABadge', 'satADot', satAPct, satAHasSensors, lastSatA !== null);
+
+  // -- Sat-B --
+  var lastSatB = findLastEntryWith(e, 'satBBatV');
+  var satBPct  = lastSatB ? lastSatB.satBBatPct : null;
+  document.getElementById('satBBatPct').textContent   = satBPct !== null ? satBPct.toFixed(1) + '%' : '--';
+  document.getElementById('satBBatV').textContent     = (lastSatB && lastSatB.satBBatV != null) ? lastSatB.satBBatV.toFixed(2) + 'V' : '--';
+  document.getElementById('satBRssi').textContent     = (lastSatB && lastSatB.satBRssi != null && lastSatB.satBRssi !== 0) ? lastSatB.satBRssi + ' dBm' : 'N/A';
+  var _satBDrift = lastSatB ? lastSatB.satBSyncDrift : null;
+  var _satBDriftEl = document.getElementById('satBSyncDrift');
+  _satBDriftEl.textContent = _satBDrift !== null ? (_satBDrift >= 0 ? '+' : '') + _satBDrift + 's' : '--';
+  _satBDriftEl.className = 'detail-value ' + (_satBDrift === null ? '' : Math.abs(_satBDrift) <= 5 ? 'ok-text' : Math.abs(_satBDrift) <= 20 ? 'warn-text' : 'error-text');
+  document.getElementById('satBSampleId').textContent = (lastSatB && lastSatB.satBSampleId != null) ? lastSatB.satBSampleId : '--';
+
+  var satBHasSensors = lastSatB ? (lastSatB.satBTemp1 !== null || lastSatB.satBTemp2 !== null) : false;
+  document.getElementById('satBSensors').textContent = satBHasSensors ? 'Connected' : 'NC';
+  document.getElementById('satBSensors').className   = 'detail-value ' + (satBHasSensors ? 'ok-text' : 'nc-text');
+  document.getElementById('satBFirmware').textContent = (lastSatB && lastSatB.satBFwVersion) ? 'v' + lastSatB.satBFwVersion : '--';
+
+  var satBMissed24 = countRecentMissing(e, 'satBBatV', 24);
+  var satBSyncPct  = satBMissed24.total > 0 ? ((satBMissed24.total - satBMissed24.missing) / satBMissed24.total * 100) : 0;
+  document.getElementById('satBSyncRate').textContent = satBMissed24.total > 0 ? satBSyncPct.toFixed(0) + '%' : '--';
+  document.getElementById('satBSyncRate').className   = 'detail-value ' + (satBSyncPct > 80 ? 'ok-text' : satBSyncPct > 50 ? 'warn-text' : 'error-text');
+  document.getElementById('satBMissed').textContent   = satBMissed24.total > 0 ? satBMissed24.missing + ' / ' + satBMissed24.total : '--';
+  document.getElementById('satBMissed').className     = 'detail-value ' + (satBMissed24.missing === 0 ? 'ok-text' : satBMissed24.missing < 5 ? 'warn-text' : 'error-text');
+  document.getElementById('satBLastSeen').textContent = lastSatB ? timeAgo(lastSatB.timestamp) : 'Never';
+  setCardStatus('cardSatB', 'satBBadge', 'satBDot', satBPct, satBHasSensors, lastSatB !== null);
+
+  // -- System --
+  document.getElementById('sysSDFree').textContent      = fmtBytes(latest.sdFreeKB);
+  document.getElementById('sysCSQ').textContent          = (latest.csq !== null && latest.csq > 0) ? latest.csq : 'N/A';
+  document.getElementById('sysUploadOk').textContent     = latest.uploadOk !== null ? latest.uploadOk : '--';
+  var _drift = latest.syncDrift;
+  var _driftEl = document.getElementById('sysSyncDrift');
+  _driftEl.textContent = _drift !== null ? (_drift >= 0 ? '+' : '') + _drift + 's' : '--';
+  _driftEl.className = 'detail-value ' + (_drift === null ? '' : Math.abs(_drift) <= 5 ? 'ok-text' : Math.abs(_drift) <= 30 ? 'warn-text' : 'error-text');
+  document.getElementById('sysTotalEntries').textContent  = state.allEntries.length.toLocaleString();
+  document.getElementById('sysChannelName').textContent   = state.channelInfo ? state.channelInfo.name : '--';
+  var _peakFreeKB = null;
+  for (var _i = 0; _i < state.allEntries.length; _i++) {
+    var _fk = state.allEntries[_i].sdFreeKB;
+    if (_fk !== null && _fk !== undefined && (_peakFreeKB === null || _fk > _peakFreeKB)) _peakFreeKB = _fk;
+  }
+  var _usedKB = (_peakFreeKB !== null && latest.sdFreeKB !== null) ? (_peakFreeKB - latest.sdFreeKB) : null;
+  document.getElementById('sysSDUsed').textContent = (_usedKB !== null && _usedKB > 0) ? fmtBytes(_usedKB) : (_usedKB === 0 ? '0 KB' : '--');
+
+  if (e.length >= 2) {
+    var intervals = [];
+    var limit = Math.min(e.length, 50);
+    for (var i = 1; i < limit; i++) {
+      intervals.push(e[e.length - i].timestamp - e[e.length - i - 1].timestamp);
+    }
+    intervals.sort(function (a, b) { return a - b; });
+    var median = intervals[Math.floor(intervals.length / 2)];
+    var mins = Math.round(median / 60000);
+    document.getElementById('sysSamplePeriod').textContent = '~' + mins + ' min';
+  }
+
+  var sysCard  = document.getElementById('cardSystem');
+  var sysBadge = document.getElementById('sysBadge');
+  var sysDot   = document.getElementById('sysDot');
+  var sysAge   = (Date.now() - latest.timestamp.getTime()) / 3600000;
+  if (sysAge < 2) {
+    sysCard.className = 'status-card ok'; sysBadge.className = 'card-badge badge-ok'; sysBadge.textContent = 'Online'; sysDot.className = 'dot dot-green';
+  } else if (sysAge < 24) {
+    sysCard.className = 'status-card warn'; sysBadge.className = 'card-badge badge-warn'; sysBadge.textContent = 'Stale'; sysDot.className = 'dot dot-amber';
+  } else {
+    sysCard.className = 'status-card error'; sysBadge.className = 'card-badge badge-error'; sysBadge.textContent = 'Offline'; sysDot.className = 'dot dot-red';
+  }
+}
+
+function setCardStatus(cardId, badgeId, dotId, batPct, hasSensors, isPresent) {
+  var card  = document.getElementById(cardId);
+  var badge = document.getElementById(badgeId);
+  var dot   = document.getElementById(dotId);
+  if (!isPresent || batPct === null) {
+    card.className = 'status-card nc'; badge.className = 'card-badge badge-nc'; badge.textContent = 'No Data'; dot.className = 'dot dot-grey'; return;
+  }
+  if (batPct < 20) {
+    card.className = 'status-card error'; badge.className = 'card-badge badge-error'; badge.textContent = 'Low Battery'; dot.className = 'dot dot-red';
+  } else if (batPct < 40) {
+    card.className = 'status-card warn'; badge.className = 'card-badge badge-warn'; badge.textContent = 'Battery Warning'; dot.className = 'dot dot-amber';
+  } else if (!hasSensors) {
+    card.className = 'status-card warn'; badge.className = 'card-badge badge-warn'; badge.textContent = 'Sensors NC'; dot.className = 'dot dot-amber';
+  } else {
+    card.className = 'status-card ok'; badge.className = 'card-badge badge-ok'; badge.textContent = 'Healthy'; dot.className = 'dot dot-green';
+  }
+}
+
+// =====================================================================
+// RENDER: DATA HEALTH
+// =====================================================================
+function updateDataHealth() {
+  var e = state.allEntries;
+  if (e.length < 2) return;
+
+  var intervals = [];
+  for (var i = 1; i < e.length; i++) intervals.push(e[i].timestamp - e[i - 1].timestamp);
+  intervals.sort(function (a, b) { return a - b; });
+  var medianMs  = intervals[Math.floor(intervals.length / 2)];
+  var medianMin = Math.round(medianMs / 60000);
+
+  var gapThreshold = medianMs * 2.5;
+  var gaps = 0, totalGapMs = 0, longestGapMs = 0;
+  for (var g = 0; g < intervals.length; g++) {
+    if (intervals[g] > gapThreshold) { gaps++; totalGapMs += intervals[g] - medianMs; if (intervals[g] > longestGapMs) longestGapMs = intervals[g]; }
+  }
+
+  var totalSpan       = e[e.length - 1].timestamp - e[0].timestamp;
+  var expectedEntries = Math.floor(totalSpan / medianMs) + 1;
+  var completeness    = Math.min(100, (e.length / expectedEntries * 100)).toFixed(1);
+
+  var t0SensorN   = e.filter(function (x) { return x.t0Temp1 !== null || x.t0Temp2 !== null; }).length;
+  var satASensorN = e.filter(function (x) { return x.satATemp1 !== null || x.satATemp2 !== null; }).length;
+  var satBSensorN = e.filter(function (x) { return x.satBTemp1 !== null || x.satBTemp2 !== null; }).length;
+  var satAPresent = e.filter(function (x) { return x.satABatV !== null; }).length;
+  var satBPresent = e.filter(function (x) { return x.satBBatV !== null; }).length;
+  var satAPresencePct = (satAPresent / e.length * 100).toFixed(1);
+  var satBPresencePct = (satBPresent / e.length * 100).toFixed(1);
+
+  var last24 = e.filter(function (x) { return x.timestamp >= new Date(e[e.length - 1].timestamp.getTime() - 24 * 3600000); });
+  var t0Drain = '--', satADrain = '--', satBDrain = '--';
+  if (last24.length >= 2) {
+    var t0First = last24.find(function (x) { return x.t0BatPct !== null; });
+    var t0Last  = last24.slice().reverse().find(function (x) { return x.t0BatPct !== null; });
+    if (t0First && t0Last && t0First !== t0Last) { var d = t0Last.t0BatPct - t0First.t0BatPct; t0Drain = (d >= 0 ? '+' : '') + d.toFixed(1) + '%'; }
+    var saF = last24.find(function (x) { return x.satABatPct !== null; });
+    var saL = last24.slice().reverse().find(function (x) { return x.satABatPct !== null; });
+    if (saF && saL && saF !== saL) { var da = saL.satABatPct - saF.satABatPct; satADrain = (da >= 0 ? '+' : '') + da.toFixed(1) + '%'; }
+    var sbF = last24.find(function (x) { return x.satBBatPct !== null; });
+    var sbL = last24.slice().reverse().find(function (x) { return x.satBBatPct !== null; });
+    if (sbF && sbL && sbF !== sbL) { var db = sbL.satBBatPct - sbF.satBBatPct; satBDrain = (db >= 0 ? '+' : '') + db.toFixed(1) + '%'; }
+  }
+
+  function pctColor(v) { var n = parseFloat(v); return n > 90 ? 'var(--success)' : n > 70 ? 'var(--warning)' : 'var(--danger)'; }
+  function sensorColor(n) { return n > 0 ? 'var(--success)' : 'var(--text-muted)'; }
+
+  document.getElementById('healthGrid').innerHTML =
+    '<div class="health-item"><div class="h-label">Sample Period (detected)</div><div class="h-value">' + medianMin + ' min</div></div>' +
+    '<div class="health-item"><div class="h-label">Upload Completeness</div><div class="h-value" style="color:' + pctColor(completeness) + '">' + completeness + '%</div></div>' +
+    '<div class="health-item"><div class="h-label">Data Gaps</div><div class="h-value" style="color:' + (gaps === 0 ? 'var(--success)' : 'var(--warning)') + '">' +
+      gaps + (gaps ? ' (' + Math.round(totalGapMs / 3600000) + 'h total, longest ' + Math.round(longestGapMs / 3600000) + 'h)' : ' -- perfect') + '</div></div>' +
+    '<div class="health-item"><div class="h-label">Expected vs Actual Entries</div><div class="h-value">' + expectedEntries.toLocaleString() + ' / ' + e.length.toLocaleString() + '</div></div>' +
+    '<div class="health-item"><div class="h-label">T0 Sensor Data</div><div class="h-value" style="color:' + sensorColor(t0SensorN) + '">' + (t0SensorN > 0 ? (t0SensorN / e.length * 100).toFixed(1) + '% (' + t0SensorN + ')' : '0% -- probes NC') + '</div></div>' +
+    '<div class="health-item"><div class="h-label">Sat-A Sync Rate</div><div class="h-value" style="color:' + pctColor(satAPresencePct) + '">' + satAPresencePct + '% (' + satAPresent + '/' + e.length + ')</div></div>' +
+    '<div class="health-item"><div class="h-label">Sat-A Sensor Data</div><div class="h-value" style="color:' + sensorColor(satASensorN) + '">' + (satASensorN > 0 ? (satASensorN / e.length * 100).toFixed(1) + '%' : '0% -- probes NC') + '</div></div>' +
+    '<div class="health-item"><div class="h-label">Sat-B Sync Rate</div><div class="h-value" style="color:' + pctColor(satBPresencePct) + '">' + satBPresencePct + '% (' + satBPresent + '/' + e.length + ')</div></div>' +
+    '<div class="health-item"><div class="h-label">Sat-B Sensor Data</div><div class="h-value" style="color:' + sensorColor(satBSensorN) + '">' + (satBSensorN > 0 ? (satBSensorN / e.length * 100).toFixed(1) + '%' : '0% -- probes NC') + '</div></div>' +
+    '<div class="health-item"><div class="h-label">T0 Bat Delta (24h)</div><div class="h-value">' + t0Drain + '</div></div>' +
+    '<div class="health-item"><div class="h-label">Sat-A Bat Delta (24h)</div><div class="h-value">' + satADrain + '</div></div>' +
+    '<div class="health-item"><div class="h-label">Sat-B Bat Delta (24h)</div><div class="h-value">' + satBDrain + '</div></div>';
+}
+
+// =====================================================================
+// RENDER: DAILY SUMMARY TABLE
+// =====================================================================
+function updatePeaksTable() {
+  var entries = state.filteredEntries;
+  if (!entries.length) return;
+
+  var byDay = {};
+  entries.forEach(function (e) { var day = e.timestamp.toISOString().slice(0, 10); if (!byDay[day]) byDay[day] = []; byDay[day].push(e); });
+
+  function fieldStats(dayEntries, key) {
+    var vals = dayEntries.map(function (e) { return e[key]; }).filter(function (v) { return v !== null; });
+    if (!vals.length) return null;
+    return { min: Math.min.apply(null, vals), max: Math.max.apply(null, vals), avg: vals.reduce(function (a, b) { return a + b; }, 0) / vals.length, count: vals.length };
+  }
+
+  var sensorKeys = {
+    't0Temp1': 'T0 S1 Temp', 't0Hum1': 'T0 S1 Hum', 't0Temp2': 'T0 S2 Temp', 't0Hum2': 'T0 S2 Hum',
+    'satATemp1': 'SatA S1 Temp', 'satAHum1': 'SatA S1 Hum', 'satATemp2': 'SatA S2 Temp', 'satAHum2': 'SatA S2 Hum',
+    'satBTemp1': 'SatB S1 Temp', 'satBHum1': 'SatB S1 Hum', 'satBTemp2': 'SatB S2 Temp', 'satBHum2': 'SatB S2 Hum',
+  };
+  var batKeys = { 't0BatPct': 'T0 Bat%', 'satABatPct': 'SatA Bat%', 'satBBatPct': 'SatB Bat%' };
+
+  var activeSensorKeys = {};
+  for (var sk in sensorKeys) { if (entries.some(function (e) { return e[sk] !== null; })) activeSensorKeys[sk] = sensorKeys[sk]; }
+
+  var headHtml = '<tr><th>Date</th><th>Entries</th>';
+  for (var bk in batKeys) headHtml += '<th>' + batKeys[bk] + '</th>';
+  for (var ak in activeSensorKeys) headHtml += '<th>' + activeSensorKeys[ak] + ' (min/avg/max)</th>';
+  headHtml += '</tr>';
+  document.getElementById('peaksHead').innerHTML = headHtml;
+
+  var days = Object.keys(byDay).sort().reverse();
+  var bodyHtml = '';
+
+  for (var di = 0; di < days.length; di++) {
+    var day = days[di];
+    var de  = byDay[day];
+    var dl  = new Date(day + 'T00:00:00Z');
+    var dateLabel = dl.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
+    bodyHtml += '<tr><td>' + dateLabel + '</td><td>' + de.length + '</td>';
+
+    for (var bk2 in batKeys) {
+      var first = de.find(function (e) { return e[bk2] !== null; });
+      var last  = de.slice().reverse().find(function (e) { return e[bk2] !== null; });
+      if (first && last) {
+        var delta = last[bk2] - first[bk2];
+        var arrow = delta > 0.5 ? '\u2197' : delta < -0.5 ? '\u2198' : '\u2192';
+        var color = delta < -10 ? 'color:var(--danger)' : delta < -3 ? 'color:var(--warning)' : '';
+        bodyHtml += '<td style="' + color + '">' + first[bk2].toFixed(1) + ' ' + arrow + ' ' + last[bk2].toFixed(1) + '</td>';
+      } else { bodyHtml += '<td class="peaks-nc">--</td>'; }
+    }
+
+    for (var ak2 in activeSensorKeys) {
+      var stats = fieldStats(de, ak2);
+      bodyHtml += stats ? '<td>' + stats.min.toFixed(1) + ' / ' + stats.avg.toFixed(1) + ' / ' + stats.max.toFixed(1) + '</td>' : '<td class="peaks-nc">NC</td>';
+    }
+    bodyHtml += '</tr>';
+  }
+
+  if (Object.keys(activeSensorKeys).length === 0) {
+    var colSpan = 2 + Object.keys(batKeys).length;
+    bodyHtml += '<tr><td colspan="' + colSpan + '" class="peaks-nc" style="text-align:center;padding:20px">No sensor data available yet</td></tr>';
+  }
+
+  document.getElementById('peaksBody').innerHTML = bodyHtml;
+}
+</script>
+
+<!-- =================================================================
+     SECTION 6: CHARTS + PLUGINS
+     ================================================================= -->
+<script>
+"use strict";
+
+var COLORS = {
+  t0s1: '#3b82f6', t0s2: '#93c5fd',
+  satAs1: '#10b981', satAs2: '#6ee7b7',
+  satBs1: '#f59e0b', satBs2: '#fcd34d',
+  t0Bat: '#3b82f6', satABat: '#10b981', satBBat: '#f59e0b',
+  t0V: '#60a5fa', satAV: '#34d399', satBV: '#fbbf24',
+};
+
+function makeDataset(entries, key, label, color, dashed) {
+  var data = [];
+  entries.forEach(function (e) { if (e[key] !== null) data.push({ x: e.timestamp, y: e[key] }); });
+  return {
+    label: label + (data.length === 0 ? ' (No Data)' : ' (' + data.length + ')'),
+    data: data, borderColor: color, backgroundColor: color + '22',
+    borderWidth: data.length > 0 ? 1.5 : 0, borderDash: dashed ? [5, 3] : [],
+    pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: color,
+    tension: 0.3, fill: false, hidden: data.length === 0,
+  };
+}
+
+// =====================================================================
+// CHART PLUGINS
+// =====================================================================
+window._sensorOpts = { night: true, harvest: true, wx: false };
+
+var sensorBandsPlugin = {
+  id: 'sensorBands',
+  beforeDraw: function (chart) {
+    var opts = window._sensorOpts || { night: true, harvest: true, wx: false };
+    var xA = chart.scales.x, yA = chart.scales.y;
+    if (!xA || !yA) return;
+    var ctx = chart.ctx;
+    var top = yA.top, bot = yA.bottom, left = xA.left, right = xA.right;
+    var minX = xA.min, maxX = xA.max;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(left, top, right - left, bot - top); ctx.clip();
+
+    if (opts.harvest) {
+      var wins = window._tideWindows || [];
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.10)';
+      for (var w = 0; w < wins.length; w++) {
+        var wx1 = xA.getPixelForValue(wins[w].start.getTime());
+        var wx2 = xA.getPixelForValue(wins[w].end.getTime());
+        if (wx2 < left || wx1 > right) continue;
+        ctx.fillRect(Math.max(wx1, left), top, Math.min(wx2, right) - Math.max(wx1, left), bot - top);
+      }
+    }
+
+    if (opts.night) {
+      var wd = weatherState ? weatherState.daily : null;
+      var sunEvents = [];
+      if (wd && wd.sunrise && wd.sunset) {
+        for (var si = 0; si < wd.sunrise.length; si++) {
+          sunEvents.push({ rise: new Date(wd.sunrise[si]).getTime(), set: new Date(wd.sunset[si]).getTime() });
+        }
+      }
+      if (sunEvents.length) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+        if (sunEvents[0].rise > minX) {
+          var x1 = Math.max(left, xA.getPixelForValue(minX));
+          var x2 = Math.min(right, xA.getPixelForValue(sunEvents[0].rise));
+          if (x2 > x1) ctx.fillRect(x1, top, x2 - x1, bot - top);
+        }
+        for (var i = 0; i < sunEvents.length; i++) {
+          var sx = Math.max(left, xA.getPixelForValue(sunEvents[i].set));
+          var nextRise = (i + 1 < sunEvents.length) ? sunEvents[i + 1].rise : maxX + 86400000;
+          var rx = Math.min(right, xA.getPixelForValue(Math.min(nextRise, maxX)));
+          if (rx > sx) ctx.fillRect(sx, top, rx - sx, bot - top);
+        }
+        for (var j = 0; j < sunEvents.length; j++) {
+          var rPx = xA.getPixelForValue(sunEvents[j].rise);
+          if (rPx >= left && rPx <= right) {
+            ctx.strokeStyle = 'rgba(251,191,36,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+            ctx.beginPath(); ctx.moveTo(rPx, top); ctx.lineTo(rPx, bot); ctx.stroke();
+          }
+          var sPx = xA.getPixelForValue(sunEvents[j].set);
+          if (sPx >= left && sPx <= right) {
+            ctx.strokeStyle = 'rgba(251,146,60,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+            ctx.beginPath(); ctx.moveTo(sPx, top); ctx.lineTo(sPx, bot); ctx.stroke();
+          }
+        }
+      }
+    }
+    ctx.restore();
+  }
+};
+
+var dailyMinMaxPlugin = {
+  id: 'dailyMinMax',
+  afterDatasetsDraw: function(chart) {
+    var xScale = chart.scales.x, yScale = chart.scales.y;
+    if (!xScale || !yScale) return;
+    var ctx = chart.ctx;
+    var dayMax = {}, dayMin = {};
+
+    chart.data.datasets.forEach(function(ds, dsIdx) {
+      var meta = chart.getDatasetMeta(dsIdx);
+      if (meta.hidden) return;
+      var color = (typeof ds.borderColor === 'string') ? ds.borderColor : '#94a3b8';
+      if (/^#[0-9a-fA-F]{8}$/.test(color)) color = color.slice(0, 7);
+      ds.data.forEach(function(pt) {
+        if (!pt || pt.y === null || pt.y === undefined) return;
+        var d = new Date(pt.x);
+        var key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+        if (!dayMax[key] || pt.y > dayMax[key].val) dayMax[key] = { val: pt.y, x: pt.x, color: color };
+        if (!dayMin[key] || pt.y < dayMin[key].val) dayMin[key] = { val: pt.y, x: pt.x, color: color };
+      });
+    });
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(xScale.left, yScale.top, xScale.right - xScale.left, yScale.bottom - yScale.top);
+    ctx.clip();
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    function drawDayLabel(val, x, y, color, above) {
+      var lbl = val.toFixed(1);
+      var oy = above ? -10 : 10;
+      ctx.fillStyle = 'rgba(15,23,42,0.65)';
+      ctx.fillText(lbl, x + 1, y + oy + 1);
+      ctx.fillStyle = color;
+      ctx.fillText(lbl, x, y + oy);
+    }
+
+    Object.keys(dayMax).forEach(function(key) {
+      var m = dayMax[key];
+      var px = xScale.getPixelForValue(m.x);
+      if (px < xScale.left || px > xScale.right) return;
+      drawDayLabel(m.val, px, yScale.getPixelForValue(m.val), m.color, true);
+    });
+    Object.keys(dayMin).forEach(function(key) {
+      var m = dayMin[key];
+      var px = xScale.getPixelForValue(m.x);
+      if (px < xScale.left || px > xScale.right) return;
+      drawDayLabel(m.val, px, yScale.getPixelForValue(m.val), m.color, false);
+    });
+    ctx.restore();
+  }
+};
+
+var nowLinePlugin = {
+  id: 'nowLine',
+  beforeDraw: function(chart) {
+    var xScale = chart.scales.x, yScale = chart.scales.y;
+    if (!xScale || !yScale) return;
+    var nowPx = xScale.getPixelForValue(Date.now());
+    if (nowPx < xScale.left || nowPx > xScale.right) return;
+    var ctx = chart.ctx;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(xScale.left, yScale.top, xScale.right - xScale.left, yScale.bottom - yScale.top); ctx.clip();
+    ctx.strokeStyle = 'rgba(248, 113, 113, 0.8)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(nowPx, yScale.top); ctx.lineTo(nowPx, yScale.bottom); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(248,113,113,0.9)'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('NOW', nowPx + 3, yScale.top + 10);
+    ctx.restore();
+  }
+};
+
+var nightShadingPlugin = {
+  id: 'nightShading',
+  beforeDraw: function(chart) {
+    var se = weatherState.sunEvents;
+    if (!se || !se.length) return;
+    var xScale = chart.scales.x, yScale = chart.scales.y;
+    if (!xScale || !yScale) return;
+    var ctx = chart.ctx;
+    var top = yScale.top, bot = yScale.bottom, left = xScale.left, right = xScale.right;
+    var minX = xScale.min, maxX = xScale.max;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(left, top, right - left, bot - top); ctx.clip();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+    if (se[0].rise > minX) {
+      var x1b = Math.max(left, xScale.getPixelForValue(minX));
+      var x2b = Math.min(right, xScale.getPixelForValue(se[0].rise));
+      if (x2b > x1b) ctx.fillRect(x1b, top, x2b - x1b, bot - top);
+    }
+    for (var i = 0; i < se.length; i++) {
+      var setX = xScale.getPixelForValue(se[i].set);
+      var nextRise = (i + 1 < se.length) ? se[i + 1].rise : maxX + 86400000;
+      var riseX = xScale.getPixelForValue(Math.min(nextRise, maxX));
+      var sxb = Math.max(left, setX), rxb = Math.min(right, riseX);
+      if (rxb > sxb) ctx.fillRect(sxb, top, rxb - sxb, bot - top);
+    }
+    for (var j = 0; j < se.length; j++) {
+      var rPx2 = xScale.getPixelForValue(se[j].rise);
+      if (rPx2 >= left && rPx2 <= right) {
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(rPx2, top); ctx.lineTo(rPx2, bot); ctx.stroke();
+      }
+      var sPx2 = xScale.getPixelForValue(se[j].set);
+      if (sPx2 >= left && sPx2 <= right) {
+        ctx.strokeStyle = 'rgba(251, 146, 60, 0.45)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(sPx2, top); ctx.lineTo(sPx2, bot); ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+};
+
+var dayLabelPlugin = {
+  id: 'dayLabel',
+  afterDraw: function(chart) {
+    var xScale = chart.scales.x, yScale = chart.scales.y;
+    if (!xScale || !yScale) return;
+    var minX = xScale.min, maxX = xScale.max;
+    if (maxX - minX < 2 * 86400000) return;
+    var ctx = chart.ctx;
+    var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var se = weatherState.sunEvents;
+    ctx.save();
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    if (se && se.length) {
+      for (var ib = 0; ib < se.length; ib++) {
+        var rise = se[ib].rise, set = se[ib].set;
+        if (set < minX || rise > maxX) continue;
+        var midMs = (rise + set) / 2;
+        var px = xScale.getPixelForValue(midMs);
+        if (px < xScale.left || px > xScale.right) continue;
+        ctx.fillText(DAYS[new Date(rise).getDay()], px, yScale.bottom + 3);
+      }
+    } else {
+      var day = new Date(minX);
+      day.setHours(24, 0, 0, 0);
+      while (day.getTime() < maxX) {
+        var midMs2 = day.getTime();
+        var nextDay = new Date(midMs2); nextDay.setDate(nextDay.getDate() + 1);
+        var px1 = Math.max(xScale.left, xScale.getPixelForValue(midMs2));
+        var px2 = Math.min(xScale.right, xScale.getPixelForValue(nextDay.getTime()));
+        ctx.fillText(DAYS[day.getDay()], (px1 + px2) / 2, yScale.bottom + 3);
+        day = nextDay;
+      }
+    }
+    ctx.restore();
+  }
+};
+
+function onSensorOptsChange() {
+  var n = document.getElementById('ovNight');
+  var h = document.getElementById('ovHarvest');
+  var w = document.getElementById('ovWx');
+  window._sensorOpts = { night: n ? n.checked : true, harvest: h ? h.checked : true, wx: w ? w.checked : false };
+  createOrUpdateCharts();
+}
+
+function baseChartOptions(yLabel, yMin, yMax) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { position: 'top', labels: { color: '#94a3b8', usePointStyle: true, pointStyle: 'line', padding: 14, font: { size: 11 } } },
+      tooltip: {
+        mode: 'index', intersect: false,
+        backgroundColor: '#1e293bee', titleColor: '#f1f5f9', bodyColor: '#cbd5e1',
+        borderColor: '#334155', borderWidth: 1, padding: 10,
+        titleFont: { size: 12 }, bodyFont: { size: 11 },
+        callbacks: {
+          title: function (items) {
+            if (!items.length) return '';
+            var d = new Date(items[0].parsed.x);
+            return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+                 + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+          },
+          label: function (ctx) { var v = ctx.parsed.y; return ' ' + ctx.dataset.label.split(' (')[0] + ': ' + (v !== null ? v.toFixed(2) : 'NC'); },
+        },
+      },
+    },
+    scales: {
+      x: { type: 'time', grid: { color: '#1e293b', lineWidth: 0.5 }, ticks: { color: '#64748b', maxTicksLimit: 12, font: { size: 10 } }, time: getTimeAxisConfig() },
+      y: { title: { display: true, text: yLabel, color: '#94a3b8', font: { size: 11 } }, grid: { color: '#1e293b', lineWidth: 0.5 }, ticks: { color: '#64748b', font: { size: 10 } }, min: yMin, max: yMax },
+    },
+  };
+}
+
+function createOrUpdateCharts() {
+  var e = state.filteredEntries;
+  var _wxMin = e.length ? e[0].timestamp.getTime() : -Infinity;
+  var _wxMax = e.length ? e[e.length - 1].timestamp.getTime() : Infinity;
+  var _wxOverlayTemp = [], _wxOverlayHum = [];
+  if ((window._sensorOpts || {}).wx && weatherState.data && weatherState.data.time) {
+    var _wd = weatherState.data;
+    for (var _wi = 0; _wi < _wd.time.length; _wi++) {
+      var _wt = new Date(_wd.time[_wi]).getTime();
+      if (_wt < _wxMin || _wt > _wxMax) continue;
+      if (_wd.temperature_2m[_wi] !== null) _wxOverlayTemp.push({ x: _wt, y: _wd.temperature_2m[_wi] });
+      if (_wd.relative_humidity_2m[_wi] !== null) _wxOverlayHum.push({ x: _wt, y: _wd.relative_humidity_2m[_wi] });
+    }
+  }
+
+  var timeCfg = getTimeAxisConfig();
+  Object.keys(state.charts).forEach(function(k) {
+    if (state.charts[k] && state.charts[k].options && state.charts[k].options.scales && state.charts[k].options.scales.x) {
+      state.charts[k].options.scales.x.time = timeCfg;
+    }
+  });
+
+  // -- Temperature --
+  var tempDS = [
+    makeDataset(e, 't0Temp1', 'T0 Sensor 1', COLORS.t0s1, false),
+    makeDataset(e, 't0Temp2', 'T0 Sensor 2', COLORS.t0s2, true),
+    makeDataset(e, 'satATemp1', 'Sat-A Sensor 1', COLORS.satAs1, false),
+    makeDataset(e, 'satATemp2', 'Sat-A Sensor 2', COLORS.satAs2, true),
+    makeDataset(e, 'satBTemp1', 'Sat-B Sensor 1', COLORS.satBs1, false),
+    makeDataset(e, 'satBTemp2', 'Sat-B Sensor 2', COLORS.satBs2, true),
+  ];
+  var hasTempData = tempDS.some(function (ds) { return ds.data.length > 0; });
+  document.getElementById('tempEmpty').style.display = hasTempData ? 'none' : 'flex';
+  if ((window._sensorOpts || {}).wx && _wxOverlayTemp.length) {
+    tempDS.push({ label: 'Open-Meteo Temp', data: _wxOverlayTemp,
+      borderColor: '#f59e0b99', backgroundColor: 'transparent', borderWidth: 1.5,
+      borderDash: [6, 4], pointRadius: 0, tension: 0.3, fill: false });
+  }
+
+  if (state.charts.temp) { state.charts.temp.data.datasets = tempDS; state.charts.temp.update(); }
+  else {
+    var _tOpts = baseChartOptions('Temperature (\u00B0C)');
+    _tOpts.plugins.legend.position = 'left';
+    state.charts.temp = new Chart(document.getElementById('tempChart'), {
+      type: 'line', data: { datasets: tempDS }, options: _tOpts, plugins: [sensorBandsPlugin, dailyMinMaxPlugin],
+    });
+  }
+
+  // -- Humidity --
+  var humDS = [
+    makeDataset(e, 't0Hum1', 'T0 Sensor 1', COLORS.t0s1, false),
+    makeDataset(e, 't0Hum2', 'T0 Sensor 2', COLORS.t0s2, true),
+    makeDataset(e, 'satAHum1', 'Sat-A Sensor 1', COLORS.satAs1, false),
+    makeDataset(e, 'satAHum2', 'Sat-A Sensor 2', COLORS.satAs2, true),
+    makeDataset(e, 'satBHum1', 'Sat-B Sensor 1', COLORS.satBs1, false),
+    makeDataset(e, 'satBHum2', 'Sat-B Sensor 2', COLORS.satBs2, true),
+  ];
+  var hasHumData = humDS.some(function (ds) { return ds.data.length > 0; });
+  document.getElementById('humEmpty').style.display = hasHumData ? 'none' : 'flex';
+  if ((window._sensorOpts || {}).wx && _wxOverlayHum.length) {
+    humDS.push({ label: 'Open-Meteo Humidity', data: _wxOverlayHum,
+      borderColor: '#06b6d499', backgroundColor: 'transparent', borderWidth: 1.5,
+      borderDash: [6, 4], pointRadius: 0, tension: 0.3, fill: false });
+  }
+
+  if (state.charts.hum) { state.charts.hum.data.datasets = humDS; state.charts.hum.update(); }
+  else {
+    var _hOpts2 = baseChartOptions('Humidity (%RH)', 0, 100);
+    _hOpts2.plugins.legend.position = 'left';
+    state.charts.hum = new Chart(document.getElementById('humChart'), {
+      type: 'line', data: { datasets: humDS }, options: _hOpts2, plugins: [sensorBandsPlugin, dailyMinMaxPlugin],
+    });
+  }
+
+  // -- Battery % --
+  var batDS = [
+    makeDataset(e, 't0BatPct', 'T0 Gateway', COLORS.t0Bat, false),
+    makeDataset(e, 'satABatPct', 'Satellite A', COLORS.satABat, false),
+    makeDataset(e, 'satBBatPct', 'Satellite B', COLORS.satBBat, false),
+  ];
+  if (state.charts.bat) { state.charts.bat.data.datasets = batDS; state.charts.bat.update('none'); }
+  else { state.charts.bat = new Chart(document.getElementById('batChart'), { type: 'line', data: { datasets: batDS }, options: baseChartOptions('Battery (%)', 0, 100) }); }
+
+  // -- Battery Voltage --
+  var voltDS = [
+    makeDataset(e, 't0BatV', 'T0 Gateway', COLORS.t0V, false),
+    makeDataset(e, 'satABatV', 'Satellite A', COLORS.satAV, false),
+    makeDataset(e, 'satBBatV', 'Satellite B', COLORS.satBV, false),
+  ];
+  if (state.charts.volt) { state.charts.volt.data.datasets = voltDS; state.charts.volt.update('none'); }
+  else { state.charts.volt = new Chart(document.getElementById('voltChart'), { type: 'line', data: { datasets: voltDS }, options: baseChartOptions('Voltage (V)', 2.5, 4.5) }); }
+
+  createOrUpdateSyncChart();
+  createOrUpdateDriftChart();
+}
+
+function updateCharts() {
+  if (!state.charts.temp) return;
+  createOrUpdateCharts();
+}
+</script>
+
+<!-- =================================================================
+     SECTION 7: SYNC / DRIFT / WEATHER
+     ================================================================= -->
+<script>
+"use strict";
+
+// =====================================================================
+// SATELLITE SYNC RELIABILITY CHART
+// =====================================================================
+function setSyncGroup(g) {
+  state.syncGroupBy = g;
+  document.getElementById('syncGroupDay').classList.toggle('active', g === 'day');
+  document.getElementById('syncGroupWeek').classList.toggle('active', g === 'week');
+  if (state.charts.sync) { state.charts.sync.destroy(); state.charts.sync = null; }
+  createOrUpdateSyncChart();
+}
+
+function createOrUpdateSyncChart() {
+  var allData = state.allEntries;
+  if (!allData.length) return;
+
+  var groupBy = state.syncGroupBy;
+  var byBucket = {}, bucketKeys = [], labels = [];
+  var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  if (groupBy === 'day') {
+    var tMax = (allData[allData.length - 1].timestamp instanceof Date ? allData[allData.length - 1].timestamp : new Date(allData[allData.length - 1].timestamp)).getTime();
+    var floorHour = new Date(tMax);
+    floorHour.setMinutes(0, 0, 0, 0);
+    var windowStart = floorHour.getTime() - 24 * 3600000;
+    for (var h = 0; h < 24; h++) {
+      var bStart = windowStart + h * 3600000;
+      byBucket[h] = { bStart: bStart, total: 0, satA: 0, satB: 0 };
+      bucketKeys.push(h);
+      labels.push(String(new Date(bStart).getHours()).padStart(2, '0') + ':00');
+    }
+    allData.forEach(function(entry) {
+      var t = (entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp)).getTime();
+      var idx = Math.floor((t - windowStart) / 3600000);
+      if (idx < 0 || idx > 23) return;
+      byBucket[idx].total++;
+      if (entry.satABatV !== null) byBucket[idx].satA++;
+      if (entry.satBBatV !== null) byBucket[idx].satB++;
+    });
+  } else {
+    var allDays = {};
+    allData.forEach(function(entry) {
+      var d = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
+      var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      if (!allDays[key]) allDays[key] = { total: 0, satA: 0, satB: 0 };
+      allDays[key].total++;
+      if (entry.satABatV !== null) allDays[key].satA++;
+      if (entry.satBBatV !== null) allDays[key].satB++;
+    });
+    var sortedDays = Object.keys(allDays).sort();
+    var sevenDays  = sortedDays.slice(-7);
+    sevenDays.forEach(function(k) {
+      byBucket[k] = allDays[k]; bucketKeys.push(k);
+      var parts = k.split('-');
+      var dn = new Date(+parts[0], +parts[1] - 1, +parts[2], 12).getDay();
+      labels.push([DAY_NAMES[dn], '(' + k.slice(5) + ')']);
+    });
+  }
+
+  state._syncBuckets = byBucket;
+  state._syncBucketKeys = bucketKeys;
+
+  var subEl = document.getElementById('syncSubhead');
+  if (subEl) {
+    if (groupBy === 'day') {
+      var ws = new Date(windowStart), we = new Date(windowStart + 24 * 3600000);
+      var fmtShort = function(d) { return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + String(d.getHours()).padStart(2, '0') + ':00'; };
+      subEl.textContent = 'Last 24 h (local time): ' + fmtShort(ws) + ' \u2013 ' + fmtShort(we) + ' \u2014 Sat-A and Sat-B stacked';
+    } else {
+      subEl.textContent = 'Last 7 days \u2014 Sat-A and Sat-B stacked (green/blue = synced, red/orange = missed)';
+    }
+  }
+
+  var datasets = [
+    { label: 'Sat-A Synced', data: bucketKeys.map(function(k) { return byBucket[k].satA; }), backgroundColor: '#22c55e99', stack: 'a' },
+    { label: 'Sat-A Missed', data: bucketKeys.map(function(k) { return byBucket[k].total - byBucket[k].satA; }), backgroundColor: '#ef444466', stack: 'a' },
+    { label: 'Sat-B Synced', data: bucketKeys.map(function(k) { return byBucket[k].satB; }), backgroundColor: '#3b82f699', stack: 'b' },
+    { label: 'Sat-B Missed', data: bucketKeys.map(function(k) { return byBucket[k].total - byBucket[k].satB; }), backgroundColor: '#f59e0b66', stack: 'b' },
+  ];
+
+  if (state.charts.sync) {
+    state.charts.sync.data.labels = labels; state.charts.sync.data.datasets = datasets; state.charts.sync.update('none');
+  } else {
+    var isDay = (groupBy === 'day');
+    state.charts.sync = new Chart(document.getElementById('syncChart'), {
+      type: 'bar', data: { labels: labels, datasets: datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: {
+          legend: { position: 'top', labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } } },
+          tooltip: { callbacks: {
+            title: function(ctx) {
+              var k = (state._syncBucketKeys || [])[ctx[0].dataIndex];
+              if (state.syncGroupBy === 'day') {
+                var b = (state._syncBuckets || {})[k];
+                if (b && b.bStart) {
+                  var d0 = new Date(b.bStart), d1 = new Date(b.bStart + 3600000);
+                  var fmt = function(d) { return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + String(d.getHours()).padStart(2, '0') + ':00'; };
+                  return fmt(d0) + ' \u2013 ' + String(d1.getHours()).padStart(2, '0') + ':00';
+                }
+                return 'Hour: ' + String(k).padStart(2, '0') + ':00';
+              }
+              var parts = String(k).split('-');
+              return new Date(+parts[0], +parts[1] - 1, +parts[2], 12).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+            },
+            label: function(ctx) { return ctx.dataset.label + ': ' + ctx.parsed.y; },
+            footer: function(ctx) {
+              if (!ctx.length) return '';
+              var k = (state._syncBucketKeys || [])[ctx[0].dataIndex];
+              var b = (state._syncBuckets || {})[k]; if (!b) return '';
+              return 'Sat-A: ' + (b.total > 0 ? (b.satA / b.total * 100).toFixed(0) : '0') + '%  |  Sat-B: ' + (b.total > 0 ? (b.satB / b.total * 100).toFixed(0) : '0') + '%  |  Total: ' + b.total;
+            }
+          } }
+        },
+        scales: {
+          x: { stacked: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: isDay ? 10 : 11 }, maxRotation: isDay ? 45 : 0, maxTicksLimit: isDay ? 24 : 7 } },
+          y: { stacked: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 11 } }, title: { display: true, text: 'Uploads', color: '#64748b', font: { size: 11 } } }
+        }
+      }
+    });
+  }
+}
+
+// =====================================================================
+// SYNC DRIFT & RSSI OVER TIME
+// =====================================================================
+function createOrUpdateDriftChart() {
+  var e = state.filteredEntries;
+  if (!e.length) return;
+
+  var satADrift = [], satBDrift = [], sysDrift = [];
+  var satARssiArr = [], satBRssiArr = [];
+  e.forEach(function(entry) {
+    var t = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
+    if (entry.satASyncDrift != null) satADrift.push({ x: t, y: entry.satASyncDrift });
+    if (entry.satBSyncDrift != null) satBDrift.push({ x: t, y: entry.satBSyncDrift });
+    if (entry.syncDrift != null)     sysDrift.push({ x: t, y: entry.syncDrift });
+    if (entry.satARssi != null && entry.satARssi !== 0) satARssiArr.push({ x: t, y: entry.satARssi });
+    if (entry.satBRssi != null && entry.satBRssi !== 0) satBRssiArr.push({ x: t, y: entry.satBRssi });
+  });
+
+  var subEl = document.getElementById('driftSubhead');
+  if (subEl) {
+    var fmtS = function(d) { return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' }) + ' ' + d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }); };
+    subEl.textContent = fmtS(e[0].timestamp) + ' \u2013 ' + fmtS(e[e.length-1].timestamp) + ' \u2014 Sync drift (s) & RSSI (dBm) per upload cycle';
+  }
+
+  if (state.charts.drift) { state.charts.drift.destroy(); state.charts.drift = null; }
+  if (satADrift.length || satBDrift.length || sysDrift.length) {
+    var dOpts = baseChartOptions('Drift (s)', undefined, undefined);
+    dOpts.animation = false;
+    dOpts.scales.y.ticks.callback = function(v) { return (v >= 0 ? '+' : '') + v + 's'; };
+    dOpts.scales.y.grid = { color: function(ctx) { return ctx.tick.value === 0 ? '#475569' : '#1e293b'; } };
+    dOpts.plugins.tooltip.callbacks.label = function(ctx) {
+      var v = ctx.parsed.y; var abs = Math.abs(v);
+      var tag = abs <= 5 ? '\u2714 ok' : abs <= 20 ? '\u26a0 warn' : '\u26d4 high';
+      return ' ' + ctx.dataset.label + ': ' + (v >= 0 ? '+' : '') + v + 's  ' + tag;
+    };
+    state.charts.drift = new Chart(document.getElementById('driftChart'), {
+      type: 'line', data: { datasets: [
+        { label: 'Sat-A Drift', data: satADrift, borderColor: '#22c55e', backgroundColor: '#22c55e22', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
+        { label: 'Sat-B Drift', data: satBDrift, borderColor: '#3b82f6', backgroundColor: '#3b82f622', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
+        { label: 'System Drift', data: sysDrift, borderColor: '#f59e0b', backgroundColor: '#f59e0b22', borderWidth: 1.5, pointRadius: 1, pointHoverRadius: 4, tension: 0.2, fill: false, borderDash: [4,3] },
+      ] }, options: dOpts,
+    });
+  }
+
+  var rssiWrap = document.getElementById('rssiChart').parentElement;
+  if (state.charts.rssi) { state.charts.rssi.destroy(); state.charts.rssi = null; }
+  if (satARssiArr.length || satBRssiArr.length) {
+    rssiWrap.style.display = '';
+    var rOpts = baseChartOptions('RSSI (dBm)', -100, 0);
+    rOpts.animation = false;
+    rOpts.plugins.tooltip.callbacks.label = function(ctx) { return ' ' + ctx.dataset.label + ': ' + ctx.parsed.y + ' dBm'; };
+    state.charts.rssi = new Chart(document.getElementById('rssiChart'), {
+      type: 'line', data: { datasets: [
+        { label: 'Sat-A RSSI', data: satARssiArr, borderColor: '#22c55e', backgroundColor: '#22c55e22', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
+        { label: 'Sat-B RSSI', data: satBRssiArr, borderColor: '#3b82f6', backgroundColor: '#3b82f622', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
+      ] }, options: rOpts,
+    });
+  } else { rssiWrap.style.display = 'none'; }
+}
+
+// =====================================================================
+// OPEN-METEO WEATHER
+// =====================================================================
+var weatherState = {
+  data: null, daily: null,
+  tempPoints: [], humPoints: [],
+  charts: { temp: null, hum: null, precip: null, uv: null },
+  fetching: false,
+  forecast: null, forecastDaily: null, forecastFetching: false,
+  sunEvents: [],
+};
+
+async function fetchWeatherData() {
+  if (weatherState.fetching) return;
+  if (!state.filteredEntries.length) return;
+
+  if (window.WEATHER_CACHE && window.WEATHER_CACHE.hourly && window.WEATHER_CACHE.hourly.time) {
+    var cached = window.WEATHER_CACHE.hourly;
+    var first = state.filteredEntries[0].timestamp;
+    var last  = state.filteredEntries[state.filteredEntries.length - 1].timestamp;
+    var cacheStart = new Date(cached.time[0]).getTime();
+    var cacheEnd   = new Date(cached.time[cached.time.length - 1]).getTime();
+    if (cacheStart <= first.getTime() && cacheEnd >= last.getTime() - 86400000) {
+      weatherState.data = cached;
+      weatherState.data._timezone = window.WEATHER_CACHE.timezone || '';
+      weatherState.data._location = WEATHER_LOCATION.name;
+      if (window.WEATHER_CACHE.daily) weatherState.daily = window.WEATHER_CACHE.daily;
+      console.log('[Weather] Using cached weather_data.js');
+      renderWeatherCharts();
+      return;
+    }
+  }
+
+  var first = state.filteredEntries[0].timestamp;
+  var last  = state.filteredEntries[state.filteredEntries.length - 1].timestamp;
+  var startDate = new Date(first.getTime() - 86400000);
+  var endDate   = new Date(Math.min(last.getTime() + 86400000, Date.now()));
+  var startStr = startDate.toISOString().slice(0, 10);
+  var endStr   = endDate.toISOString().slice(0, 10);
+  var today = new Date().toISOString().slice(0, 10);
+  var apiBase = (endStr >= today) ? 'https://api.open-meteo.com/v1/forecast' : 'https://archive-api.open-meteo.com/v1/archive';
+
+  var url = apiBase + '?latitude=' + WEATHER_LOCATION.lat + '&longitude=' + WEATHER_LOCATION.lon +
+    '&start_date=' + startStr + '&end_date=' + endStr +
+    '&hourly=temperature_2m,relative_humidity_2m,precipitation,cloud_cover,weather_code,uv_index' +
+    '&daily=sunrise,sunset&timezone=auto';
+
+  weatherState.fetching = true;
+  try {
+    var resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var json = await resp.json();
+    if (json.hourly && json.hourly.time) {
+      weatherState.data = json.hourly;
+      weatherState.data._timezone = json.timezone || '';
+      weatherState.data._location = WEATHER_LOCATION.name;
+      if (json.daily) weatherState.daily = json.daily;
+      renderWeatherCharts();
+    }
+  } catch (err) { console.warn('[Weather] Failed:', err); }
+  finally { weatherState.fetching = false; }
+}
+
+async function fetchForecastData() {
+  if (weatherState.forecastFetching) return;
+  if (weatherState.forecast && weatherState.forecast._fetchedAt && Date.now() - weatherState.forecast._fetchedAt < 3600000) { renderWeatherCharts(); return; }
+  weatherState.forecastFetching = true;
+  var today = new Date().toISOString().slice(0, 10);
+  var end   = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + WEATHER_LOCATION.lat + '&longitude=' + WEATHER_LOCATION.lon +
+    '&start_date=' + today + '&end_date=' + end + '&hourly=temperature_2m,relative_humidity_2m,precipitation,uv_index&daily=sunrise,sunset&timezone=auto';
+  try {
+    var resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var json = await resp.json();
+    if (json.hourly && json.hourly.time) {
+      weatherState.forecast = json.hourly;
+      weatherState.forecast._timezone = json.timezone || '';
+      weatherState.forecast._location = WEATHER_LOCATION.name + ' (Forecast)';
+      weatherState.forecast._fetchedAt = Date.now();
+      if (json.daily) weatherState.forecastDaily = json.daily;
+      renderWeatherCharts();
+    }
+  } catch (err) { console.warn('[Weather] Forecast failed:', err); }
+  finally { weatherState.forecastFetching = false; }
+}
+
+function renderWeatherCharts() {
+  var _wxr = state.weatherTimeRange || 'week';
+  var w = (_wxr === 'forecast') ? weatherState.forecast : weatherState.data;
+  var activeDaily = (_wxr === 'forecast') ? weatherState.forecastDaily : weatherState.daily;
+  if (!w || !w.time || !w.time.length) return;
+
+  document.getElementById('weatherSection').style.display = '';
+  var locEl = document.getElementById('weatherLocation');
+  if (locEl) locEl.textContent = w._location + ' (' + w._timezone + ')';
+
+  var rangeStart = 0, rangeEnd = Infinity;
+  if (_wxr === 'forecast') { rangeStart = Date.now() - 3600000; rangeEnd = Date.now() + 7 * 86400000 + 3600000; }
+  else if (_wxr !== 'all') { var _wxDays = _wxr === 'day' ? 1 : _wxr === 'week' ? 7 : 30; rangeStart = Date.now() - _wxDays * 86400000; rangeEnd = Date.now() + 3600000; }
+
+  var tempPoints = [], humPoints = [], precipPoints = [], uvPoints = [];
+  for (var i = 0; i < w.time.length; i++) {
+    var t = new Date(w.time[i]).getTime();
+    if (t < rangeStart || t > rangeEnd) continue;
+    if (w.temperature_2m[i] !== null) tempPoints.push({ x: t, y: w.temperature_2m[i] });
+    if (w.relative_humidity_2m[i] !== null) humPoints.push({ x: t, y: w.relative_humidity_2m[i] });
+    if (w.precipitation[i] !== null) precipPoints.push({ x: t, y: w.precipitation[i] });
+    if (w.uv_index && w.uv_index[i] !== null && w.uv_index[i] !== undefined) uvPoints.push({ x: t, y: w.uv_index[i] });
+  }
+  weatherState.tempPoints = tempPoints;
+  weatherState.humPoints  = humPoints;
+
+  var _wxForecast = (_wxr === 'forecast');
+  var timeCfg = _wxForecast ? { unit: 'day', displayFormats: { day: 'ccc' }, tooltipFormat: 'ccc d LLL HH:mm' } : getTimeAxisConfig();
+
+  weatherState.sunEvents = [];
+  if (activeDaily && activeDaily.sunrise && activeDaily.sunset) {
+    for (var si = 0; si < activeDaily.sunrise.length; si++) {
+      weatherState.sunEvents.push({ rise: new Date(activeDaily.sunrise[si]).getTime(), set: new Date(activeDaily.sunset[si]).getTime() });
+    }
+  }
+
+  function weatherChartOpts(label, yMin, yMax) {
+    var opts = baseChartOptions(label, yMin, yMax);
+    opts.scales.x.time = timeCfg;
+    opts.scales.x.ticks.color = (_wxr === 'day') ? '#64748b' : 'transparent';
+    return opts;
+  }
+
+  // Weather Temperature
+  var wTempDS = [{ label: 'Open-Meteo Temp', data: tempPoints, borderColor: '#f59e0b', backgroundColor: '#f59e0b22', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true }];
+  if (weatherState.charts.temp) { weatherState.charts.temp.data.datasets = wTempDS; weatherState.charts.temp.options.scales.x.time = timeCfg; weatherState.charts.temp.options.scales.x.ticks.color = (_wxr === 'day') ? '#64748b' : 'transparent'; weatherState.charts.temp.update('none'); }
+  else { weatherState.charts.temp = new Chart(document.getElementById('weatherTempChart'), { type: 'line', data: { datasets: wTempDS }, options: weatherChartOpts('Weather Temp (\u00B0C)'), plugins: [nightShadingPlugin, dayLabelPlugin, dailyMinMaxPlugin, nowLinePlugin] }); }
+
+  // Weather Humidity
+  var wHumDS = [{ label: 'Open-Meteo Humidity', data: humPoints, borderColor: '#06b6d4', backgroundColor: '#06b6d422', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true }];
+  if (weatherState.charts.hum) { weatherState.charts.hum.data.datasets = wHumDS; weatherState.charts.hum.options.scales.x.time = timeCfg; weatherState.charts.hum.options.scales.x.ticks.color = (_wxr === 'day') ? '#64748b' : 'transparent'; weatherState.charts.hum.update('none'); }
+  else { weatherState.charts.hum = new Chart(document.getElementById('weatherHumChart'), { type: 'line', data: { datasets: wHumDS }, options: weatherChartOpts('Weather Humidity (%)', 0, 100), plugins: [nightShadingPlugin, dayLabelPlugin, dailyMinMaxPlugin, nowLinePlugin] }); }
+
+  // Precipitation
+  var precipDS = [{ label: 'Precipitation', data: precipPoints, borderColor: '#3b82f688', backgroundColor: '#3b82f666', borderWidth: 1, pointRadius: 0, type: 'bar' }];
+  var precipOpts = weatherChartOpts('Precipitation (mm)');
+  precipOpts.plugins.legend = { display: false };
+  precipOpts.plugins.tooltip = { mode: 'index', intersect: false, backgroundColor: '#1e293bee', titleColor: '#f1f5f9', bodyColor: '#cbd5e1', callbacks: { label: function(ctx) { return ' ' + ctx.parsed.y.toFixed(1) + ' mm'; } } };
+  if (weatherState.charts.precip) { weatherState.charts.precip.data.datasets = precipDS; weatherState.charts.precip.options.scales.x.time = timeCfg; weatherState.charts.precip.options.scales.x.ticks.color = (_wxr === 'day') ? '#64748b' : 'transparent'; weatherState.charts.precip.update('none'); }
+  else { weatherState.charts.precip = new Chart(document.getElementById('weatherPrecipChart'), { type: 'bar', data: { datasets: precipDS }, options: precipOpts, plugins: [nightShadingPlugin, dayLabelPlugin, dailyMinMaxPlugin, nowLinePlugin] }); }
+
+  // UV Index
+  var uvDS = [{ label: 'UV Index', data: uvPoints, borderColor: '#a855f7', backgroundColor: '#a855f722', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true,
+    segment: { borderColor: function(ctx) { var v = ctx.p1.parsed.y; return v >= 11 ? '#dc2626' : v >= 8 ? '#ef4444' : v >= 6 ? '#f59e0b' : v >= 3 ? '#eab308' : '#22c55e'; } }
+  }];
+  var uvOpts = weatherChartOpts('UV Index', 0);
+  uvOpts.scales.y.grace = '10%';
+  uvOpts.plugins.legend = { display: false };
+  uvOpts.plugins.tooltip = { mode: 'index', intersect: false, backgroundColor: '#1e293bee', titleColor: '#f1f5f9', bodyColor: '#cbd5e1',
+    callbacks: { label: function(ctx) { var v = ctx.parsed.y; var cat = v >= 11 ? 'Extreme' : v >= 8 ? 'Very High' : v >= 6 ? 'High' : v >= 3 ? 'Moderate' : 'Low'; return ' UV ' + v.toFixed(1) + ' (' + cat + ')'; } }
+  };
+  if (weatherState.charts.uv) { weatherState.charts.uv.data.datasets = uvDS; weatherState.charts.uv.options.scales.x.time = timeCfg; weatherState.charts.uv.options.scales.x.ticks.color = (_wxr === 'day') ? '#64748b' : 'transparent'; weatherState.charts.uv.update('none'); }
+  else { weatherState.charts.uv = new Chart(document.getElementById('weatherUVChart'), { type: 'line', data: { datasets: uvDS }, options: uvOpts, plugins: [nightShadingPlugin, dayLabelPlugin, dailyMinMaxPlugin, nowLinePlugin] }); }
+}
+</script>
+
+<!-- =================================================================
+     SECTION 8: INITIALIZATION + TIDES
+     ================================================================= -->
+<script>
+"use strict";
+
+// =====================================================================
+// HARVEST THRESHOLD
+// =====================================================================
+function onHarvestCtrlChange() {
+  var enEl = document.getElementById('harvestThreshEnabled');
+  var hEl  = document.getElementById('harvestThreshHeight');
+  window._harvestOpts = {
+    enabled:   enEl ? enEl.checked : true,
+    maxHeight: hEl  ? (parseFloat(hEl.value) || 0.50) : 0.50
+  };
+  ['tideChartDetail', 'tideChartOverview'].forEach(function (id) {
+    var c = Chart.getChart(id); if (c) c.destroy();
+  });
+  if (window.SeaweedTides) SeaweedTides.init(STATION.tideStation);
+}
+
+// =====================================================================
+// SENSOR MAP SETUP
+// =====================================================================
+function setupSensorMap() {
+  var mapKey = STATION.sensorMap;
+  var mapDef = mapKey ? SENSOR_MAPS[mapKey] : null;
+  var panel  = document.getElementById('sensorMapPanel');
+  if (!mapDef) { panel.style.display = 'none'; return; }
+
+  panel.style.display = '';
+  var inner = document.getElementById('sensorMapInner');
+  var html = '<svg class="rack-svg" viewBox="' + mapDef.viewBox + '" xmlns="http://www.w3.org/2000/svg" aria-label="' + mapDef.label + '">' + mapDef.svg + '</svg>';
+  html += '<div class="sensor-map-legend">';
+  mapDef.legend.forEach(function(item) {
+    html += '<div class="sml-item"><div class="sml-dot" style="background:' + item.color + '"></div><span style="color:' + item.color + '">' + item.label + '</span></div>';
+  });
+  html += '</div>';
+  inner.innerHTML = html;
+}
+
+// =====================================================================
+// PAGE SETUP (title, subtitle, footer)
+// =====================================================================
+function setupPage() {
+  document.getElementById('pageTitle').textContent   = STATION.title + ' -- Seaweed T/H Monitoring';
+  document.getElementById('stationTitle').textContent = STATION.title;
+  document.getElementById('stationSubtitle').textContent = STATION.subtitle;
+  document.getElementById('footerName').textContent  = STATION.title;
+  document.getElementById('channelLabel').textContent = STATION.channelId || '--';
+}
+
+// =====================================================================
+// INITIALIZATION
+// =====================================================================
+document.addEventListener('DOMContentLoaded', function () {
+  // Setup page chrome
+  setupPage();
+  setupSensorMap();
+
+  // Display timezone
+  document.getElementById('tzLabel').textContent = getTimezoneLabel();
+
+  // Tides (always available -- no sensor data needed)
+  window._harvestOpts = { enabled: true, maxHeight: 0.50 };
+  if (window.SeaweedTides) {
+    SeaweedTides.init(STATION.tideStation);
+  }
+
+  // Fetch weather early (Kenya pages do this regardless of sensor data)
+  fetchWeatherData();
+
+  // Restore saved date range preference
+  restoreViewPrefs();
+
+  // Auto-load merged_data.js if present
+  if (window.THINGSPEAK_DATA) {
+    console.log('[Dashboard] Auto-loaded merged_data.js');
+    handleNewData(window.THINGSPEAK_DATA, 'Local file (' + STATION.dataFolder + '/merged_data.js)');
+  } else {
+    // Restore from localStorage cache
+    try {
+      var _raw = localStorage.getItem('seaweed_cache_' + TABLE_ID);
+      if (_raw) {
+        var _cached = JSON.parse(_raw);
+        if (_cached.allEntries && _cached.allEntries.length) {
+          state.allEntries = _cached.allEntries.map(function(e) {
+            e.timestamp = new Date(e.timestamp);
+            return e;
+          });
+          state.channelInfo = _cached.channelInfo || null;
+          var _ageMin = Math.round((Date.now() - _cached.savedAt) / 60000);
+          var _ageStr = _ageMin < 60 ? _ageMin + 'm' : Math.round(_ageMin / 60) + 'h';
+          state.dataSource = 'Cached (' + _ageStr + ' ago)';
+          applyTimeRange();
+          renderDashboard();
+          console.log('[Dashboard] Restored ' + state.allEntries.length + ' entries from cache');
+        }
+      }
+    } catch (e) { console.warn('[Cache] Restore failed:', e); }
+  }
+
+  // Setup auto-refresh
+  setupAutoRefresh();
+});
+</script>
+</body>
+</html>
