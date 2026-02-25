@@ -372,28 +372,18 @@ input.wide { max-width: none; }
 
       <!-- WROOM PTT -->
       <div style="border-left:3px solid #a78bfa;padding-left:14px">
-        <label style="font-size:0.85rem;color:var(--text);text-transform:none;letter-spacing:0">&#127464;&#127468; Perth WROOM PTT <span style="font-size:0.72rem;color:var(--text-muted);font-weight:400">(dual-channel: temp + humidity)</span></label>
+        <label style="font-size:0.85rem;color:var(--text);text-transform:none;letter-spacing:0">&#127464;&#127468; Perth WROOM PTT <span style="font-size:0.72rem;color:var(--text-muted);font-weight:400">(single channel, CSV-packed)</span></label>
         <div class="field-row" style="margin-top:6px">
           <div class="field">
-            <label>Temp Channel ID</label>
-            <input type="text" id="ch_wroom_temp_id" placeholder="3246116">
+            <label>Channel ID</label>
+            <input type="text" id="ch_wroom_id" placeholder="3246116">
           </div>
           <div class="field">
-            <label>Temp Read API Key</label>
-            <input type="password" id="ch_wroom_temp_key" placeholder="7K00B1Y8DNOTEIM0" autocomplete="off">
+            <label>Read API Key</label>
+            <input type="password" id="ch_wroom_key" placeholder="7K00B1Y8DNOTEIM0" autocomplete="off">
           </div>
         </div>
-        <div class="field-row" style="margin-top:8px">
-          <div class="field">
-            <label>Humidity Channel ID</label>
-            <input type="text" id="ch_wroom_hum_id" placeholder="3256756">
-          </div>
-          <div class="field">
-            <label>Humidity Read API Key</label>
-            <input type="password" id="ch_wroom_hum_key" placeholder="D8TXB5B33KPWRIHO" autocomplete="off">
-          </div>
-        </div>
-        <div class="field-hint" style="margin-top:4px">Two separate ThingSpeak channels merged into <code>data_WROOM_PTT/merged_data.js</code></div>
+        <div class="field-hint" style="margin-top:4px">Single channel with CSV-packed fields &rarr; <code>data_WROOM_PTT/merged_data.js</code></div>
       </div>
 
     </div>
@@ -555,8 +545,7 @@ function getFormConfig() {
   var perthId      = (document.getElementById('ch_perth_id').value      || '').trim();
   var shanganiId   = (document.getElementById('ch_shangani_id').value   || '').trim();
   var funziId      = (document.getElementById('ch_funzi_id').value      || '').trim();
-  var wroomTempId  = (document.getElementById('ch_wroom_temp_id').value || '').trim();
-  var wroomHumId   = (document.getElementById('ch_wroom_hum_id').value  || '').trim();
+  var wroomId     = (document.getElementById('ch_wroom_id').value     || '').trim();
   return {
     channels: [
       {
@@ -583,12 +572,9 @@ function getFormConfig() {
       {
         id: 'wroom',
         name: 'Perth WROOM',
-        dualChannel:  true,
-        channelId:    wroomTempId,
-        apiKey:       (document.getElementById('ch_wroom_temp_key').value || '').trim(),
-        channelId2:   wroomHumId,
-        apiKey2:      (document.getElementById('ch_wroom_hum_key').value  || '').trim(),
-        dataFolder:   getDataFolder(wroomTempId, 'WROOM_PTT'),
+        channelId:    wroomId,
+        apiKey:       (document.getElementById('ch_wroom_key').value  || '').trim(),
+        dataFolder:   getDataFolder(wroomId, 'WROOM_PTT'),
       },
     ],
     autoRefreshMin: parseInt(document.getElementById('autoRefreshMin').value) || 15,
@@ -610,8 +596,7 @@ function updatePreviews() {
 
 //  Live update previews as user types 
 ['ch_perth_id', 'ch_perth_key', 'ch_shangani_id', 'ch_shangani_key',
- 'ch_funzi_id', 'ch_funzi_key', 'ch_wroom_temp_id', 'ch_wroom_temp_key',
- 'ch_wroom_hum_id', 'ch_wroom_hum_key',
+ 'ch_funzi_id', 'ch_funzi_key', 'ch_wroom_id', 'ch_wroom_key',
  'autoRefreshMin', 'maxResults'].forEach(function (id) {
   var el = document.getElementById(id);
   if (el) {
@@ -688,10 +673,8 @@ function loadSavedConfig() {
   document.getElementById('ch_shangani_key').value  = (chMap.shangani && chMap.shangani.apiKey)    || '';
   document.getElementById('ch_funzi_id').value      = (chMap.funzi    && chMap.funzi.channelId)    || '';
   document.getElementById('ch_funzi_key').value     = (chMap.funzi    && chMap.funzi.apiKey)       || '';
-  document.getElementById('ch_wroom_temp_id').value = (chMap.wroom    && chMap.wroom.channelId)    || '3246116';
-  document.getElementById('ch_wroom_temp_key').value= (chMap.wroom    && chMap.wroom.apiKey)       || '7K00B1Y8DNOTEIM0';
-  document.getElementById('ch_wroom_hum_id').value  = (chMap.wroom    && chMap.wroom.channelId2)   || '3256756';
-  document.getElementById('ch_wroom_hum_key').value = (chMap.wroom    && chMap.wroom.apiKey2)      || 'D8TXB5B33KPWRIHO';
+  document.getElementById('ch_wroom_id').value     = (chMap.wroom    && chMap.wroom.channelId)    || '3246116';
+  document.getElementById('ch_wroom_key').value    = (chMap.wroom    && chMap.wroom.apiKey)       || '7K00B1Y8DNOTEIM0';
 
   document.getElementById('autoRefreshMin').value = String(saved.autoRefreshMin != null ? saved.autoRefreshMin : 15);
   document.getElementById('maxResults').value     = saved.maxResults || 8000;

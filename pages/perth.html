@@ -466,6 +466,7 @@ body {
           <div class="detail-item"><div class="detail-label">Boot Count</div><div class="detail-value" id="t0Boot">--</div></div>
           <div class="detail-item"><div class="detail-label">Free Heap</div><div class="detail-value" id="t0Heap">--</div></div>
           <div class="detail-item"><div class="detail-label">T0 Sensors</div><div class="detail-value" id="t0Sensors">--</div></div>
+          <div class="detail-item"><div class="detail-label">Firmware</div><div class="detail-value" id="t0Firmware">--</div></div>
           <div class="detail-item"><div class="detail-label">Data Span</div><div class="detail-value" id="t0Uptime">--</div></div>
         </div>
         <div class="card-footer">
@@ -488,6 +489,7 @@ body {
           <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="satASyncDrift" title="Satellite SYNC arrival drift vs expected">--</div></div>
           <div class="detail-item"><div class="detail-label">Sample ID</div><div class="detail-value" id="satASampleId">--</div></div>
           <div class="detail-item"><div class="detail-label">Sensors</div><div class="detail-value" id="satASensors">--</div></div>
+          <div class="detail-item"><div class="detail-label">Firmware</div><div class="detail-value" id="satAFirmware">--</div></div>
           <div class="detail-item"><div class="detail-label">Sync Rate (24h)</div><div class="detail-value" id="satASyncRate">--</div></div>
           <div class="detail-item"><div class="detail-label">Missed (24h)</div><div class="detail-value" id="satAMissed">--</div></div>
         </div>
@@ -511,6 +513,7 @@ body {
           <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="satBSyncDrift" title="Satellite SYNC arrival drift vs expected">--</div></div>
           <div class="detail-item"><div class="detail-label">Sample ID</div><div class="detail-value" id="satBSampleId">--</div></div>
           <div class="detail-item"><div class="detail-label">Sensors</div><div class="detail-value" id="satBSensors">--</div></div>
+          <div class="detail-item"><div class="detail-label">Firmware</div><div class="detail-value" id="satBFirmware">--</div></div>
           <div class="detail-item"><div class="detail-label">Sync Rate (24h)</div><div class="detail-value" id="satBSyncRate">--</div></div>
           <div class="detail-item"><div class="detail-label">Missed (24h)</div><div class="detail-value" id="satBMissed">--</div></div>
         </div>
@@ -991,12 +994,27 @@ function parseFeeds(rawFeeds) {
     var satASens  = csvParse(f.field5);   // t1,rh1,t2,rh2
     var satBStat  = csvParse(f.field6);   // batV,bat%,rssi,sampleId
     var satBSens  = csvParse(f.field7);   // t1,rh1,t2,rh2
-    // Split field8 at pipe: diag part (comma-sep) | config part
+    // Split field8 at pipe: diag part | config part | fw part
     var f8raw = f.field8 || '';
-    var f8diag = f8raw;
-    var pipIdx = f8raw.indexOf('|');
-    if (pipIdx >= 0) f8diag = f8raw.substring(0, pipIdx);
+    var f8sections = f8raw.split('|');
+    var f8diag = f8sections[0] || '';
     var sys = csvParse(f8diag);   // sdFreeKB,csq,uploadOk,drift
+
+    // Extract firmware versions
+    var satAFw = null, satBFw = null, t0Fw = null, t0BuildDate = null;
+    if (f.field4) {
+      var parts4 = f.field4.split(',');
+      if (parts4.length > 6 && parts4[6]) satAFw = parts4[6].trim();
+    }
+    if (f.field6) {
+      var parts6 = f.field6.split(',');
+      if (parts6.length > 6 && parts6[6]) satBFw = parts6[6].trim();
+    }
+    if (f8sections.length > 2) {
+      var fwParts = f8sections[2].split(',');
+      t0Fw = fwParts[0] ? fwParts[0].trim() : null;
+      t0BuildDate = fwParts[1] ? fwParts[1].trim() : null;
+    }
 
     return {
       timestamp: ts,
@@ -1037,6 +1055,11 @@ function parseFeeds(rawFeeds) {
       csq:        sys[1] != null ? sys[1] : null,
       uploadOk:   sys[2] != null ? sys[2] : null,
       syncDrift:  sys[3] != null ? sys[3] : null,
+      // Firmware
+      t0FwVersion: t0Fw,
+      t0BuildDate: t0BuildDate,
+      satAFwVersion: satAFw,
+      satBFwVersion: satBFw,
     };
   }).filter(function (e) { return !isNaN(e.timestamp.getTime()); })
     .sort(function (a, b) { return a.timestamp - b.timestamp; });
@@ -1492,6 +1515,8 @@ function updateStatusCards() {
   var t0HasSensors = latest.t0Temp1 !== null || latest.t0Temp2 !== null;
   document.getElementById('t0Sensors').textContent = t0HasSensors ? 'Connected' : 'NC';
   document.getElementById('t0Sensors').className   = 'detail-value ' + (t0HasSensors ? 'ok-text' : 'nc-text');
+  var _t0Fw = latest.t0FwVersion;
+  document.getElementById('t0Firmware').textContent = _t0Fw ? 'v' + _t0Fw + (latest.t0BuildDate ? ' (' + latest.t0BuildDate + ')' : '') : '--';
 
   // Data span
   if (e.length >= 2) {
@@ -1517,6 +1542,7 @@ function updateStatusCards() {
   var satAHasSensors = lastSatA ? (lastSatA.satATemp1 !== null || lastSatA.satATemp2 !== null) : false;
   document.getElementById('satASensors').textContent = satAHasSensors ? 'Connected' : 'NC';
   document.getElementById('satASensors').className   = 'detail-value ' + (satAHasSensors ? 'ok-text' : 'nc-text');
+  document.getElementById('satAFirmware').textContent = (lastSatA && lastSatA.satAFwVersion) ? 'v' + lastSatA.satAFwVersion : '--';
 
   // Satellite A sync rate and missed count (last 24h)
   var satAMissed24 = countRecentMissing(e, 'satABatV', 24);
@@ -1546,6 +1572,7 @@ function updateStatusCards() {
   var satBHasSensors = lastSatB ? (lastSatB.satBTemp1 !== null || lastSatB.satBTemp2 !== null) : false;
   document.getElementById('satBSensors').textContent = satBHasSensors ? 'Connected' : 'NC';
   document.getElementById('satBSensors').className   = 'detail-value ' + (satBHasSensors ? 'ok-text' : 'nc-text');
+  document.getElementById('satBFirmware').textContent = (lastSatB && lastSatB.satBFwVersion) ? 'v' + lastSatB.satBFwVersion : '--';
 
   var satBMissed24 = countRecentMissing(e, 'satBBatV', 24);
   var satBSyncPct  = satBMissed24.total > 0 ? ((satBMissed24.total - satBMissed24.missing) / satBMissed24.total * 100) : 0;

@@ -762,6 +762,10 @@ body {
 // =====================================================================
 // HARD-CODED CONFIG (temporary page -- delete when done)
 // =====================================================================
+// Single-channel CSV-packed (new format, post-migration)
+var TS_CHANNEL  = '3246116';
+var TS_API_KEY   = '7K00B1Y8DNOTEIM0';
+// Legacy dual-channel keys (used only for old merged_data.js archives)
 var TEMP_CHANNEL  = '3246116';
 var TEMP_API_KEY  = '7K00B1Y8DNOTEIM0';
 var HUM_CHANNEL   = '3256756';
@@ -922,6 +926,44 @@ function parseThingSpeakMerge(tempFeeds, humFeeds) {
 }
 
 // =====================================================================
+// DATA PARSING: THINGSPEAK (single channel, CSV-packed)
+// field1 = battery%  (always 0 for WROOM)
+// field2 = "t1,t2,...,t5"  (comma-separated temps)
+// field3 = "rh1,rh2,...,rh5" (comma-separated humidity)
+// =====================================================================
+function parseThingSpeakSingleChannel(feeds) {
+  if (!feeds || !feeds.length) return [];
+  var results = [];
+  feeds.forEach(function(f) {
+    var ts = new Date(f.created_at);
+    if (isNaN(ts.getTime())) return;
+    var e = { timestamp: ts };
+
+    // Parse CSV temps from field2
+    var tempParts = (f.field2 || '').split(',');
+    for (var s = 0; s < SENSOR_COUNT; s++) {
+      var tv = (s < tempParts.length) ? tempParts[s].trim() : '';
+      e['t' + (s + 1)] = (tv === '' || tv === 'NC') ? null : parseFloat(tv);
+    }
+
+    // Parse CSV humidity from field3
+    var humParts = (f.field3 || '').split(',');
+    for (var s = 0; s < SENSOR_COUNT; s++) {
+      var hv = (s < humParts.length) ? humParts[s].trim() : '';
+      e['rh' + (s + 1)] = (hv === '' || hv === 'NC') ? null : parseFloat(hv);
+    }
+
+    // Set ok flags
+    for (var s = 1; s <= SENSOR_COUNT; s++) {
+      e['ok' + s] = (e['t' + s] !== null || e['rh' + s] !== null) ? 1 : 0;
+    }
+
+    results.push(e);
+  });
+  return results.sort(function(a, b) { return a.timestamp - b.timestamp; });
+}
+
+// =====================================================================
 // DATA LOADING + DEDUPLICATION
 // =====================================================================
 function mergeEntries(newEntries, sourceLabel) {
@@ -973,24 +1015,15 @@ async function fetchThingSpeak() {
   btn.disabled = true;
 
   try {
-    var [tempRes, humRes] = await Promise.all([
-      fetch('https://api.thingspeak.com/channels/' + TEMP_CHANNEL + '/feeds.json?api_key=' + TEMP_API_KEY + '&results=8000'),
-      fetch('https://api.thingspeak.com/channels/' + HUM_CHANNEL + '/feeds.json?api_key=' + HUM_API_KEY + '&results=8000'),
-    ]);
+    // Single-channel CSV-packed fetch (new format)
+    var res = await fetch('https://api.thingspeak.com/channels/' + TS_CHANNEL + '/feeds.json?api_key=' + TS_API_KEY + '&results=8000');
+    if (!res.ok) throw new Error('ThingSpeak HTTP ' + res.status);
+    var data = await res.json();
+    var feeds = (data && data.feeds) ? data.feeds : [];
+    console.log('[WROOM] ThingSpeak single-channel: ' + feeds.length + ' entries');
 
-    if (!tempRes.ok) throw new Error('Temp channel HTTP ' + tempRes.status);
-    if (!humRes.ok)  throw new Error('Hum channel HTTP ' + humRes.status);
-
-    var tempData = await tempRes.json();
-    var humData  = await humRes.json();
-
-    var tempFeeds = (tempData && tempData.feeds) ? tempData.feeds : [];
-    var humFeeds  = (humData && humData.feeds)   ? humData.feeds  : [];
-
-    console.log('[WROOM] ThingSpeak: ' + tempFeeds.length + ' temp + ' + humFeeds.length + ' hum entries');
-
-    var merged = parseThingSpeakMerge(tempFeeds, humFeeds);
-    mergeEntries(merged, 'ThingSpeak (' + new Date().toLocaleTimeString('en-GB') + ')');
+    var parsed = parseThingSpeakSingleChannel(feeds);
+    mergeEntries(parsed, 'ThingSpeak (' + new Date().toLocaleTimeString('en-GB') + ')');
 
   } catch (err) {
     console.error('[WROOM] ThingSpeak fetch failed:', err);
@@ -2391,18 +2424,29 @@ document.addEventListener('DOMContentLoaded', function() {
   // Restore saved date range / time range preference
   restoreViewPrefs();
 
-  // Auto-load from merged_data.js on disk (dual-channel format)
+  // Auto-load from merged_data.js on disk
+  // Detects format automatically:
+  //   Old dual-channel: { tempFeeds: [...], humFeeds: [...] }
+  //   New single-channel CSV-packed: { feeds: [...] } with field2=temps CSV, field3=humidity CSV
   if (window.THINGSPEAK_DATA) {
     try {
       var tsData = window.THINGSPEAK_DATA;
-      var tf = tsData.tempFeeds || tsData.feeds || [];
-      var hf = tsData.humFeeds || [];
-      if (tf.length || hf.length) {
-        var parsed = parseThingSpeakMerge(tf, hf);
-        if (parsed.length) {
-          mergeEntries(parsed, 'Local file (merged_data.js)');
-          console.log('[WROOM] Auto-loaded ' + parsed.length + ' entries from merged_data.js');
-        }
+      var parsed;
+      if (tsData.tempFeeds || tsData.humFeeds) {
+        // Old dual-channel format
+        var tf = tsData.tempFeeds || [];
+        var hf = tsData.humFeeds || [];
+        parsed = parseThingSpeakMerge(tf, hf);
+        console.log('[WROOM] Auto-loaded ' + parsed.length + ' entries from merged_data.js (dual-channel format)');
+      } else if (tsData.feeds) {
+        // New single-channel CSV-packed format
+        parsed = parseThingSpeakSingleChannel(tsData.feeds);
+        console.log('[WROOM] Auto-loaded ' + parsed.length + ' entries from merged_data.js (single-channel CSV format)');
+      } else {
+        parsed = [];
+      }
+      if (parsed.length) {
+        mergeEntries(parsed, 'Local file (merged_data.js)');
       }
     } catch (e) { console.warn('[WROOM] merged_data.js parse failed:', e); }
   }
