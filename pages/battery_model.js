@@ -287,17 +287,16 @@ window.BatteryModel = (function () {
   // ========================================================================
   // CONFIG PARSER: Extract device config from field8 pipe-delimited block
   // ========================================================================
-  // field8 format: "sdFreeKB,csq,uploadOk,drift|dm,sl,sp,bi,bf,es,sA,sB"
+  // field8 format: "sdFreeKB,csq,uploadOk,drift|dm,sl,sp,bi,bf,es,sA,sB|fwVer,buildDate"
   // Returns { deployMode, sleepEnable, samplePeriod_s, tsBulkInterval_s,
   //           tsBulkFreqHours, espnowSyncPeriod_s, satAInstalled, satBInstalled }
   // or null if no config block present.
   function parseField8Config(field8str) {
     if (!field8str || typeof field8str !== 'string') return null;
-    var pipeIdx = field8str.indexOf('|');
-    if (pipeIdx < 0) return null;
+    var sections = field8str.split('|');
+    if (sections.length < 2) return null;
 
-    var cfgPart = field8str.substring(pipeIdx + 1);
-    var tokens = cfgPart.split(',');
+    var tokens = sections[1].split(',');
     if (tokens.length < 8) return null;
 
     return {

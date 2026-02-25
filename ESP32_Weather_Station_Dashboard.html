@@ -366,11 +366,6 @@ function computeSummary(entries) {
     return { status: status, bat: bat, lastSeen: lastEntry.timestamp, fw: lastEntry[fwKey] || null };
   }
 
-  // Find last entry with firmware version for each node
-  var lastT0Fw  = findLast(entries, 't0FwVersion');
-  var lastSatAFw = findLast(entries, 'satAFwVersion');
-  var lastSatBFw = findLast(entries, 'satBFwVersion');
-
   return {
     freshness: freshness,
     lastUpdate: latest.timestamp,
