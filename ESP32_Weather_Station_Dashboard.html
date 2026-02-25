@@ -91,6 +91,7 @@ a:hover { text-decoration: underline; }
 .dot-grey { background: var(--text-muted); }
 .node-chip .node-name { font-size: 0.72rem; font-weight: 600; }
 .node-chip .node-bat { font-size: 0.72rem; color: var(--text-sec); margin-left: auto; }
+.node-chip .node-fw { font-size: 0.6rem; color: var(--text-muted); margin-left: 6px; opacity: 0.8; }
 
 /* -- Mini spark chart ---------------------------------------------- */
 .spark-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
@@ -262,6 +263,26 @@ function parseEntry(f) {
   var satASens  = csvParse(f.field5);
   var satBStat  = csvParse(f.field6);
   var satBSens  = csvParse(f.field7);
+
+  // Extract firmware versions (string values, not numeric)
+  var satAFw = null, satBFw = null, t0Fw = null, t0BuildDate = null;
+  if (f.field4) {
+    var parts4 = f.field4.split(',');
+    if (parts4.length > 6 && parts4[6]) satAFw = parts4[6].trim();
+  }
+  if (f.field6) {
+    var parts6 = f.field6.split(',');
+    if (parts6.length > 6 && parts6[6]) satBFw = parts6[6].trim();
+  }
+  if (f.field8) {
+    var sections = f.field8.split('|');
+    if (sections.length > 2) {
+      var fwParts = sections[2].split(',');
+      t0Fw = fwParts[0] ? fwParts[0].trim() : null;
+      t0BuildDate = fwParts[1] ? fwParts[1].trim() : null;
+    }
+  }
+
   return {
     timestamp: ts,
     t0BatPct: parseFloat(f.field1) || null,
@@ -272,6 +293,10 @@ function parseEntry(f) {
     satATemp1: satASens[0], satATemp2: satASens[2],
     satBBatPct: satBStat[1], satBBatV: satBStat[0],
     satBTemp1: satBSens[0], satBTemp2: satBSens[2],
+    t0FwVersion: t0Fw,
+    t0BuildDate: t0BuildDate,
+    satAFwVersion: satAFw,
+    satBFwVersion: satBFw,
   };
 }
 
@@ -332,22 +357,27 @@ function computeSummary(entries) {
   var lastSatA = findLast(entries, 'satABatPct');
   var lastSatB = findLast(entries, 'satBBatPct');
 
-  function nodeHealth(lastEntry, batKey) {
-    if (!lastEntry) return { status: 'nc', bat: null, lastSeen: null };
+  function nodeHealth(lastEntry, batKey, fwKey) {
+    if (!lastEntry) return { status: 'nc', bat: null, lastSeen: null, fw: null };
     var age = (now - lastEntry.timestamp.getTime()) / 60000;
     var bat = lastEntry[batKey];
     var status = age < 20 ? 'green' : (age < 120 ? 'yellow' : 'red');
     if (bat !== null && bat < 15) status = 'red';
-    return { status: status, bat: bat, lastSeen: lastEntry.timestamp };
+    return { status: status, bat: bat, lastSeen: lastEntry.timestamp, fw: lastEntry[fwKey] || null };
   }
+
+  // Find last entry with firmware version for each node
+  var lastT0Fw  = findLast(entries, 't0FwVersion');
+  var lastSatAFw = findLast(entries, 'satAFwVersion');
+  var lastSatBFw = findLast(entries, 'satBFwVersion');
 
   return {
     freshness: freshness,
     lastUpdate: latest.timestamp,
     entries: entries.length,
-    t0: nodeHealth(lastT0, 't0BatPct'),
-    satA: nodeHealth(lastSatA, 'satABatPct'),
-    satB: nodeHealth(lastSatB, 'satBBatPct'),
+    t0: nodeHealth(lastT0, 't0BatPct', 't0FwVersion'),
+    satA: nodeHealth(lastSatA, 'satABatPct', 'satAFwVersion'),
+    satB: nodeHealth(lastSatB, 'satBBatPct', 'satBFwVersion'),
     dayTempHigh:  peak(h24, tempKey),
     dayTempLow:   minVal(h24, tempKey),
     dayHumHigh:   peak(h24, humKey),
@@ -732,7 +762,8 @@ function renderNodeChip(name, node) {
   }
   var dotClass = 'dot-' + node.status;
   var batStr = node.bat !== null ? Math.round(node.bat) + '%' : '--';
-  return '<div class="node-chip"><span class="dot ' + dotClass + '"></span><span class="node-name">' + name + '</span><span class="node-bat">' + batStr + '</span></div>';
+  var fwStr = node.fw ? '<span class="node-fw" title="Firmware version">v' + node.fw + '</span>' : '';
+  return '<div class="node-chip"><span class="dot ' + dotClass + '"></span><span class="node-name">' + name + '</span><span class="node-bat">' + batStr + '</span>' + fwStr + '</div>';
 }
 
 function metricBox(label, value, sub) {
