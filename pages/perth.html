@@ -756,6 +756,20 @@ body {
       </div>
     </section>
 
+    <!-- -- Sync Drift & RSSI Over Time ----------------------------- -->
+    <section class="chart-panel" id="driftChartPanel">
+      <div class="chart-header">
+        <h3>&#8635; Satellite Sync Drift &amp; RSSI</h3>
+      </div>
+      <div class="chart-subhead" id="driftSubhead">Sync drift (seconds) and receive signal strength per upload cycle</div>
+      <div class="chart-wrap" style="height:240px">
+        <canvas id="driftChart"></canvas>
+      </div>
+      <div class="chart-wrap" style="height:200px;margin-top:8px">
+        <canvas id="rssiChart"></canvas>
+      </div>
+    </section>
+
     <!-- -- Data Health --------------------------------------------- -->
     <section class="health-panel" id="healthPanel">
       <h3>Data Health &amp; Network Reliability</h3>
@@ -823,7 +837,7 @@ const state = {
   dateEnd:          null,  // custom end date (Date object or null = latest)
   channelInfo:      null,
   dataSource:       '',
-  charts:           { temp: null, hum: null, bat: null, volt: null, weather: null, sync: null },
+  charts:           { temp: null, hum: null, bat: null, volt: null, weather: null, sync: null, drift: null, rssi: null },
   syncGroupBy:      'day',
   _syncBuckets:     {},
   weatherTimeRange: 'week',
@@ -1261,13 +1275,13 @@ function getTimeAxisConfig() {
   }
   switch (range) {
     case 'day':
-      return { unit: 'hour', displayFormats: { hour: 'HH:mm' }, tooltipFormat: 'ccc d LLL HH:mm' };
+      return { unit: 'hour', displayFormats: { hour: 'HH:mm' }, tooltipFormat: 'd LLL HH:mm' };
     case 'week':
-      return { unit: 'day', displayFormats: { day: 'ccc' }, tooltipFormat: 'ccc d LLL HH:mm' };
+      return { unit: 'day', displayFormats: { day: 'd LLL' }, tooltipFormat: 'd LLL HH:mm' };
     case 'month':
-      return { unit: 'day', displayFormats: { day: 'd' }, tooltipFormat: 'ccc d LLL HH:mm' };
+      return { unit: 'day', displayFormats: { day: 'd LLL' }, tooltipFormat: 'd LLL HH:mm' };
     default:
-      return { unit: undefined, displayFormats: {}, tooltipFormat: 'DDD HH:mm' };
+      return { unit: 'week', displayFormats: { week: 'd LLL' }, tooltipFormat: 'd LLL HH:mm' };
   }
 }
 
@@ -2103,6 +2117,7 @@ function createOrUpdateCharts() {
   }
 
   createOrUpdateSyncChart();
+  createOrUpdateDriftChart();
 }
 
 function updateCharts() {
@@ -2283,6 +2298,87 @@ function createOrUpdateSyncChart() {
         }
       }
     });
+  }
+}
+
+// =====================================================================
+// RENDER: SYNC DRIFT & RSSI OVER TIME
+// =====================================================================
+function createOrUpdateDriftChart() {
+  var e = state.filteredEntries;
+  if (!e.length) return;
+
+  // ---- collect data series (x must be a Date for the Luxon time adapter) ----
+  var satADrift = [], satBDrift = [], sysDrift = [];
+  var satARssiArr = [], satBRssiArr = [];
+  e.forEach(function(entry) {
+    var t = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
+    if (entry.satASyncDrift != null) satADrift.push({ x: t, y: entry.satASyncDrift });
+    if (entry.satBSyncDrift != null) satBDrift.push({ x: t, y: entry.satBSyncDrift });
+    if (entry.syncDrift != null)     sysDrift.push({ x: t, y: entry.syncDrift });
+    if (entry.satARssi != null && entry.satARssi !== 0) satARssiArr.push({ x: t, y: entry.satARssi });
+    if (entry.satBRssi != null && entry.satBRssi !== 0) satBRssiArr.push({ x: t, y: entry.satBRssi });
+  });
+
+  // ---- update subtitle with time window ----
+  var subEl = document.getElementById('driftSubhead');
+  if (subEl) {
+    var fmtS = function(d) {
+      return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' })
+        + ' ' + d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+    };
+    subEl.textContent = fmtS(e[0].timestamp) + ' \u2013 ' + fmtS(e[e.length-1].timestamp)
+      + ' \u2014 Sync drift (s) & RSSI (dBm) per upload cycle';
+  }
+
+  // ---- Drift chart (destroy + recreate for clean time axis) ----
+  if (state.charts.drift) { state.charts.drift.destroy(); state.charts.drift = null; }
+  if (satADrift.length || satBDrift.length || sysDrift.length) {
+    var dOpts = baseChartOptions('Drift (s)', undefined, undefined);
+    dOpts.animation = false;
+    dOpts.scales.y.ticks.callback = function(v) { return (v >= 0 ? '+' : '') + v + 's'; };
+    dOpts.scales.y.grid = { color: function(ctx) { return ctx.tick.value === 0 ? '#475569' : '#1e293b'; } };
+    dOpts.plugins.tooltip.callbacks.label = function(ctx) {
+      var v = ctx.parsed.y; var abs = Math.abs(v);
+      var tag = abs <= 5 ? '\u2714 ok' : abs <= 20 ? '\u26a0 warn' : '\u26d4 high';
+      return ' ' + ctx.dataset.label + ': ' + (v >= 0 ? '+' : '') + v + 's  ' + tag;
+    };
+    state.charts.drift = new Chart(document.getElementById('driftChart'), {
+      type: 'line',
+      data: { datasets: [
+        { label: 'Sat-A Drift', data: satADrift, borderColor: '#22c55e', backgroundColor: '#22c55e22',
+          borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
+        { label: 'Sat-B Drift', data: satBDrift, borderColor: '#3b82f6', backgroundColor: '#3b82f622',
+          borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
+        { label: 'System Drift', data: sysDrift, borderColor: '#f59e0b', backgroundColor: '#f59e0b22',
+          borderWidth: 1.5, pointRadius: 1, pointHoverRadius: 4, tension: 0.2, fill: false, borderDash: [4,3] },
+      ] },
+      options: dOpts,
+    });
+  }
+
+  // ---- RSSI chart ----
+  var rssiWrap = document.getElementById('rssiChart').parentElement;
+  if (state.charts.rssi) { state.charts.rssi.destroy(); state.charts.rssi = null; }
+  if (satARssiArr.length || satBRssiArr.length) {
+    rssiWrap.style.display = '';
+    var rOpts = baseChartOptions('RSSI (dBm)', -100, 0);
+    rOpts.animation = false;
+    rOpts.plugins.tooltip.callbacks.label = function(ctx) {
+      return ' ' + ctx.dataset.label + ': ' + ctx.parsed.y + ' dBm';
+    };
+    state.charts.rssi = new Chart(document.getElementById('rssiChart'), {
+      type: 'line',
+      data: { datasets: [
+        { label: 'Sat-A RSSI', data: satARssiArr, borderColor: '#22c55e', backgroundColor: '#22c55e22',
+          borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
+        { label: 'Sat-B RSSI', data: satBRssiArr, borderColor: '#3b82f6', backgroundColor: '#3b82f622',
+          borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
+      ] },
+      options: rOpts,
+    });
+  } else {
+    rssiWrap.style.display = 'none';
   }
 }
 
