@@ -156,6 +156,7 @@ a:hover { text-decoration: underline; }
   </div>
   <div class="header-actions">
     <a class="btn btn-sm" href="pages/battery_estimator.html" title="Battery Estimator" style="font-size:0.95rem">&#128267; Battery</a>
+    <a class="btn btn-sm" href="pages/station_health.html" title="Station Health">&#128267; Station Health</a>
     <a class="btn btn-sm" href="pages/settings.html">&#9881; Settings</a>
   </div>
 </header>
@@ -619,22 +620,17 @@ function renderWeatherOnlyCard(table, weather) {
   card.className = 'table-card';
   card.onclick = function() { window.location.href = table.page; };
 
-  if (!weather || !weather.current) {
-    var noWxHtml =
-      '<div class="table-card-header">' +
-        '<div><h2>' + table.name + '</h2><div class="location">' + table.location + '</div></div>' +
-        '<span class="table-badge badge-nc">No Data</span>' +
-      '</div>';
-    card.innerHTML = noWxHtml +
-      '<div class="loading-text">No sensor data. Set up this table in <a href="pages/settings.html">Settings</a>, or click to open the page.</div>';
-    return card;
-  }
-
   var headerHtml =
     '<div class="table-card-header">' +
       '<div><h2>' + table.name + '</h2><div class="location">' + table.location + '</div></div>' +
-      '<span class="table-badge badge-warn">Weather Only</span>' +
+      '<span class="table-badge badge-nc">No Data</span>' +
     '</div>';
+
+  if (!weather || !weather.current) {
+    card.innerHTML = headerHtml +
+      '<div class="loading-text">No sensor data. Set up this table in <a href="pages/settings.html">Settings</a>, or click to open the page.</div>';
+    return card;
+  }
 
   var c = weather.current;
   var code = c.weather_code || 0;
@@ -680,7 +676,7 @@ function renderWeatherOnlyCard(table, weather) {
   }
 
   card.innerHTML = headerHtml + currentHtml + forecastHtml +
-    '<div style="font-size:0.68rem;color:var(--text-muted);text-align:right;margin-top:4px">Weather via Open-Meteo &bull; No sensors deployed yet</div>' +
+    '<div style="font-size:0.68rem;color:var(--text-muted);text-align:right;margin-top:4px">Weather via Open-Meteo &bull; Click to open page</div>' +
     '</div>';
 
   return card;
@@ -952,11 +948,15 @@ async function init() {
 
   var cards = [];
 
-  // Kick off weather fetches for ALL tables with coords (used as fallback)
+  // Kick off weather fetches for no-data tables in parallel
   var weatherPromises = {};
   TABLES.forEach(function(t) {
-    if (t.id !== 'wroom' && t.weather) {
+    if (!t.dataFile && t.id !== 'wroom' && t.weather) {
       weatherPromises[t.id] = fetchWeatherCard(t);
+    }
+    // WROOM has dataFile now but also needs weather if data missing
+    if (t.id === 'wroom' && t.weather && !weatherPromises[t.id]) {
+      // weather will be fetched inline if needed
     }
   });
 
@@ -982,7 +982,7 @@ async function init() {
       continue;
     }
 
-    tableEntries[table.id] = entries;
+    if (entries) tableEntries[table.id] = entries;
     var summary = computeSummary(entries);
     var card = renderTableCard(table, summary);
     cards.push({ card: card, table: table, summary: summary });
