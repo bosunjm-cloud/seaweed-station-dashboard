@@ -118,6 +118,8 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
 <main class="main">
   <div id="loadingMsg" class="loading-msg">Loading station data&hellip;</div>
 
+  <div id="stationsContainer" style="display:none"></div>
+
   <!-- ===== BATTERY FORECAST PANEL ===== -->
   <section class="chart-panel" id="forecastPanel" style="display:none">
     <div class="chart-header">
@@ -148,8 +150,6 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
     </div>
     <div id="fcInfoCards"></div>
   </section>
-
-  <div id="stationsContainer" style="display:none"></div>
 </main>
 
 <footer class="footer">
