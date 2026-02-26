@@ -769,9 +769,10 @@ body {
     </table>
   </div>
   <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
-    <button class="btn btn-sm" onclick="cfgLinkCSV()" id="cfgLinkBtn" title="Pick a CSV file location — all future changes auto-save there">&#128206; Link CSV File</button>
-    <button class="btn btn-sm" onclick="cfgExportCSV()" title="One-off download">&#128190; Export CSV</button>
-    <span id="cfgFileStatus" style="font-size:0.7rem;color:var(--text-muted)">No file linked &mdash; click Link CSV to pick a save location.</span>
+    <button class="btn btn-sm" onclick="cfgExportCSV()" title="Download config as CSV backup">&#128190; Export CSV</button>
+    <button class="btn btn-sm" onclick="cfgImportCSV()" title="Load config from a CSV backup file">&#128194; Import CSV</button>
+    <input type="file" id="cfgImportInput" accept=".csv" style="display:none" onchange="cfgHandleImport(this)">
+    <span id="cfgFileStatus" style="font-size:0.7rem;color:#22c55e">&#10003; Auto-saved in browser storage &mdash; use Export/Import CSV for backup.</span>
   </div>
 </section>
 
@@ -2320,7 +2321,6 @@ function cfgLoad() {
 }
 function cfgSave() {
   localStorage.setItem(CFG_STORAGE_KEY, JSON.stringify(cfgRows));
-  cfgAutoSaveCSV();
 }
 function cfgNextId() {
   var max = 0;
@@ -2464,8 +2464,7 @@ function cfgRender() {
   tbody.innerHTML = html;
 }
 
-// --- CSV Persistence (File System Access API) ---
-var _cfgFileHandle = null; // FileSystemFileHandle — persists for session
+// --- CSV Export / Import ---
 
 function cfgBuildCSV() {
   var header = 'id,front_panel,rear_panel,other,date_start,date_end,applied_at';
@@ -2488,62 +2487,7 @@ function cfgBuildCSV() {
   return lines.join('\n');
 }
 
-// Pick a file on disk — all future saves go there silently
-async function cfgLinkCSV() {
-  if (!window.showSaveFilePicker) {
-    alert('Your browser does not support the File System Access API.\nUse Chrome or Edge for this feature.');
-    return;
-  }
-  try {
-    _cfgFileHandle = await window.showSaveFilePicker({
-      suggestedName: 'wroom_table_config.csv',
-      types: [{ description: 'CSV file', accept: { 'text/csv': ['.csv'] } }],
-    });
-    cfgUpdateFileStatus();
-    await cfgWriteToFile();  // write current data immediately
-  } catch (e) {
-    if (e.name !== 'AbortError') console.warn('[Config CSV] Link failed:', e);
-  }
-}
-
-// Write current config to the linked file
-async function cfgWriteToFile() {
-  if (!_cfgFileHandle) return;
-  try {
-    var writable = await _cfgFileHandle.createWritable();
-    await writable.write(cfgBuildCSV());
-    await writable.close();
-    cfgUpdateFileStatus();
-    console.log('[Config CSV] Written to', _cfgFileHandle.name);
-  } catch (e) {
-    console.warn('[Config CSV] Write failed:', e);
-    cfgUpdateFileStatus('Write failed — re-link the file.');
-  }
-}
-
-function cfgUpdateFileStatus(msg) {
-  var el = document.getElementById('cfgFileStatus');
-  if (!el) return;
-  if (msg) { el.textContent = msg; el.style.color = '#f87171'; return; }
-  if (_cfgFileHandle) {
-    el.innerHTML = '\u2705 Linked to <strong>' + _cfgFileHandle.name + '</strong> &mdash; auto-saves on every change.';
-    el.style.color = '#22c55e';
-    document.getElementById('cfgLinkBtn').textContent = '\uD83D\uDD17 Re-link CSV';
-  } else {
-    el.textContent = 'No file linked \u2014 click Link CSV to pick a save location.';
-    el.style.color = 'var(--text-muted)';
-  }
-}
-
-// Auto-save to linked file on every config change (debounced)
-var _cfgWriteTimer = null;
-function cfgAutoSaveCSV() {
-  if (!_cfgFileHandle) return;
-  clearTimeout(_cfgWriteTimer);
-  _cfgWriteTimer = setTimeout(function() { cfgWriteToFile(); }, 300);
-}
-
-// One-off download fallback
+// One-off CSV download
 function cfgExportCSV() {
   var csv = cfgBuildCSV();
   var blob = new Blob([csv], { type: 'text/csv' });
@@ -2553,6 +2497,64 @@ function cfgExportCSV() {
   a.download = 'wroom_table_config.csv';
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// Import CSV from file
+function cfgImportCSV() {
+  document.getElementById('cfgImportInput').click();
+}
+
+function cfgHandleImport(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      var lines = ev.target.result.replace(/\r/g, '').split('\n').filter(function(l) { return l.trim(); });
+      if (lines.length < 2) throw new Error('File has no data rows');
+      var imported = [];
+      for (var i = 1; i < lines.length; i++) {
+        var cols = cfgParseCsvLine(lines[i]);
+        if (!cols[4]) continue; // skip rows without a start date
+        imported.push({
+          id:        parseInt(cols[0]) || i,
+          front:     cols[1] || 'Closed',
+          rear:      cols[2] || 'Closed',
+          other:     cols[3] || '',
+          start:     cols[4] || '',
+          end:       cols[5] || '',
+          appliedAt: cols[6] || '',
+        });
+      }
+      if (!imported.length) throw new Error('No valid rows found');
+      if (!confirm('Import ' + imported.length + ' row(s)?\nThis will replace the current config.')) { input.value = ''; return; }
+      cfgRows = imported;
+      cfgRows.sort(function(a, b) { return b.start.localeCompare(a.start); });
+      cfgSave();
+      cfgRender();
+    } catch (err) {
+      alert('Import failed: ' + err.message);
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function cfgParseCsvLine(line) {
+  var result = [], cur = '', inQ = false;
+  for (var i = 0; i < line.length; i++) {
+    var c = line[i];
+    if (c === '"') {
+      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (c === ',' && !inQ) {
+      result.push(cur.trim()); cur = '';
+    } else {
+      cur += c;
+    }
+  }
+  result.push(cur.trim());
+  return result;
 }
 
 // =====================================================================
