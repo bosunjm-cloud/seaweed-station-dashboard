@@ -231,6 +231,9 @@ body {
 .big-number { font-size: 2.2rem; font-weight: 700; line-height: 1.1; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
 .big-label  { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 14px; }
 
+.sensor-readings { display: flex; gap: 18px; margin-bottom: 10px; }
+.reading-block { flex: 1; }
+
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
 .detail-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
 .detail-value { font-size: 0.9rem; font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -489,7 +492,8 @@ body {
   <!-- Dashboard content (hidden until data loaded) -->
   <div id="dashboardContent" style="display:none">
 
-
+    <!-- Sensor Summary Cards -->
+    <section class="status-grid" id="sensorCards" style="margin-bottom:16px"></section>
 
     <!-- Sensor Chart Overlay Controls -->
     <div style="display:flex;align-items:center;gap:16px;padding:8px 14px;margin-bottom:8px;background:#0a1628;border-radius:8px;border:1px solid #1e293b;flex-wrap:wrap">
@@ -1363,6 +1367,7 @@ function setTimeRange(range) {
   updateTimeButtons();
   updateChartSubheads();
   renderWeatherCharts();
+  updateSensorCards();
 }
 
 function setWeatherTimeRange(r) {
@@ -1385,6 +1390,7 @@ function applyDateRange() {
   updateTimeButtons();
   updateChartSubheads();
   fetchWeatherData();
+  updateSensorCards();
   saveViewPrefs();
 }
 
@@ -1509,6 +1515,7 @@ function renderDashboard() {
 
   updateHeaderInfo();
   updateFreshnessBanner();
+  updateSensorCards();
   createOrUpdateCharts();
   updateChartSubheads();
   updatePeaksTable();
@@ -1516,6 +1523,82 @@ function renderDashboard() {
 
   // Fetch weather data
   fetchWeatherData();
+}
+
+// =====================================================================
+// RENDER: SENSOR SUMMARY CARDS
+// =====================================================================
+function updateSensorCards() {
+  var el = document.getElementById('sensorCards');
+  if (!el) return;
+  var e = state.filteredEntries.length ? state.filteredEntries : state.allEntries;
+  if (!e.length) { el.innerHTML = ''; return; }
+  var latest = e[e.length - 1];
+
+  var sensors = [
+    { label: 'T0 &mdash; S1',    tempKey: 't0Temp1',   humKey: 't0Hum1',   color: COLORS.t0s1   },
+    { label: 'T0 &mdash; S2',    tempKey: 't0Temp2',   humKey: 't0Hum2',   color: COLORS.t0s2   },
+    { label: 'Sat-A &mdash; S1', tempKey: 'satATemp1', humKey: 'satAHum1', color: COLORS.satAs1 },
+    { label: 'Sat-A &mdash; S2', tempKey: 'satATemp2', humKey: 'satAHum2', color: COLORS.satAs2 },
+    { label: 'Sat-B &mdash; S1', tempKey: 'satBTemp1', humKey: 'satBHum1', color: COLORS.satBs1 },
+    { label: 'Sat-B &mdash; S2', tempKey: 'satBTemp2', humKey: 'satBHum2', color: COLORS.satBs2 },
+  ];
+
+  // Override labels from sensor map legend if available
+  var mapKey = STATION ? STATION.sensorMap : null;
+  var legend = (mapKey && SENSOR_MAPS[mapKey]) ? SENSOR_MAPS[mapKey].legend : null;
+  if (legend) {
+    for (var li = 0; li < Math.min(legend.length, sensors.length); li++) {
+      sensors[li].label = legend[li].label;
+      sensors[li].color = legend[li].color;
+    }
+  }
+
+  var html = '';
+  sensors.forEach(function (s) {
+    var temp = latest[s.tempKey];
+    var hum  = latest[s.humKey];
+    var hasData = e.some(function (x) { return x[s.tempKey] !== null || x[s.humKey] !== null; });
+    if (!hasData) return; // skip sensors with no data at all
+
+    var tMin = null, tMax = null, rhMin = null, rhMax = null;
+    e.forEach(function (x) {
+      var t = x[s.tempKey], r = x[s.humKey];
+      if (t !== null) { if (tMin === null || t < tMin) tMin = t; if (tMax === null || t > tMax) tMax = t; }
+      if (r !== null) { if (rhMin === null || r < rhMin) rhMin = r; if (rhMax === null || r > rhMax) rhMax = r; }
+    });
+
+    var hasLatest = temp !== null || hum !== null;
+    var cardClass  = hasLatest ? 'ok'  : 'warn';
+    var badgeClass = hasLatest ? 'badge-ok' : 'badge-warn';
+    var badgeText  = hasLatest ? 'OK'  : 'NC';
+
+    html += '<div class="status-card ' + cardClass + '">' +
+      '<div class="card-header">' +
+        '<h3 style="color:' + s.color + ';text-transform:none;font-size:.9rem;font-weight:700">' + s.label + '</h3>' +
+        '<span class="card-badge ' + badgeClass + '">' + badgeText + '</span>' +
+      '</div>' +
+      '<div class="sensor-readings">' +
+        '<div class="reading-block">' +
+          '<div class="big-number" style="color:' + s.color + '">' + (temp !== null ? temp.toFixed(1) + '\u00B0' : '--') + '</div>' +
+          '<div class="big-label">Temperature</div>' +
+        '</div>' +
+        '<div class="reading-block">' +
+          '<div class="big-number" style="font-size:1.6rem">' + (hum !== null ? hum.toFixed(1) + '%' : '--') + '</div>' +
+          '<div class="big-label">Humidity</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="detail-grid">' +
+        '<div><div class="detail-label">Temp Range</div><div class="detail-value">' +
+          (tMin !== null ? tMin.toFixed(1) + ' \u2013 ' + tMax.toFixed(1) + '\u00B0C' : '--') +
+        '</div></div>' +
+        '<div><div class="detail-label">Hum Range</div><div class="detail-value">' +
+          (rhMin !== null ? rhMin.toFixed(1) + ' \u2013 ' + rhMax.toFixed(1) + '%' : '--') +
+        '</div></div>' +
+      '</div>' +
+    '</div>';
+  });
+  el.innerHTML = html;
 }
 
 // =====================================================================
