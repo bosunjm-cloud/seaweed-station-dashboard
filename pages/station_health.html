@@ -7,6 +7,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<script src="battery_model.js"></script>
+<script src="battery_forecast_widget.js"></script>
 <style>
 /* ======================== THEME ======================== */
 :root{--bg:#0f172a;--bg-card:#1e293b;--bg-card-alt:#1a2332;--bg-hover:#334155;--text:#f1f5f9;--text-sec:#94a3b8;--text-muted:#64748b;--accent:#0ea5e9;--success:#22c55e;--warning:#f59e0b;--danger:#ef4444;--border:#334155;--radius:10px;--shadow:0 4px 12px rgba(0,0,0,.3)}
@@ -71,6 +73,22 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .btn-fetch .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .fetch-status{font-size:.75rem;color:var(--text-muted);margin-left:8px}
+
+/* ======================== BATTERY FORECAST PANEL ======================== */
+.chart-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-bottom:20px}
+.chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px}
+.chart-header h3{font-size:1rem;font-weight:600}
+.chart-subhead{font-size:.75rem;color:var(--text-muted);margin-bottom:12px}
+.time-btns{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.btn-sm{padding:4px 12px;font-size:.75rem}.btn.active,.btn-sm.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.chart-wrap{position:relative;height:320px}
+.fc-info-chip{display:inline-block;border:1px solid;border-radius:20px;padding:2px 12px;font-size:.72rem;margin:2px 4px 6px 0}
+.fc-cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+.fc-card{flex:1 1 130px;max-width:180px;background:var(--bg-card-alt);border-radius:8px;padding:10px 12px}
+.fc-card-label{font-size:.7rem;color:var(--text-muted);margin-bottom:2px}
+.fc-card-value{font-size:1.35rem;font-weight:700;line-height:1.2}
+.fc-card-unit{font-size:.7rem;font-weight:400}
+.fc-card-sub{font-size:.68rem;color:var(--text-muted)}
 </style>
 </head>
 <body>
@@ -98,6 +116,38 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
 
 <main class="main">
   <div id="loadingMsg" class="loading-msg">Loading station data&hellip;</div>
+
+  <!-- ===== BATTERY FORECAST PANEL ===== -->
+  <section class="chart-panel" id="forecastPanel" style="display:none">
+    <div class="chart-header">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <h3>&#128267; Battery Forecast</h3>
+        <span style="font-size:11px;color:#64748b;">Station:</span>
+        <select id="fcStationSelect" onchange="switchForecastStation(this.value)" style="background:#0f172a;border:1px solid #334155;border-radius:4px;color:#94a3b8;font-size:11px;padding:3px 8px;cursor:pointer;">
+          <option value="perth">Perth TT</option>
+          <option value="shangani">Shangani</option>
+          <option value="funzi">Funzi</option>
+        </select>
+        <span style="font-size:11px;color:#64748b;">From</span>
+        <input type="date" id="fcStartDate" style="background:#0f172a;border:1px solid #334155;border-radius:4px;color:#94a3b8;font-size:11px;padding:2px 6px;cursor:pointer;">
+      </div>
+      <div class="time-btns">
+        <button class="btn btn-sm" data-fcrange="day">Day</button>
+        <button class="btn btn-sm active" data-fcrange="week">Week</button>
+        <button class="btn btn-sm" data-fcrange="month">Month</button>
+        <button class="btn btn-sm" data-fcrange="all">All</button>
+        <span style="border-left:1px solid #334155;margin:0 8px;height:20px;display:inline-block"></span>
+        <button class="btn btn-sm active" id="fcAnchorAuto" title="Re-anchor prediction from latest reading">Auto</button>
+        <button class="btn btn-sm" id="fcAnchorLock" title="Lock anchor &mdash; click chart to pick point.">&#128204; Lock</button>
+      </div>
+    </div>
+    <div class="chart-subhead">Solid = actual &nbsp;&bull;&nbsp; Dashed = calculated &nbsp;&bull;&nbsp; Light dashed = trend &nbsp;&bull;&nbsp; Red dashed = config change &nbsp;&bull;&nbsp; Click chart in Lock mode to set anchor &nbsp;&bull;&nbsp; Scroll to zoom</div>
+    <div class="chart-wrap" style="height:320px">
+      <canvas id="forecastChart"></canvas>
+    </div>
+    <div id="fcInfoCards"></div>
+  </section>
+
   <div id="stationsContainer" style="display:none"></div>
 </main>
 
@@ -222,6 +272,7 @@ function parseStationData(raw, station) {
     entry.satBHum2  = parseFloat(f7[3]); if (isNaN(entry.satBHum2))  entry.satBHum2  = null;
 
     // System (field8): diag|config|fw
+    entry._rawField8 = f.field8 || null;  // preserved for BatteryForecast config parsing
     entry.sdFreeKB  = null; entry.csq = null; entry.uploadOk = null; entry.syncDrift = null;
     if (f.field8) {
       var parts = f.field8.split('|');
@@ -253,6 +304,28 @@ function onAllLoaded() {
     var section = renderStationSection(station, data);
     container.appendChild(section);
   });
+
+  // Init battery forecast panel — pick first station that has data
+  if (window.BatteryForecast) {
+    var firstId = null;
+    for (var fi = 0; fi < STATIONS.length; fi++) {
+      if (stationData[STATIONS[fi].id] && stationData[STATIONS[fi].id].entries.length > 0) {
+        firstId = STATIONS[fi].id; break;
+      }
+    }
+    if (firstId) {
+      var sel = document.getElementById('fcStationSelect');
+      if (sel) sel.value = firstId;
+      document.getElementById('forecastPanel').style.display = '';
+      BatteryForecast.init({ allEntries: stationData[firstId].entries });
+    }
+  }
+}
+
+function switchForecastStation(id) {
+  if (!window.BatteryForecast || !stationData[id] || !stationData[id].entries.length) return;
+  BatteryForecast.reset();
+  BatteryForecast.init({ allEntries: stationData[id].entries });
 }
 
 function renderStationSection(station, data) {
@@ -776,6 +849,17 @@ async function fetchLiveAll() {
     var section = renderStationSection(station, data);
     container.appendChild(section);
   });
+
+  // Update forecast with currently selected station
+  if (window.BatteryForecast) {
+    var sel = document.getElementById('fcStationSelect');
+    var selId = sel ? sel.value : (STATIONS[0] ? STATIONS[0].id : null);
+    if (selId && stationData[selId] && stationData[selId].entries.length) {
+      BatteryForecast.reset();
+      BatteryForecast.init({ allEntries: stationData[selId].entries });
+      document.getElementById('forecastPanel').style.display = '';
+    }
+  }
 
   btn.innerHTML = '&#128752; Fetch Live';
   btn.disabled  = false;

@@ -23,6 +23,7 @@ window.BatteryForecast = (function () {
   var showSatB = true;
   var fcTimeRange = 'week'; // 'day' | 'week' | 'month' | 'all' | 'custom'
   var fcStartDate = null;  // Date — set on first init from latest data; driven by the date picker
+  var _activeState = null;  // Current state passed to init/update — used by closures
 
   // Persistent forecast state (survives renderDashboard calls)
   var lastConfig     = null;  // latest parsed device config
@@ -805,9 +806,11 @@ window.BatteryForecast = (function () {
   // INIT / UPDATE
   // ========================================================================
   function update(state) {
+    if (state) _activeState = state;
     var canvas = document.getElementById('forecastChart');
     if (!canvas) return;
-    if (!state.allEntries || !state.allEntries.length) return;
+    if (!_activeState || !_activeState.allEntries || !_activeState.allEntries.length) return;
+    state = _activeState;
 
     var result = buildDatasets(state);
     renderInfoCards(result.info);
@@ -865,16 +868,17 @@ window.BatteryForecast = (function () {
             // Click to set anchor on locked mode
             var xVal = chart.scales.x.getValueForPixel(evt.x);
             if (!xVal) return;
-            // Find nearest entry
+            // Find nearest entry in current active dataset
+            var _clickEntries = _activeState ? _activeState.allEntries : [];
             var best = -1, bestDist = Infinity;
-            for (var i = 0; i < entries.length; i++) {
-              var d = Math.abs(entries[i].timestamp.getTime() - xVal);
+            for (var i = 0; i < _clickEntries.length; i++) {
+              var d = Math.abs(_clickEntries[i].timestamp.getTime() - xVal);
               if (d < bestDist) { bestDist = d; best = i; }
             }
             if (best >= 0) {
               lockedAnchorIdx = best;
-              try { localStorage.setItem('fc_anchor_time', entries[best].timestamp.toISOString()); } catch (e) {}
-              update(state);
+              try { localStorage.setItem('fc_anchor_time', _clickEntries[best].timestamp.toISOString()); } catch (e) {}
+              update(_activeState);
             }
           }
         },
@@ -894,6 +898,7 @@ window.BatteryForecast = (function () {
   var _inited = false;
 
   function init(state) {
+    _activeState = state;
     if (_inited) { update(state); return; }
     _inited = true;
 
@@ -981,7 +986,7 @@ window.BatteryForecast = (function () {
     if (btnAuto) btnAuto.addEventListener('click', function () {
       anchorMode = 'auto'; lockedAnchorIdx = -1;
       try { localStorage.setItem('fc_anchor_mode', 'auto'); localStorage.removeItem('fc_anchor_time'); } catch (e) {}
-      update(state);
+      update(_activeState);
     });
     if (btnLock) btnLock.addEventListener('click', function () {
       if (anchorMode === 'locked') {
@@ -991,18 +996,19 @@ window.BatteryForecast = (function () {
       } else {
         anchorMode = 'locked';
         // Default lock to latest available T0 entry
-        for (var i = state.allEntries.length - 1; i >= 0; i--) {
-          if (state.allEntries[i].t0BatPct !== null && state.allEntries[i].t0BatPct > 0) {
+        var _aEntries = _activeState ? _activeState.allEntries : [];
+        for (var i = _aEntries.length - 1; i >= 0; i--) {
+          if (_aEntries[i].t0BatPct !== null && _aEntries[i].t0BatPct > 0) {
             lockedAnchorIdx = i; break;
           }
         }
         try {
           localStorage.setItem('fc_anchor_mode', 'locked');
           if (lockedAnchorIdx >= 0)
-            localStorage.setItem('fc_anchor_time', state.allEntries[lockedAnchorIdx].timestamp.toISOString());
+            localStorage.setItem('fc_anchor_time', _aEntries[lockedAnchorIdx].timestamp.toISOString());
         } catch (e) {}
       }
-      update(state);
+      update(_activeState);
     });
 
     update(state);
@@ -1013,10 +1019,19 @@ window.BatteryForecast = (function () {
     if (chart) { chart.destroy(); chart = null; }
   }
 
+  // Reset anchor / prior-calc state — call before switching stations
+  function reset() {
+    anchorMode = 'auto';
+    lockedAnchorIdx = -1;
+    _lastKnownAnchorT = { t0: -1, satA: -1, satB: -1 };
+    _prevCalcAnchorT  = { t0: -1, satA: -1, satB: -1 };
+  }
+
   return {
-    init:    init,
-    update:  update,
-    destroy: destroy,
+    init:     init,
+    update:   update,
+    destroy:  destroy,
+    reset:    reset,
     setRange: setFcTimeRange,
   };
 
