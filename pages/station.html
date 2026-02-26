@@ -393,6 +393,21 @@ body {
 .low-tide-table th { text-align:left; color:var(--text-muted); font-weight:600; padding:5px 8px; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.5px; }
 .low-tide-table td { padding:5px 8px; border-bottom:1px solid var(--border); }
 @media (max-width:768px) { .harvest-calendar { flex-direction:column; } }
+
+/* -- Collapsible sections ---------------------------------------- */
+.collapsible-section{margin-bottom:12px}
+.collapsible-toggle{width:100%;background:#1e293b;border:1px solid #334155;border-radius:8px;color:#f1f5f9;font-size:1rem;font-weight:600;padding:10px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .2s}
+.collapsible-toggle:hover{background:#334155}
+.collapsible-chevron{font-size:.7rem;transition:transform .3s}
+.collapsible-body{padding-top:10px}
+
+/* -- Daily summary highlight classes ------------------------------ */
+.peaks-table td .hl-min{color:#38bdf8;font-weight:700}
+.peaks-table td .hl-avg{color:#22c55e;font-weight:700}
+.peaks-table td .hl-max{color:#ef4444;font-weight:700}
+
+/* -- Health link bar ---------------------------------------------- */
+.health-link-bar{text-align:center;padding:18px 0;margin:12px 0;border:1px dashed #334155;border-radius:8px;font-size:.95rem}
 </style>
 </head>
 <body>
@@ -416,6 +431,7 @@ body {
            onchange="handleFileUpload(this.files)">
     <button class="btn" id="btnExportCSV" onclick="exportCSV()" title="Export processed data as CSV" style="display:none">Export CSV</button>
     <a class="btn btn-sm" href="settings.html">&#9881; Settings</a>
+    <a class="btn btn-sm" href="station_health.html" title="Battery, Sync, Data Health">&#128267; Station Health</a>
   </div>
   <div class="header-meta">
     <span><span class="label">Source:</span> <span id="dataSourceLabel">No data loaded</span></span>
@@ -473,104 +489,7 @@ body {
   <!-- Dashboard content (hidden until data loaded) -->
   <div id="dashboardContent" style="display:none">
 
-    <!-- -- Network At-A-Glance Bar -------------------------------- -->
-    <section class="network-bar" id="networkBar"></section>
 
-    <!-- -- Status Cards ------------------------------------------- -->
-    <section class="status-grid">
-      <!-- T0 Gateway -->
-      <div class="status-card" id="cardT0">
-        <div class="card-header">
-          <h3>T0 Gateway</h3>
-          <span class="card-badge badge-nc" id="t0Badge">No Data</span>
-        </div>
-        <div class="big-number" id="t0BatPct">--</div>
-        <div class="big-label">Battery %</div>
-        <div class="detail-grid">
-          <div class="detail-item"><div class="detail-label">Voltage</div><div class="detail-value" id="t0BatV">--</div></div>
-          <div class="detail-item"><div class="detail-label">RSSI</div><div class="detail-value" id="t0Rssi">--</div></div>
-          <div class="detail-item"><div class="detail-label">Boot Count</div><div class="detail-value" id="t0Boot">--</div></div>
-          <div class="detail-item"><div class="detail-label">Free Heap</div><div class="detail-value" id="t0Heap">--</div></div>
-          <div class="detail-item"><div class="detail-label">T0 Sensors</div><div class="detail-value" id="t0Sensors">--</div></div>
-          <div class="detail-item"><div class="detail-label">Firmware</div><div class="detail-value" id="t0Firmware">--</div></div>
-          <div class="detail-item"><div class="detail-label">Data Span</div><div class="detail-value" id="t0Uptime">--</div></div>
-        </div>
-        <div class="card-footer">
-          <span class="dot dot-grey" id="t0Dot"></span>
-          <span>Last upload: <span id="t0LastSeen">--</span></span>
-        </div>
-      </div>
-
-      <!-- Satellite A -->
-      <div class="status-card" id="cardSatA">
-        <div class="card-header">
-          <h3>Satellite A</h3>
-          <span class="card-badge badge-nc" id="satABadge">No Data</span>
-        </div>
-        <div class="big-number" id="satABatPct">--</div>
-        <div class="big-label">Battery %</div>
-        <div class="detail-grid">
-          <div class="detail-item"><div class="detail-label">Voltage</div><div class="detail-value" id="satABatV">--</div></div>
-          <div class="detail-item"><div class="detail-label">RSSI</div><div class="detail-value" id="satARssi">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="satASyncDrift" title="Satellite SYNC arrival drift vs expected">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sample ID</div><div class="detail-value" id="satASampleId">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sensors</div><div class="detail-value" id="satASensors">--</div></div>
-          <div class="detail-item"><div class="detail-label">Firmware</div><div class="detail-value" id="satAFirmware">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sync Rate (24h)</div><div class="detail-value" id="satASyncRate">--</div></div>
-          <div class="detail-item"><div class="detail-label">Missed (24h)</div><div class="detail-value" id="satAMissed">--</div></div>
-        </div>
-        <div class="card-footer">
-          <span class="dot dot-grey" id="satADot"></span>
-          <span>Last synced: <span id="satALastSeen">--</span></span>
-        </div>
-      </div>
-
-      <!-- Satellite B -->
-      <div class="status-card" id="cardSatB">
-        <div class="card-header">
-          <h3>Satellite B</h3>
-          <span class="card-badge badge-nc" id="satBBadge">No Data</span>
-        </div>
-        <div class="big-number" id="satBBatPct">--</div>
-        <div class="big-label">Battery %</div>
-        <div class="detail-grid">
-          <div class="detail-item"><div class="detail-label">Voltage</div><div class="detail-value" id="satBBatV">--</div></div>
-          <div class="detail-item"><div class="detail-label">RSSI</div><div class="detail-value" id="satBRssi">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="satBSyncDrift" title="Satellite SYNC arrival drift vs expected">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sample ID</div><div class="detail-value" id="satBSampleId">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sensors</div><div class="detail-value" id="satBSensors">--</div></div>
-          <div class="detail-item"><div class="detail-label">Firmware</div><div class="detail-value" id="satBFirmware">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sync Rate (24h)</div><div class="detail-value" id="satBSyncRate">--</div></div>
-          <div class="detail-item"><div class="detail-label">Missed (24h)</div><div class="detail-value" id="satBMissed">--</div></div>
-        </div>
-        <div class="card-footer">
-          <span class="dot dot-grey" id="satBDot"></span>
-          <span>Last synced: <span id="satBLastSeen">--</span></span>
-        </div>
-      </div>
-
-      <!-- System -->
-      <div class="status-card" id="cardSystem">
-        <div class="card-header">
-          <h3>System</h3>
-          <span class="card-badge badge-nc" id="sysBadge">No Data</span>
-        </div>
-        <div class="big-number" id="sysSDFree">--</div>
-        <div class="big-label">SD Free Space</div>
-        <div class="detail-grid">
-          <div class="detail-item"><div class="detail-label">Cell Signal</div><div class="detail-value" id="sysCSQ">--</div></div>
-          <div class="detail-item"><div class="detail-label">Upload OK</div><div class="detail-value" id="sysUploadOk">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="sysSyncDrift" title="Max satellite sync timing drift (seconds) since last upload">--</div></div>
-          <div class="detail-item"><div class="detail-label">Total Entries</div><div class="detail-value" id="sysTotalEntries">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sample Period</div><div class="detail-value" id="sysSamplePeriod">--</div></div>
-          <div class="detail-item" style="grid-column:1/-1" title="SD space consumed since first recorded entry"><div class="detail-label">Data Written (SD)</div><div class="detail-value" id="sysSDUsed">--</div></div>
-        </div>
-        <div class="card-footer">
-          <span class="dot dot-grey" id="sysDot"></span>
-          <span>Channel: <span id="sysChannelName">--</span></span>
-        </div>
-      </div>
-    </section>
 
     <!-- Sensor Chart Overlay Controls -->
     <div style="display:flex;align-items:center;gap:16px;padding:8px 14px;margin-bottom:8px;background:#0a1628;border-radius:8px;border:1px solid #1e293b;flex-wrap:wrap">
@@ -627,8 +546,14 @@ body {
       </div>
     </section>
 
-    <!-- -- Local Weather (Open-Meteo hindcast) --------------------- -->
-    <section class="chart-panel" id="weatherSection" style="display:none">
+    <!-- -- Local Weather (Open-Meteo) -- collapsible --------------- -->
+    <div class="collapsible-section" id="weatherCollapsible" style="display:none">
+    <button class="collapsible-toggle" onclick="toggleCollapsible('weatherCollapsible')">
+      &#127326; Local Weather (Open-Meteo)
+      <span class="collapsible-chevron">&#9660;</span>
+    </button>
+    <div class="collapsible-body" style="display:none">
+    <section class="chart-panel" id="weatherSection" style="display:block">
       <div class="chart-header">
         <h3>&#127326; Local Weather (Open-Meteo)</h3>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -660,9 +585,17 @@ body {
         </div>
       </div>
     </section>
+    </div><!-- /collapsible-body -->
+    </div><!-- /weatherCollapsible -->
 
-    <!-- -- Tides & Moon Phase ------------------------------------- -->
-    <section class="chart-panel" id="tidesSection" style="display:none">
+    <!-- -- Tides & Moon Phase -- collapsible ----------------------- -->
+    <div class="collapsible-section" id="tidesCollapsible" style="display:none">
+    <button class="collapsible-toggle" onclick="toggleCollapsible('tidesCollapsible')">
+      &#127754; Tides &amp; Moon Phase
+      <span class="collapsible-chevron">&#9660;</span>
+    </button>
+    <div class="collapsible-body" style="display:none">
+    <section class="chart-panel" id="tidesSection" style="display:block">
       <div class="chart-header">
         <h3>&#127754; Tides &amp; Moon Phase</h3>
         <span class="chart-subhead" id="tideStation" style="margin:0"></span>
@@ -715,100 +648,27 @@ body {
       <div class="chart-subhead" style="margin-top:16px">Harvest Calendar (3 months)</div>
       <div id="harvestCalendar" class="harvest-calendar"></div>
     </section>
+    </div><!-- /collapsible-body -->
+    </div><!-- /tidesCollapsible -->
 
-    <!-- -- Battery Charts (side by side: % and Voltage) ----------- -->
-    <div class="two-charts">
-      <section class="chart-panel">
-        <div class="chart-header">
-          <h3>Battery %</h3>
-          <div class="time-btns">
-            <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
-            <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
-            <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
-            <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
-          </div>
-        </div>
-        <div class="chart-subhead" id="batSubhead">Showing: All data</div>
-        <div class="chart-wrap">
-          <canvas id="batChart"></canvas>
-        </div>
-      </section>
-
-      <section class="chart-panel">
-        <div class="chart-header">
-          <h3>Battery Voltage (V)</h3>
-        </div>
-        <div class="chart-subhead" id="voltSubhead">Raw voltage -- useful for spotting charge/discharge cycles</div>
-        <div class="chart-wrap">
-          <canvas id="voltChart"></canvas>
-        </div>
-      </section>
+    <!-- -- Station Health link bar -------------------------------- -->
+    <div class="health-link-bar">
+      &#128267; For battery, sync reliability and data health metrics see
+      <a href="station_health.html" style="color:var(--accent)">Station Health</a>
     </div>
 
-    <!-- -- Battery Forecast Chart --------------------------------- -->
-    <section class="chart-panel" id="forecastPanel">
-      <div class="chart-header">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <h3>&#128267; Battery Forecast</h3>
-          <span style="font-size:11px;color:#64748b;">From</span>
-          <input type="date" id="fcStartDate" style="background:#0f172a;border:1px solid #334155;border-radius:4px;color:#94a3b8;font-size:11px;padding:2px 6px;cursor:pointer;">
-        </div>
-        <div class="time-btns">
-          <button class="btn btn-sm" data-fcrange="day">Day</button>
-          <button class="btn btn-sm active" data-fcrange="week">Week</button>
-          <button class="btn btn-sm" data-fcrange="month">Month</button>
-          <button class="btn btn-sm" data-fcrange="all">All</button>
-          <span style="border-left:1px solid #334155;margin:0 8px;height:20px;display:inline-block"></span>
-          <button class="btn btn-sm active" id="fcAnchorAuto" title="Re-anchor prediction from latest reading">Auto</button>
-          <button class="btn btn-sm" id="fcAnchorLock" title="Lock anchor — click chart to pick point. Shows long-term drift.">&#128204; Lock</button>
-        </div>
-      </div>
-      <div class="chart-subhead">Solid = actual &nbsp;&bull;&nbsp; Dashed = predicted &nbsp;&bull;&nbsp; Red dashed = config change &nbsp;&bull;&nbsp; Click chart in Lock mode to set anchor &nbsp;&bull;&nbsp; Click legend to show/hide &nbsp;&bull;&nbsp; Scroll to zoom</div>
-      <div class="chart-wrap" style="height:320px">
-        <canvas id="forecastChart"></canvas>
-      </div>
-      <div id="fcInfoCards"></div>
-    </section>
-
-    <!-- -- Satellite Sync Reliability Chart ----------------------- -->
-    <section class="chart-panel" id="syncChartPanel">
-      <div class="chart-header">
-        <h3>&#128225; Satellite Sync Reliability</h3>
-        <div class="time-btns">
-          <button class="btn btn-sm active" id="syncGroupDay" onclick="setSyncGroup('day')">Daily</button>
-          <button class="btn btn-sm" id="syncGroupWeek" onclick="setSyncGroup('week')">Weekly</button>
-        </div>
-      </div>
-      <div class="chart-subhead" id="syncSubhead">Missed syncs per day/week &mdash; Sat-A and Sat-B stacked (green/blue = synced, red/orange = missed)</div>
-      <div class="chart-wrap" style="height:260px">
-        <canvas id="syncChart"></canvas>
-      </div>
-    </section>
-
-    <!-- -- Sync Drift & RSSI Over Time ----------------------------- -->
-    <section class="chart-panel" id="driftChartPanel">
-      <div class="chart-header">
-        <h3>&#8635; Satellite Sync Drift &amp; RSSI</h3>
-      </div>
-      <div class="chart-subhead" id="driftSubhead">Sync drift (seconds) and receive signal strength per upload cycle</div>
-      <div class="chart-wrap" style="height:240px">
-        <canvas id="driftChart"></canvas>
-      </div>
-      <div class="chart-wrap" style="height:200px;margin-top:8px">
-        <canvas id="rssiChart"></canvas>
-      </div>
-    </section>
-
-    <!-- -- Data Health --------------------------------------------- -->
-    <section class="health-panel" id="healthPanel">
-      <h3>Data Health &amp; Network Reliability</h3>
-      <div class="health-grid" id="healthGrid"></div>
-    </section>
+    <!-- Battery / Sync / Drift / Health sections removed -->
+    <!-- See station_health.html for these metrics -->
 
     <!-- -- Daily Summary Table ------------------------------------ -->
     <section class="peaks-panel" id="peaksPanel">
       <h3>Daily Summary</h3>
-      <div class="peaks-sub" id="peaksSub">Battery trends + sensor peaks per day -- most recent first</div>
+      <div class="peaks-sub" id="peaksSub">
+        Sensor min / avg / max per day &mdash; most recent first &mdash;
+        <span style="color:#38bdf8">&#9632; Lowest Min</span> &nbsp;
+        <span style="color:#22c55e">&#9632; Highest Avg</span> &nbsp;
+        <span style="color:#ef4444">&#9632; Highest Max</span>
+      </div>
       <table class="peaks-table">
         <thead id="peaksHead"></thead>
         <tbody id="peaksBody"></tbody>
@@ -1235,6 +1095,17 @@ function toggleSensorMap() {
   toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
+function toggleCollapsible(id) {
+  var section = document.getElementById(id);
+  if (!section) return;
+  var body    = section.querySelector('.collapsible-body');
+  var chevron = section.querySelector('.collapsible-chevron');
+  if (!body) return;
+  var open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  if (chevron) chevron.style.transform = open ? 'rotate(180deg)' : '';
+}
+
 function findLastEntryWith(entries, key) {
   for (var i = entries.length - 1; i >= 0; i--) {
     if (entries[i][key] !== null) return entries[i];
@@ -1627,16 +1498,10 @@ function renderDashboard() {
 
   updateHeaderInfo();
   updateFreshnessBanner();
-  updateNetworkBar();
-  updateStatusCards();
   createOrUpdateCharts();
   updateChartSubheads();
-  updateDataHealth();
   updatePeaksTable();
   updateTimeButtons();
-
-  // Battery forecast
-  if (window.BatteryForecast) BatteryForecast.init(state);
 
   // Fetch weather data
   fetchWeatherData();
@@ -1981,53 +1846,85 @@ function updatePeaksTable() {
     return { min: Math.min.apply(null, vals), max: Math.max.apply(null, vals), avg: vals.reduce(function (a, b) { return a + b; }, 0) / vals.length, count: vals.length };
   }
 
-  var sensorKeys = {
-    't0Temp1': 'T0 S1 Temp', 't0Hum1': 'T0 S1 Hum', 't0Temp2': 'T0 S2 Temp', 't0Hum2': 'T0 S2 Hum',
-    'satATemp1': 'SatA S1 Temp', 'satAHum1': 'SatA S1 Hum', 'satATemp2': 'SatA S2 Temp', 'satAHum2': 'SatA S2 Hum',
-    'satBTemp1': 'SatB S1 Temp', 'satBHum1': 'SatB S1 Hum', 'satBTemp2': 'SatB S2 Temp', 'satBHum2': 'SatB S2 Hum',
+  // Group: all temps first, then all humidities (sensor-data focused)
+  var tempKeys = {
+    't0Temp1': 'T0 S1', 't0Temp2': 'T0 S2',
+    'satATemp1': 'SatA S1', 'satATemp2': 'SatA S2',
+    'satBTemp1': 'SatB S1', 'satBTemp2': 'SatB S2',
   };
-  var batKeys = { 't0BatPct': 'T0 Bat%', 'satABatPct': 'SatA Bat%', 'satBBatPct': 'SatB Bat%' };
+  var humKeys = {
+    't0Hum1': 'T0 S1', 't0Hum2': 'T0 S2',
+    'satAHum1': 'SatA S1', 'satAHum2': 'SatA S2',
+    'satBHum1': 'SatB S1', 'satBHum2': 'SatB S2',
+  };
 
-  var activeSensorKeys = {};
-  for (var sk in sensorKeys) { if (entries.some(function (e) { return e[sk] !== null; })) activeSensorKeys[sk] = sensorKeys[sk]; }
+  var activeTempKeys = {};
+  for (var tk in tempKeys) { if (entries.some(function (e) { return e[tk] !== null; })) activeTempKeys[tk] = tempKeys[tk]; }
+  var activeHumKeys = {};
+  for (var hk in humKeys) { if (entries.some(function (e) { return e[hk] !== null; })) activeHumKeys[hk] = humKeys[hk]; }
 
-  var headHtml = '<tr><th>Date</th><th>Entries</th>';
-  for (var bk in batKeys) headHtml += '<th>' + batKeys[bk] + '</th>';
-  for (var ak in activeSensorKeys) headHtml += '<th>' + activeSensorKeys[ak] + ' (min/avg/max)</th>';
+  var headHtml = '<tr><th>Date</th><th>Pts</th>';
+  for (var atk in activeTempKeys) headHtml += '<th>Temp ' + activeTempKeys[atk] + '</th>';
+  for (var ahk in activeHumKeys)  headHtml += '<th>Hum ' + activeHumKeys[ahk] + '</th>';
   headHtml += '</tr>';
   document.getElementById('peaksHead').innerHTML = headHtml;
 
   var days = Object.keys(byDay).sort().reverse();
-  var bodyHtml = '';
 
+  // Collect cross-day extremes for highlighting
+  var allTempStats = {}, allHumStats = {};
+  for (var atk2 in activeTempKeys) allTempStats[atk2] = { globalMinMin: Infinity, globalMaxMax: -Infinity, globalMaxAvg: -Infinity };
+  for (var ahk2 in activeHumKeys)  allHumStats[ahk2]  = { globalMinMin: Infinity, globalMaxMax: -Infinity, globalMaxAvg: -Infinity };
+
+  var dayStats = {};
   for (var di = 0; di < days.length; di++) {
     var day = days[di];
     var de  = byDay[day];
-    var dl  = new Date(day + 'T00:00:00Z');
-    var dateLabel = dl.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
-    bodyHtml += '<tr><td>' + dateLabel + '</td><td>' + de.length + '</td>';
-
-    for (var bk2 in batKeys) {
-      var first = de.find(function (e) { return e[bk2] !== null; });
-      var last  = de.slice().reverse().find(function (e) { return e[bk2] !== null; });
-      if (first && last) {
-        var delta = last[bk2] - first[bk2];
-        var arrow = delta > 0.5 ? '\u2197' : delta < -0.5 ? '\u2198' : '\u2192';
-        var color = delta < -10 ? 'color:var(--danger)' : delta < -3 ? 'color:var(--warning)' : '';
-        bodyHtml += '<td style="' + color + '">' + first[bk2].toFixed(1) + ' ' + arrow + ' ' + last[bk2].toFixed(1) + '</td>';
-      } else { bodyHtml += '<td class="peaks-nc">--</td>'; }
+    dayStats[day] = { temp: {}, hum: {} };
+    for (var atk3 in activeTempKeys) {
+      var s = fieldStats(de, atk3);
+      dayStats[day].temp[atk3] = s;
+      if (s) {
+        if (s.min < allTempStats[atk3].globalMinMin) allTempStats[atk3].globalMinMin = s.min;
+        if (s.max > allTempStats[atk3].globalMaxMax) allTempStats[atk3].globalMaxMax = s.max;
+        if (s.avg > allTempStats[atk3].globalMaxAvg) allTempStats[atk3].globalMaxAvg = s.avg;
+      }
     }
-
-    for (var ak2 in activeSensorKeys) {
-      var stats = fieldStats(de, ak2);
-      bodyHtml += stats ? '<td>' + stats.min.toFixed(1) + ' / ' + stats.avg.toFixed(1) + ' / ' + stats.max.toFixed(1) + '</td>' : '<td class="peaks-nc">NC</td>';
+    for (var ahk3 in activeHumKeys) {
+      var sh = fieldStats(de, ahk3);
+      dayStats[day].hum[ahk3] = sh;
+      if (sh) {
+        if (sh.min < allHumStats[ahk3].globalMinMin) allHumStats[ahk3].globalMinMin = sh.min;
+        if (sh.max > allHumStats[ahk3].globalMaxMax) allHumStats[ahk3].globalMaxMax = sh.max;
+        if (sh.avg > allHumStats[ahk3].globalMaxAvg) allHumStats[ahk3].globalMaxAvg = sh.avg;
+      }
     }
+  }
+
+  function fmtCell(stats, globals) {
+    if (!stats) return '<td class="peaks-nc">NC</td>';
+    var minCls = (stats.min === globals.globalMinMin && days.length > 1) ? ' class="hl-min"' : '';
+    var avgCls = (Math.abs(stats.avg - globals.globalMaxAvg) < 0.005 && days.length > 1) ? ' class="hl-avg"' : '';
+    var maxCls = (stats.max === globals.globalMaxMax && days.length > 1) ? ' class="hl-max"' : '';
+    return '<td><span' + minCls + '>' + stats.min.toFixed(1) + '</span> / <span' + avgCls + '>' + stats.avg.toFixed(1) + '</span> / <span' + maxCls + '>' + stats.max.toFixed(1) + '</span></td>';
+  }
+
+  var bodyHtml = '';
+  for (var di2 = 0; di2 < days.length; di2++) {
+    var day2 = days[di2];
+    var de2  = byDay[day2];
+    var dl2  = new Date(day2 + 'T00:00:00Z');
+    var dateLabel2 = dl2.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
+    bodyHtml += '<tr><td>' + dateLabel2 + '</td><td>' + de2.length + '</td>';
+
+    for (var atk4 in activeTempKeys) bodyHtml += fmtCell(dayStats[day2].temp[atk4], allTempStats[atk4]);
+    for (var ahk4 in activeHumKeys)  bodyHtml += fmtCell(dayStats[day2].hum[ahk4], allHumStats[ahk4]);
     bodyHtml += '</tr>';
   }
 
-  if (Object.keys(activeSensorKeys).length === 0) {
-    var colSpan = 2 + Object.keys(batKeys).length;
-    bodyHtml += '<tr><td colspan="' + colSpan + '" class="peaks-nc" style="text-align:center;padding:20px">No sensor data available yet</td></tr>';
+  var totalCols = 2 + Object.keys(activeTempKeys).length + Object.keys(activeHumKeys).length;
+  if (totalCols === 2) {
+    bodyHtml += '<tr><td colspan="2" class="peaks-nc" style="text-align:center;padding:20px">No sensor data available yet</td></tr>';
   }
 
   document.getElementById('peaksBody').innerHTML = bodyHtml;
@@ -2394,26 +2291,7 @@ function createOrUpdateCharts() {
     });
   }
 
-  // -- Battery % --
-  var batDS = [
-    makeDataset(e, 't0BatPct', 'T0 Gateway', COLORS.t0Bat, false),
-    makeDataset(e, 'satABatPct', 'Satellite A', COLORS.satABat, false),
-    makeDataset(e, 'satBBatPct', 'Satellite B', COLORS.satBBat, false),
-  ];
-  if (state.charts.bat) { state.charts.bat.data.datasets = batDS; state.charts.bat.update('none'); }
-  else { state.charts.bat = new Chart(document.getElementById('batChart'), { type: 'line', data: { datasets: batDS }, options: baseChartOptions('Battery (%)', 0, 100) }); }
-
-  // -- Battery Voltage --
-  var voltDS = [
-    makeDataset(e, 't0BatV', 'T0 Gateway', COLORS.t0V, false),
-    makeDataset(e, 'satABatV', 'Satellite A', COLORS.satAV, false),
-    makeDataset(e, 'satBBatV', 'Satellite B', COLORS.satBV, false),
-  ];
-  if (state.charts.volt) { state.charts.volt.data.datasets = voltDS; state.charts.volt.update('none'); }
-  else { state.charts.volt = new Chart(document.getElementById('voltChart'), { type: 'line', data: { datasets: voltDS }, options: baseChartOptions('Voltage (V)', 2.5, 4.5) }); }
-
-  createOrUpdateSyncChart();
-  createOrUpdateDriftChart();
+  // Battery, Sync, Drift charts removed -- see station_health.html
 }
 
 function updateCharts() {
@@ -2703,7 +2581,7 @@ function renderWeatherCharts() {
   var activeDaily = (_wxr === 'forecast') ? weatherState.forecastDaily : weatherState.daily;
   if (!w || !w.time || !w.time.length) return;
 
-  document.getElementById('weatherSection').style.display = '';
+  document.getElementById('weatherCollapsible').style.display = '';
   var locEl = document.getElementById('weatherLocation');
   if (locEl) locEl.textContent = w._location + ' (' + w._timezone + ')';
 
