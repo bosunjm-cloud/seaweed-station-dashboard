@@ -24,6 +24,7 @@ window.BatteryForecast = (function () {
   var fcTimeRange = 'week'; // 'day' | 'week' | 'month' | 'all' | 'custom'
   var fcStartDate = null;  // Date — set on first init from latest data; driven by the date picker
   var _activeState = null;  // Current state passed to init/update — used by closures
+  var forcedTrendWindow = null;  // null = auto-pick best; or label like '48 h', '5 d', '2 wk'
 
   // Persistent forecast state (survives renderDashboard calls)
   var lastConfig     = null;  // latest parsed device config
@@ -73,6 +74,15 @@ window.BatteryForecast = (function () {
     document.querySelectorAll('[data-fcrange]').forEach(function (b) {
       b.classList.toggle('active', b.dataset.fcrange === range);
     });
+  }
+
+  function setTrendWindow(label) {
+    forcedTrendWindow = (label === 'auto') ? null : label;
+    try { localStorage.setItem('fc_trend_window', label || 'auto'); } catch (e) {}
+    document.querySelectorAll('[data-fctrend]').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.fctrend === (forcedTrendWindow || 'auto'));
+    });
+    if (_activeState) update(_activeState);
   }
 
   // ========================================================================
@@ -144,21 +154,39 @@ window.BatteryForecast = (function () {
     var streakSpanMs = toMs(streak[streak.length - 1].x) - toMs(streak[0].x);
     var streakHours  = Math.round(streakSpanMs / 3600000);
 
-    // Pick the largest window that fits inside the streak with enough points.
     var usedWindow = null;
-    for (var i = TREND_WINDOWS.length - 1; i >= 0; i--) {
-      var w = TREND_WINDOWS[i];
-      if (streakSpanMs < w.ms) continue;
-      var winStart = toMs(streak[streak.length - 1].x) - w.ms;
-      var trimmed  = streak.filter(function (p) { return toMs(p.x) >= winStart; });
-      if (trimmed.length >= w.minPoints) { usedWindow = { w: w, pts: trimmed }; break; }
-    }
-    if (!usedWindow) {
-      // Tell the user how far along they are toward the first window (48 h / 4 pts)
-      var first = TREND_WINDOWS[0];
-      var needMs   = first.ms;
-      var pctTime  = Math.min(99, Math.round(streakSpanMs / needMs * 100));
-      return { dataset: null, reason: 'Need 48 h clean (' + streakHours + 'h / ' + pctTime + '%)' };
+
+    if (forcedTrendWindow) {
+      // User has selected a specific window — find it and use it if streak is long enough
+      for (var fi = 0; fi < TREND_WINDOWS.length; fi++) {
+        if (TREND_WINDOWS[fi].label === forcedTrendWindow) {
+          var fw = TREND_WINDOWS[fi];
+          var fWinStart = toMs(streak[streak.length - 1].x) - fw.ms;
+          var fTrimmed  = streak.filter(function (p) { return toMs(p.x) >= fWinStart; });
+          if (fTrimmed.length >= 2) {
+            usedWindow = { w: fw, pts: fTrimmed };
+          } else {
+            var pctT = Math.min(99, Math.round(streakSpanMs / fw.ms * 100));
+            return { dataset: null, reason: 'Need ' + fw.label + ' streak (' + streakHours + ' h / ' + pctT + '%)' };
+          }
+          break;
+        }
+      }
+      if (!usedWindow) return { dataset: null, reason: 'Unknown window' };
+    } else {
+      // Auto: pick the largest window that fits inside the streak with enough points.
+      for (var i = TREND_WINDOWS.length - 1; i >= 0; i--) {
+        var w = TREND_WINDOWS[i];
+        if (streakSpanMs < w.ms) continue;
+        var winStart = toMs(streak[streak.length - 1].x) - w.ms;
+        var trimmed  = streak.filter(function (p) { return toMs(p.x) >= winStart; });
+        if (trimmed.length >= w.minPoints) { usedWindow = { w: w, pts: trimmed }; break; }
+      }
+      if (!usedWindow) {
+        var first = TREND_WINDOWS[0];
+        var pctTime  = Math.min(99, Math.round(streakSpanMs / first.ms * 100));
+        return { dataset: null, reason: 'Need 48 h clean (' + streakHours + ' h / ' + pctTime + '%)' };
+      }
     }
 
     var reg = linReg(usedWindow.pts);
@@ -452,7 +480,7 @@ window.BatteryForecast = (function () {
       var t0Trend = buildTrendDataset(t0Actual, 'T0', C.t0Trend);
       if (t0Trend.dataset) {
         datasets.push(t0Trend.dataset);
-        info._trendConfidence.push({ label: 'T0', windowLabel: t0Trend.windowLabel, r2: t0Trend.r2, color: C.t0Trend });
+        info._trendConfidence.push({ label: 'T0', windowLabel: t0Trend.windowLabel, r2: t0Trend.r2, color: C.t0Trend, slope_pct_per_day: t0Trend.slope_pct_per_day });
       } else {
         if (t0Actual.length > 0) info._trendInsufficient.push({ label: 'T0', reason: t0Trend.reason, color: C.t0Trend });
       }
@@ -547,7 +575,7 @@ window.BatteryForecast = (function () {
       var satATrend = buildTrendDataset(satAActual, 'Sat-A', C.satATrend);
       if (satATrend.dataset) {
         datasets.push(satATrend.dataset);
-        info._trendConfidence.push({ label: 'Sat-A', windowLabel: satATrend.windowLabel, r2: satATrend.r2, color: C.satATrend });
+        info._trendConfidence.push({ label: 'Sat-A', windowLabel: satATrend.windowLabel, r2: satATrend.r2, color: C.satATrend, slope_pct_per_day: satATrend.slope_pct_per_day });
       } else {
         if (satAActual.length > 0) info._trendInsufficient.push({ label: 'Sat-A', reason: satATrend.reason, color: C.satATrend });
       }
@@ -641,7 +669,7 @@ window.BatteryForecast = (function () {
       var satBTrend = buildTrendDataset(satBActual, 'Sat-B', C.satBTrend);
       if (satBTrend.dataset) {
         datasets.push(satBTrend.dataset);
-        info._trendConfidence.push({ label: 'Sat-B', windowLabel: satBTrend.windowLabel, r2: satBTrend.r2, color: C.satBTrend });
+        info._trendConfidence.push({ label: 'Sat-B', windowLabel: satBTrend.windowLabel, r2: satBTrend.r2, color: C.satBTrend, slope_pct_per_day: satBTrend.slope_pct_per_day });
       } else {
         if (satBActual.length > 0) info._trendInsufficient.push({ label: 'Sat-B', reason: satBTrend.reason, color: C.satBTrend });
       }
@@ -800,6 +828,30 @@ window.BatteryForecast = (function () {
 
     var el = document.getElementById('fcInfoCards');
     if (el) el.innerHTML = html;
+
+    // ── Trend status row ──────────────────────────────────────────────────────
+    var statusEl = document.getElementById('fcTrendStatus');
+    if (statusEl) {
+      var tOk    = info._trendConfidence   || [];
+      var tFail  = info._trendInsufficient || [];
+      if (!tOk.length && !tFail.length) {
+        statusEl.style.display = 'none';
+      } else {
+        var parts = [];
+        tOk.forEach(function (t) {
+          parts.push('<span style="color:' + t.color + '">' + t.label + '</span>'
+            + ' trend: <strong style="color:#e2e8f0">' + t.windowLabel + '</strong>'
+            + ' &nbsp;R\u00b2=<strong style="color:#e2e8f0">' + Math.round(t.r2 * 100) + '%</strong>'
+            + ' &nbsp;' + t.slope_pct_per_day.toFixed(2) + '%/day'
+          );
+        });
+        tFail.forEach(function (t) {
+          parts.push('<span style="color:' + t.color + '">' + t.label + '</span> trend: ' + t.reason);
+        });
+        statusEl.innerHTML = '&#128200; Trend &mdash; ' + parts.join(' &nbsp;|&nbsp; ');
+        statusEl.style.display = '';
+      }
+    }
   }
 
   // ========================================================================
@@ -1011,6 +1063,21 @@ window.BatteryForecast = (function () {
       update(_activeState);
     });
 
+    // Wire up trend-window selector buttons
+    document.querySelectorAll('[data-fctrend]').forEach(function (btn) {
+      btn.addEventListener('click', function () { setTrendWindow(this.dataset.fctrend); });
+    });
+    // Restore forced trend window
+    try {
+      var _savedTrend = localStorage.getItem('fc_trend_window');
+      if (_savedTrend) {
+        forcedTrendWindow = _savedTrend === 'auto' ? null : _savedTrend;
+        document.querySelectorAll('[data-fctrend]').forEach(function (b) {
+          b.classList.toggle('active', b.dataset.fctrend === (_savedTrend || 'auto'));
+        });
+      }
+    } catch (e) {}
+
     update(state);
   }
 
@@ -1028,11 +1095,12 @@ window.BatteryForecast = (function () {
   }
 
   return {
-    init:     init,
-    update:   update,
-    destroy:  destroy,
-    reset:    reset,
-    setRange: setFcTimeRange,
+    init:            init,
+    update:          update,
+    destroy:         destroy,
+    reset:           reset,
+    setRange:        setFcTimeRange,
+    setTrendWindow:  setTrendWindow,
   };
 
 })();

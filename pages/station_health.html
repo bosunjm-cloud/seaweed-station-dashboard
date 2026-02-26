@@ -188,10 +188,20 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
       </div>
     </div>
     <div class="chart-subhead">Solid = actual &nbsp;&bull;&nbsp; Dashed = calculated &nbsp;&bull;&nbsp; Light dashed = trend &nbsp;&bull;&nbsp; Red dashed = config change &nbsp;&bull;&nbsp; Click chart in Lock mode to set anchor &nbsp;&bull;&nbsp; Scroll to zoom</div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <span style="font-size:.72rem;color:#64748b;">Trend window:</span>
+      <button class="btn btn-sm active" data-fctrend="auto">Auto</button>
+      <button class="btn btn-sm" data-fctrend="48 h">48 h</button>
+      <button class="btn btn-sm" data-fctrend="5 d">5 d</button>
+      <button class="btn btn-sm" data-fctrend="10 d">10 d</button>
+      <button class="btn btn-sm" data-fctrend="2 wk">2 wk</button>
+      <button class="btn btn-sm" data-fctrend="4 wk">4 wk</button>
+    </div>
     <div class="chart-wrap" style="height:320px">
       <canvas id="forecastChart"></canvas>
     </div>
     <div id="fcInfoCards"></div>
+    <div id="fcTrendStatus" style="margin-top:8px;padding:8px 12px;background:var(--bg-card-alt);border-radius:6px;font-size:.72rem;color:#64748b;min-height:24px;display:none"></div>
 
     <!-- ===== FORECAST CONFIG LOG ===== -->
     <div class="fc-config-section" id="fcConfigLogSection">
@@ -507,7 +517,6 @@ function renderStationSection(station, data) {
     body.appendChild(rangeBar);
     renderSummaryCards(body, e, stationId);
     renderBatteryCharts(body, chartEntries, stationId, range);
-    renderSensorCharts(body, chartEntries, stationId, range);
     renderSyncCharts(body, chartEntries, stationId, range);
     renderDataHealth(body, chartEntries);
     renderDailyHealth(body, chartEntries);
@@ -557,7 +566,6 @@ function setStationRange(stationId, range) {
   var chartEntries = filterByRange(data.entries, range);
   renderSummaryCards(body, data.entries, stationId);
   renderBatteryCharts(body, chartEntries, stationId, range);
-  renderSensorCharts(body, chartEntries, stationId, range);
   renderSyncCharts(body, chartEntries, stationId, range);
   renderDataHealth(body, chartEntries);
   renderDailyHealth(body, chartEntries);
@@ -726,67 +734,6 @@ function renderBatteryCharts(container, entries, stationId, range) {
   });
 }
 
-function renderSensorCharts(container, entries, stationId, range) {
-  if (!entries || !entries.length) return;
-  var row = document.createElement('div');
-  row.className = 'chart-row';
-
-  var tempCanvas = document.createElement('canvas');
-  var tempBox = document.createElement('div');
-  tempBox.className = 'chart-box';
-  tempBox.innerHTML = '<h4>Temperature (°C) (' + rangeLabel(range) + ')</h4>';
-  tempBox.appendChild(tempCanvas);
-  row.appendChild(tempBox);
-
-  var humCanvas = document.createElement('canvas');
-  var humBox = document.createElement('div');
-  humBox.className = 'chart-box';
-  humBox.innerHTML = '<h4>Humidity (%RH) (' + rangeLabel(range) + ')</h4>';
-  humBox.appendChild(humCanvas);
-  row.appendChild(humBox);
-
-  container.appendChild(row);
-
-  function makeDS(data, key, label, color, dashed) {
-    return {
-      label: label,
-      data: data.filter(function(e) { return e[key] !== null; }).map(function(e) { return { x: e.timestamp, y: e[key] }; }),
-      borderColor: color,
-      backgroundColor: 'transparent',
-      borderWidth: 1.5,
-      pointRadius: 0,
-      tension: 0.3,
-      borderDash: dashed ? [5, 3] : [],
-      fill: false,
-    };
-  }
-
-  liveCharts.push(new Chart(tempCanvas, {
-    type: 'line',
-    data: { datasets: [
-      makeDS(entries, 't0Temp1', 'T0 S1', '#3b82f6', false),
-      makeDS(entries, 't0Temp2', 'T0 S2', '#60a5fa', true),
-      makeDS(entries, 'satATemp1', 'Sat-A S1', '#10b981', false),
-      makeDS(entries, 'satATemp2', 'Sat-A S2', '#34d399', true),
-      makeDS(entries, 'satBTemp1', 'Sat-B S1', '#f59e0b', false),
-      makeDS(entries, 'satBTemp2', 'Sat-B S2', '#fbbf24', true),
-    ]},
-    options: chartOpts('Temperature (°C)'),
-  }));
-
-  liveCharts.push(new Chart(humCanvas, {
-    type: 'line',
-    data: { datasets: [
-      makeDS(entries, 't0Hum1', 'T0 S1', '#3b82f6', false),
-      makeDS(entries, 't0Hum2', 'T0 S2', '#60a5fa', true),
-      makeDS(entries, 'satAHum1', 'Sat-A S1', '#10b981', false),
-      makeDS(entries, 'satAHum2', 'Sat-A S2', '#34d399', true),
-      makeDS(entries, 'satBHum1', 'Sat-B S1', '#f59e0b', false),
-      makeDS(entries, 'satBHum2', 'Sat-B S2', '#fbbf24', true),
-    ]},
-    options: chartOpts('Humidity (%RH)', 0, 100),
-  }));
-}
 
 // ============================================================
 // SYNC DRIFT & RSSI CHARTS
