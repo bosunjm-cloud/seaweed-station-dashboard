@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Station Health &mdash; Seaweed Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<style>
+/* ======================== THEME ======================== */
+:root{--bg:#0f172a;--bg-card:#1e293b;--bg-card-alt:#1a2332;--bg-hover:#334155;--text:#f1f5f9;--text-sec:#94a3b8;--text-muted:#64748b;--accent:#0ea5e9;--success:#22c55e;--warning:#f59e0b;--danger:#ef4444;--border:#334155;--radius:10px;--shadow:0 4px 12px rgba(0,0,0,.3)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+
+/* ======================== HEADER ======================== */
+.header{background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:16px 24px;border-bottom:1px solid var(--border)}
+.header-top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.header h1{font-size:1.35rem;font-weight:700}
+.header h1 span{color:var(--text-muted);font-weight:400;font-size:.85rem;margin-left:8px}
+.nav-links{display:flex;gap:8px;flex-wrap:wrap}
+.btn{background:var(--bg-card);border:1px solid var(--border);color:var(--text-sec);padding:5px 12px;border-radius:6px;font-size:.8rem;cursor:pointer;transition:background .2s}
+.btn:hover{background:var(--bg-hover);color:var(--text);text-decoration:none}
+
+/* ======================== LAYOUT ======================== */
+.main{max-width:1400px;margin:0 auto;padding:16px 20px}
+.station-section{margin-bottom:28px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.station-header{background:var(--bg-card);padding:12px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
+.station-header h2{font-size:1.1rem;font-weight:600;display:flex;align-items:center;gap:8px}
+.station-header .freshness{font-size:.75rem;padding:3px 10px;border-radius:12px}
+.fresh-ok{background:#166534;color:#86efac}.fresh-stale{background:#92400e;color:#fcd34d}.fresh-old{background:#991b1b;color:#fca5a5}
+.station-body{padding:14px 18px}
+.chevron{font-size:.7rem;transition:transform .3s;color:var(--text-muted)}
+
+/* ======================== COMPACT SUMMARY GRID ======================== */
+.summary-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px}
+.sum-card{background:var(--bg-card-alt);border-radius:8px;padding:10px 14px}
+.sum-card h4{font-size:.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.sum-val{font-size:1.15rem;font-weight:700}.sum-sub{font-size:.72rem;color:var(--text-muted);margin-top:2px}
+
+/* ======================== HEALTH GRID ======================== */
+.health-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-bottom:14px}
+.h-item{background:var(--bg-card-alt);border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center}
+.h-label{font-size:.78rem;color:var(--text-sec)}.h-value{font-size:.85rem;font-weight:600}
+
+/* ======================== CHARTS ======================== */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+@media(max-width:900px){.chart-row{grid-template-columns:1fr}}
+.chart-box{background:var(--bg-card-alt);border-radius:8px;padding:10px 12px}
+.chart-box h4{font-size:.78rem;color:var(--text-sec);margin-bottom:6px}
+.chart-box canvas{width:100%!important;height:180px!important}
+
+/* ======================== DAILY HEALTH TABLE ======================== */
+.health-table-wrap{overflow-x:auto;margin-bottom:14px}
+.health-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.health-table th{background:var(--bg-card);color:var(--text-sec);padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.health-table td{padding:5px 8px;border-bottom:1px solid #1e293b;white-space:nowrap}
+.health-table tr:hover{background:var(--bg-hover)}
+
+/* ======================== FOOTER ======================== */
+.footer{text-align:center;padding:20px;color:var(--text-muted);font-size:.75rem;border-top:1px solid var(--border);margin-top:20px}
+
+/* ======================== LOADING ======================== */
+.loading-msg{text-align:center;padding:40px;color:var(--text-muted);font-size:1rem}
+</style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- AUTH GUARD                                                    -->
+<!-- ============================================================ -->
+<script>
+if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'; }
+</script>
+
+<header class="header">
+  <div class="header-top">
+    <h1>&#128267; Station Health <span>Battery &bull; Sync &bull; Data Quality</span></h1>
+    <div class="nav-links">
+      <a class="btn" href="../ESP32_Weather_Station_Dashboard.html">&#9664; Overview</a>
+      <a class="btn" href="perth.html">Perth TT</a>
+      <a class="btn" href="shangani.html">Shangani</a>
+      <a class="btn" href="funzi.html">Funzi</a>
+      <a class="btn" href="perth_wroom.html">WROOM</a>
+    </div>
+  </div>
+</header>
+
+<main class="main">
+  <div id="loadingMsg" class="loading-msg">Loading station data&hellip;</div>
+  <div id="stationsContainer" style="display:none"></div>
+</main>
+
+<footer class="footer">
+  Station Health Dashboard &mdash; Seaweed Monitoring Network
+</footer>
+
+<!-- ============================================================ -->
+<!-- LOAD STATION DATA                                            -->
+<!-- ============================================================ -->
+<script>
+"use strict";
+
+// Station configurations
+var STATIONS = [
+  { id: 'perth',    name: 'Perth Test Table',          defaultFolder: 'data_3262071_TT', configKey: 'perth',    type: 'gateway' },
+  { id: 'shangani', name: 'Shangani Aramani, Kenya',   defaultFolder: 'data_Shangani',   configKey: 'shangani', type: 'gateway' },
+  { id: 'funzi',    name: 'Funzi Island, Kenya',       defaultFolder: 'data_Funzi',      configKey: 'funzi',    type: 'gateway' },
+];
+
+var stationData = {}; // { stationId: { entries: [], raw: {} } }
+var loadedCount = 0;
+
+function getDataFolder(configKey, defaultFolder) {
+  try {
+    var s = JSON.parse(localStorage.getItem('seaweed_dashboard_config') || '{}');
+    var c = (s.channels || []).find(function(ch) { return ch.id === configKey; });
+    if (c && c.dataFolder) return c.dataFolder;
+  } catch(e) {}
+  return defaultFolder;
+}
+
+function loadStation(station) {
+  var folder = getDataFolder(station.configKey, station.defaultFolder);
+  var script = document.createElement('script');
+  script.src = '../data/' + folder + '/merged_data.js';
+  script.onload = function() {
+    if (window.THINGSPEAK_DATA) {
+      stationData[station.id] = parseStationData(window.THINGSPEAK_DATA, station);
+      window.THINGSPEAK_DATA = null; // clear for next station
+    }
+    loadedCount++;
+    if (loadedCount >= STATIONS.length) onAllLoaded();
+  };
+  script.onerror = function() {
+    console.warn('[Health] No data for ' + station.name);
+    stationData[station.id] = { entries: [], raw: null };
+    loadedCount++;
+    if (loadedCount >= STATIONS.length) onAllLoaded();
+  };
+  document.body.appendChild(script);
+}
+
+// Parse gateway station data (T0 + SatA + SatB)
+function parseStationData(raw, station) {
+  var feeds = raw.feeds || [];
+  if (raw.channel) feeds = feeds; // ThingSpeak format
+  var entries = [];
+
+  for (var i = 0; i < feeds.length; i++) {
+    var f = feeds[i];
+    var ts = new Date(f.created_at);
+    if (isNaN(ts.getTime())) continue;
+
+    var entry = { timestamp: ts, entryId: f.entry_id || i };
+
+    // T0 battery %
+    entry.t0BatPct = parseFloat(f.field1);
+    if (isNaN(entry.t0BatPct)) entry.t0BatPct = null;
+
+    // T0 sensors (field2: temp1,hum1,temp2,hum2)
+    var f2 = (f.field2 || '').split(',');
+    entry.t0Temp1 = parseFloat(f2[0]); if (isNaN(entry.t0Temp1)) entry.t0Temp1 = null;
+    entry.t0Hum1  = parseFloat(f2[1]); if (isNaN(entry.t0Hum1))  entry.t0Hum1  = null;
+    entry.t0Temp2 = parseFloat(f2[2]); if (isNaN(entry.t0Temp2)) entry.t0Temp2 = null;
+    entry.t0Hum2  = parseFloat(f2[3]); if (isNaN(entry.t0Hum2))  entry.t0Hum2  = null;
+
+    // T0 status (field3: batV,rssi,boot,heap)
+    var f3 = (f.field3 || '').split(',');
+    entry.t0BatV = parseFloat(f3[0]); if (isNaN(entry.t0BatV)) entry.t0BatV = null;
+    entry.t0Rssi = parseInt(f3[1]);   if (isNaN(entry.t0Rssi)) entry.t0Rssi = null;
+    entry.t0Boot = parseInt(f3[2]);   if (isNaN(entry.t0Boot)) entry.t0Boot = null;
+    entry.t0Heap = parseInt(f3[3]);   if (isNaN(entry.t0Heap)) entry.t0Heap = null;
+
+    // SatA status (field4: batV,batPct,rssi,sampleId,[syncDrift],[fwVer])
+    var f4 = (f.field4 || '').split(',');
+    entry.satABatV     = parseFloat(f4[0]); if (isNaN(entry.satABatV))     entry.satABatV     = null;
+    entry.satABatPct   = parseFloat(f4[1]); if (isNaN(entry.satABatPct))   entry.satABatPct   = null;
+    entry.satARssi     = parseInt(f4[2]);   if (isNaN(entry.satARssi))     entry.satARssi     = null;
+    entry.satASampleId = parseInt(f4[3]);   if (isNaN(entry.satASampleId)) entry.satASampleId = null;
+    entry.satASyncDrift= parseFloat(f4[4]); if (isNaN(entry.satASyncDrift))entry.satASyncDrift= null;
+
+    // SatA sensors (field5: temp1,hum1,temp2,hum2)
+    var f5 = (f.field5 || '').split(',');
+    entry.satATemp1 = parseFloat(f5[0]); if (isNaN(entry.satATemp1)) entry.satATemp1 = null;
+    entry.satAHum1  = parseFloat(f5[1]); if (isNaN(entry.satAHum1))  entry.satAHum1  = null;
+    entry.satATemp2 = parseFloat(f5[2]); if (isNaN(entry.satATemp2)) entry.satATemp2 = null;
+    entry.satAHum2  = parseFloat(f5[3]); if (isNaN(entry.satAHum2))  entry.satAHum2  = null;
+
+    // SatB status (field6: batV,batPct,rssi,sampleId,[syncDrift],[fwVer])
+    var f6 = (f.field6 || '').split(',');
+    entry.satBBatV     = parseFloat(f6[0]); if (isNaN(entry.satBBatV))     entry.satBBatV     = null;
+    entry.satBBatPct   = parseFloat(f6[1]); if (isNaN(entry.satBBatPct))   entry.satBBatPct   = null;
+    entry.satBRssi     = parseInt(f6[2]);   if (isNaN(entry.satBRssi))     entry.satBRssi     = null;
+    entry.satBSampleId = parseInt(f6[3]);   if (isNaN(entry.satBSampleId)) entry.satBSampleId = null;
+    entry.satBSyncDrift= parseFloat(f6[4]); if (isNaN(entry.satBSyncDrift))entry.satBSyncDrift= null;
+
+    // SatB sensors (field7: temp1,hum1,temp2,hum2)
+    var f7 = (f.field7 || '').split(',');
+    entry.satBTemp1 = parseFloat(f7[0]); if (isNaN(entry.satBTemp1)) entry.satBTemp1 = null;
+    entry.satBHum1  = parseFloat(f7[1]); if (isNaN(entry.satBHum1))  entry.satBHum1  = null;
+    entry.satBTemp2 = parseFloat(f7[2]); if (isNaN(entry.satBTemp2)) entry.satBTemp2 = null;
+    entry.satBHum2  = parseFloat(f7[3]); if (isNaN(entry.satBHum2))  entry.satBHum2  = null;
+
+    // System (field8): diag|config|fw
+    entry.sdFreeKB  = null; entry.csq = null; entry.uploadOk = null; entry.syncDrift = null;
+    if (f.field8) {
+      var parts = f.field8.split('|');
+      var diag = (parts[0] || '').split(',');
+      entry.sdFreeKB  = parseInt(diag[0]);   if (isNaN(entry.sdFreeKB))  entry.sdFreeKB  = null;
+      entry.csq       = parseInt(diag[1]);   if (isNaN(entry.csq))       entry.csq       = null;
+      entry.uploadOk  = parseInt(diag[2]);   if (isNaN(entry.uploadOk))  entry.uploadOk  = null;
+      entry.syncDrift  = parseFloat(diag[3]); if (isNaN(entry.syncDrift)) entry.syncDrift = null;
+    }
+
+    entries.push(entry);
+  }
+
+  entries.sort(function(a,b) { return a.timestamp - b.timestamp; });
+  return { entries: entries, raw: raw };
+}
+
+// ============================================================
+// RENDERING
+// ============================================================
+function onAllLoaded() {
+  document.getElementById('loadingMsg').style.display = 'none';
+  document.getElementById('stationsContainer').style.display = '';
+  var container = document.getElementById('stationsContainer');
+
+  STATIONS.forEach(function(station) {
+    var data = stationData[station.id];
+    if (!data) return;
+    var section = renderStationSection(station, data);
+    container.appendChild(section);
+  });
+}
+
+function renderStationSection(station, data) {
+  var sec = document.createElement('div');
+  sec.className = 'station-section';
+  var e = data.entries;
+  var hasData = e.length > 0;
+
+  // Freshness
+  var freshnessClass = 'fresh-old', freshnessText = 'No data';
+  if (hasData) {
+    var ageHrs = (Date.now() - e[e.length-1].timestamp.getTime()) / 3600000;
+    if (ageHrs < 2) { freshnessClass = 'fresh-ok'; freshnessText = 'Fresh (' + timeAgo(e[e.length-1].timestamp) + ')'; }
+    else if (ageHrs < 24) { freshnessClass = 'fresh-stale'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old'; }
+    else { freshnessClass = 'fresh-old'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old'; }
+  }
+
+  var stationId = station.id;
+
+  sec.innerHTML =
+    '<div class="station-header" onclick="toggleStation(\'' + stationId + '\')">' +
+      '<h2>' + station.name + ' <span class="freshness ' + freshnessClass + '">' + freshnessText + '</span>' +
+        (hasData ? ' <span style="font-size:.75rem;color:var(--text-muted)">' + e.length.toLocaleString() + ' entries</span>' : '') +
+      '</h2>' +
+      '<span class="chevron" id="chev_' + stationId + '">&#9660;</span>' +
+    '</div>' +
+    '<div class="station-body" id="body_' + stationId + '">' +
+      (hasData ? '' : '<p style="color:var(--text-muted);text-align:center;padding:20px">No data loaded for this station</p>') +
+    '</div>';
+
+  if (hasData) {
+    var body = sec.querySelector('.station-body');
+    renderSummaryCards(body, e, stationId);
+    renderBatteryCharts(body, e, stationId);
+    renderSyncCharts(body, e, stationId);
+    renderDataHealth(body, e);
+    renderDailyHealth(body, e);
+  }
+
+  return sec;
+}
+
+function toggleStation(id) {
+  var body = document.getElementById('body_' + id);
+  var chev = document.getElementById('chev_' + id);
+  if (!body) return;
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+// ============================================================
+// COMPACT SUMMARY CARDS
+// ============================================================
+function renderSummaryCards(container, entries, stationId) {
+  var e = entries;
+  var latest = e[e.length - 1];
+
+  function lastWith(key) {
+    for (var i = e.length - 1; i >= 0; i--) { if (e[i][key] !== null) return e[i]; }
+    return null;
+  }
+
+  var t0 = lastWith('t0BatPct');
+  var satA = lastWith('satABatV');
+  var satB = lastWith('satBBatV');
+
+  // Battery drain last 24h
+  function drain24(key) {
+    var cutoff = new Date(latest.timestamp.getTime() - 24*3600000);
+    var recent = e.filter(function(x) { return x.timestamp >= cutoff && x[key] !== null; });
+    if (recent.length < 2) return '--';
+    var d = recent[recent.length-1][key] - recent[0][key];
+    return (d >= 0 ? '+' : '') + d.toFixed(1) + '%';
+  }
+
+  var row = document.createElement('div');
+  row.className = 'summary-row';
+  row.innerHTML =
+    '<div class="sum-card">' +
+      '<h4>T0 Gateway</h4>' +
+      '<div class="sum-val" style="color:' + batColor(t0 ? t0.t0BatPct : null) + '">' + (t0 ? t0.t0BatPct.toFixed(0) + '%' : '--') + '</div>' +
+      '<div class="sum-sub">Voltage: ' + (t0 ? t0.t0BatV.toFixed(2) + 'V' : '--') + '</div>' +
+      '<div class="sum-sub">24h \u0394: ' + drain24('t0BatPct') + '</div>' +
+    '</div>' +
+    '<div class="sum-card">' +
+      '<h4>Satellite A</h4>' +
+      '<div class="sum-val" style="color:' + batColor(satA ? satA.satABatPct : null) + '">' + (satA ? satA.satABatPct.toFixed(0) + '%' : '--') + '</div>' +
+      '<div class="sum-sub">Voltage: ' + (satA ? satA.satABatV.toFixed(2) + 'V' : '--') + ' &nbsp; RSSI: ' + (satA ? satA.satARssi : '--') + '</div>' +
+      '<div class="sum-sub">24h \u0394: ' + drain24('satABatPct') + '</div>' +
+    '</div>' +
+    '<div class="sum-card">' +
+      '<h4>Satellite B</h4>' +
+      '<div class="sum-val" style="color:' + batColor(satB ? satB.satBBatPct : null) + '">' + (satB ? satB.satBBatPct.toFixed(0) + '%' : '--') + '</div>' +
+      '<div class="sum-sub">Voltage: ' + (satB ? satB.satBBatV.toFixed(2) + 'V' : '--') + ' &nbsp; RSSI: ' + (satB ? satB.satBRssi : '--') + '</div>' +
+      '<div class="sum-sub">24h \u0394: ' + drain24('satBBatPct') + '</div>' +
+    '</div>' +
+    '<div class="sum-card">' +
+      '<h4>System</h4>' +
+      '<div class="sum-val">' + (latest.sdFreeKB !== null ? formatKB(latest.sdFreeKB) : '--') + '</div>' +
+      '<div class="sum-sub">SD Free &nbsp; | &nbsp; CSQ: ' + (latest.csq !== null ? latest.csq : '--') + '</div>' +
+      '<div class="sum-sub">Upload OK: ' + (latest.uploadOk !== null ? (latest.uploadOk ? '\u2705' : '\u274C') : '--') + '</div>' +
+    '</div>';
+
+  container.appendChild(row);
+}
+
+function batColor(pct) {
+  if (pct === null) return 'var(--text-muted)';
+  if (pct > 50) return 'var(--success)';
+  if (pct > 20) return 'var(--warning)';
+  return 'var(--danger)';
+}
+
+function formatKB(kb) {
+  if (kb >= 1048576) return (kb / 1048576).toFixed(1) + ' GB';
+  if (kb >= 1024) return (kb / 1024).toFixed(1) + ' MB';
+  return kb + ' KB';
+}
+
+// ============================================================
+// BATTERY CHARTS
+// ============================================================
+function renderBatteryCharts(container, entries, stationId) {
+  var row = document.createElement('div');
+  row.className = 'chart-row';
+
+  var batBox = document.createElement('div');
+  batBox.className = 'chart-box';
+  batBox.innerHTML = '<h4>Battery % (last 7 days)</h4><canvas id="bat_' + stationId + '"></canvas>';
+  row.appendChild(batBox);
+
+  var voltBox = document.createElement('div');
+  voltBox.className = 'chart-box';
+  voltBox.innerHTML = '<h4>Battery Voltage (last 7 days)</h4><canvas id="volt_' + stationId + '"></canvas>';
+  row.appendChild(voltBox);
+
+  container.appendChild(row);
+
+  // Filter to last 7 days
+  var cutoff = new Date(entries[entries.length-1].timestamp.getTime() - 7*86400000);
+  var recent = entries.filter(function(e) { return e.timestamp >= cutoff; });
+
+  function makeDS(data, key, label, color) {
+    return { label: label, data: data.filter(function(e){return e[key]!==null;}).map(function(e){return {x:e.timestamp,y:e[key]};}),
+      borderColor: color, backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false };
+  }
+
+  var batCtx = document.getElementById('bat_' + stationId);
+  if (batCtx) {
+    new Chart(batCtx, {
+      type: 'line',
+      data: { datasets: [
+        makeDS(recent, 't0BatPct', 'T0', '#3b82f6'),
+        makeDS(recent, 'satABatPct', 'Sat-A', '#10b981'),
+        makeDS(recent, 'satBBatPct', 'Sat-B', '#f59e0b'),
+      ]},
+      options: chartOpts('Battery (%)', 0, 100),
+    });
+  }
+
+  var voltCtx = document.getElementById('volt_' + stationId);
+  if (voltCtx) {
+    new Chart(voltCtx, {
+      type: 'line',
+      data: { datasets: [
+        makeDS(recent, 't0BatV', 'T0', '#60a5fa'),
+        makeDS(recent, 'satABatV', 'Sat-A', '#34d399'),
+        makeDS(recent, 'satBBatV', 'Sat-B', '#fbbf24'),
+      ]},
+      options: chartOpts('Voltage (V)', 2.5, 4.5),
+    });
+  }
+}
+
+// ============================================================
+// SYNC DRIFT & RSSI CHARTS
+// ============================================================
+function renderSyncCharts(container, entries, stationId) {
+  // Check if any sync/RSSI data exists
+  var hasDrift = entries.some(function(e) { return e.satASyncDrift !== null || e.satBSyncDrift !== null; });
+  var hasRssi  = entries.some(function(e) { return (e.satARssi !== null && e.satARssi !== 0) || (e.satBRssi !== null && e.satBRssi !== 0); });
+  if (!hasDrift && !hasRssi) return;
+
+  var row = document.createElement('div');
+  row.className = 'chart-row';
+
+  if (hasDrift) {
+    var driftBox = document.createElement('div');
+    driftBox.className = 'chart-box';
+    driftBox.innerHTML = '<h4>Satellite Sync Drift (last 7 days)</h4><canvas id="drift_' + stationId + '"></canvas>';
+    row.appendChild(driftBox);
+  }
+
+  if (hasRssi) {
+    var rssiBox = document.createElement('div');
+    rssiBox.className = 'chart-box';
+    rssiBox.innerHTML = '<h4>RSSI (last 7 days)</h4><canvas id="rssi_' + stationId + '"></canvas>';
+    row.appendChild(rssiBox);
+  }
+
+  container.appendChild(row);
+
+  var cutoff = new Date(entries[entries.length-1].timestamp.getTime() - 7*86400000);
+  var recent = entries.filter(function(e) { return e.timestamp >= cutoff; });
+
+  function makeDS(data, key, label, color) {
+    return { label: label, data: data.filter(function(e){return e[key]!==null;}).map(function(e){return {x:e.timestamp,y:e[key]};}),
+      borderColor: color, backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 1.5, tension: 0.2, fill: false };
+  }
+
+  if (hasDrift) {
+    var dCtx = document.getElementById('drift_' + stationId);
+    if (dCtx) {
+      var dOpts = chartOpts('Drift (s)');
+      dOpts.scales.y.ticks = { callback: function(v) { return (v>=0?'+':'')+v+'s'; }, color: '#94a3b8', font: { size: 10 } };
+      new Chart(dCtx, {
+        type: 'line',
+        data: { datasets: [
+          makeDS(recent, 'satASyncDrift', 'Sat-A Drift', '#22c55e'),
+          makeDS(recent, 'satBSyncDrift', 'Sat-B Drift', '#3b82f6'),
+          makeDS(recent, 'syncDrift', 'System Drift', '#f59e0b'),
+        ]},
+        options: dOpts,
+      });
+    }
+  }
+
+  if (hasRssi) {
+    var rCtx = document.getElementById('rssi_' + stationId);
+    if (rCtx) {
+      new Chart(rCtx, {
+        type: 'line',
+        data: { datasets: [
+          makeDS(recent, 'satARssi', 'Sat-A RSSI', '#22c55e'),
+          makeDS(recent, 'satBRssi', 'Sat-B RSSI', '#3b82f6'),
+        ]},
+        options: chartOpts('RSSI (dBm)', -100, 0),
+      });
+    }
+  }
+
+  // Sync reliability stats row
+  var cutoff24 = new Date(entries[entries.length-1].timestamp.getTime() - 24*3600000);
+  var recent24 = entries.filter(function(e) { return e.timestamp >= cutoff24; });
+  var satAPresent = recent24.filter(function(e) { return e.satABatV !== null; }).length;
+  var satBPresent = recent24.filter(function(e) { return e.satBBatV !== null; }).length;
+  var total24 = recent24.length || 1;
+
+  var syncRow = document.createElement('div');
+  syncRow.className = 'summary-row';
+  syncRow.innerHTML =
+    '<div class="sum-card"><h4>Sat-A Sync Rate (24h)</h4><div class="sum-val" style="color:' + pctColor(satAPresent/total24*100) + '">' + (satAPresent/total24*100).toFixed(1) + '%</div><div class="sum-sub">' + satAPresent + ' / ' + total24 + ' entries</div></div>' +
+    '<div class="sum-card"><h4>Sat-B Sync Rate (24h)</h4><div class="sum-val" style="color:' + pctColor(satBPresent/total24*100) + '">' + (satBPresent/total24*100).toFixed(1) + '%</div><div class="sum-sub">' + satBPresent + ' / ' + total24 + ' entries</div></div>';
+  container.appendChild(syncRow);
+}
+
+function pctColor(v) {
+  if (v > 90) return 'var(--success)';
+  if (v > 70) return 'var(--warning)';
+  return 'var(--danger)';
+}
+
+// ============================================================
+// DATA HEALTH
+// ============================================================
+function renderDataHealth(container, entries) {
+  if (entries.length < 2) return;
+
+  var e = entries;
+  var intervals = [];
+  for (var i = 1; i < e.length; i++) {
+    intervals.push(e[i].timestamp - e[i-1].timestamp);
+  }
+  intervals.sort(function(a,b){return a-b;});
+  var medianMs = intervals[Math.floor(intervals.length/2)];
+  var medianMin = Math.round(medianMs / 60000);
+
+  var gapThreshold = medianMs * 2.5;
+  var gaps = 0, totalGapMs = 0, longestGapMs = 0;
+  for (var g = 0; g < intervals.length; g++) {
+    if (intervals[g] > gapThreshold) {
+      gaps++;
+      totalGapMs += intervals[g] - medianMs;
+      if (intervals[g] > longestGapMs) longestGapMs = intervals[g];
+    }
+  }
+
+  var totalSpan = e[e.length-1].timestamp - e[0].timestamp;
+  var expectedEntries = Math.floor(totalSpan / medianMs) + 1;
+  var completeness = Math.min(100, (e.length / expectedEntries * 100)).toFixed(1);
+
+  var t0SensorN   = e.filter(function(x){return x.t0Temp1 !== null || x.t0Temp2 !== null;}).length;
+  var satASensorN = e.filter(function(x){return x.satATemp1 !== null || x.satATemp2 !== null;}).length;
+  var satBSensorN = e.filter(function(x){return x.satBTemp1 !== null || x.satBTemp2 !== null;}).length;
+
+  var grid = document.createElement('div');
+  grid.className = 'health-grid';
+  grid.innerHTML =
+    '<div class="h-item"><span class="h-label">Sample Period</span><span class="h-value">' + medianMin + ' min</span></div>' +
+    '<div class="h-item"><span class="h-label">Upload Completeness</span><span class="h-value" style="color:' + pctColor(parseFloat(completeness)) + '">' + completeness + '%</span></div>' +
+    '<div class="h-item"><span class="h-label">Data Gaps</span><span class="h-value" style="color:' + (gaps===0?'var(--success)':'var(--warning)') + '">' + gaps + (gaps ? ' (longest ' + Math.round(longestGapMs/3600000) + 'h)' : ' \u2014 perfect') + '</span></div>' +
+    '<div class="h-item"><span class="h-label">Expected / Actual Entries</span><span class="h-value">' + expectedEntries.toLocaleString() + ' / ' + e.length.toLocaleString() + '</span></div>' +
+    '<div class="h-item"><span class="h-label">T0 Sensor Data</span><span class="h-value" style="color:' + (t0SensorN>0?'var(--success)':'var(--text-muted)') + '">' + (t0SensorN > 0 ? (t0SensorN/e.length*100).toFixed(1)+'%' : 'NC') + '</span></div>' +
+    '<div class="h-item"><span class="h-label">Sat-A Sensor Data</span><span class="h-value" style="color:' + (satASensorN>0?'var(--success)':'var(--text-muted)') + '">' + (satASensorN > 0 ? (satASensorN/e.length*100).toFixed(1)+'%' : 'NC') + '</span></div>' +
+    '<div class="h-item"><span class="h-label">Sat-B Sensor Data</span><span class="h-value" style="color:' + (satBSensorN>0?'var(--success)':'var(--text-muted)') + '">' + (satBSensorN > 0 ? (satBSensorN/e.length*100).toFixed(1)+'%' : 'NC') + '</span></div>' +
+    '<div class="h-item"><span class="h-label">Data Span</span><span class="h-value">' + Math.round(totalSpan/86400000) + ' days</span></div>';
+
+  container.appendChild(grid);
+}
+
+// ============================================================
+// DAILY HEALTH SUMMARY TABLE
+// ============================================================
+function renderDailyHealth(container, entries) {
+  if (!entries.length) return;
+
+  var byDay = {};
+  entries.forEach(function(e) {
+    var day = e.timestamp.toISOString().slice(0,10);
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push(e);
+  });
+
+  var wrap = document.createElement('div');
+  wrap.className = 'health-table-wrap';
+
+  var html = '<table class="health-table"><thead><tr>' +
+    '<th>Date</th><th>Samples</th>' +
+    '<th>T0 Bat%</th><th>SatA Bat%</th><th>SatB Bat%</th>' +
+    '<th>SatA Syncs</th><th>SatB Syncs</th>' +
+    '<th>Gaps</th>' +
+    '</tr></thead><tbody>';
+
+  var days = Object.keys(byDay).sort().reverse().slice(0, 14); // last 14 days
+
+  for (var di = 0; di < days.length; di++) {
+    var day = days[di];
+    var de  = byDay[day];
+    var dl  = new Date(day + 'T00:00:00Z');
+    var dateLabel = dl.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
+
+    // Battery delta
+    function batDelta(arr, key) {
+      var first = arr.find(function(e){return e[key]!==null;});
+      var last  = arr.slice().reverse().find(function(e){return e[key]!==null;});
+      if (!first || !last || first === last) return '<span style="color:var(--text-muted)">--</span>';
+      var d = last[key] - first[key];
+      var arrow = d > 0.5 ? '\u2197' : d < -0.5 ? '\u2198' : '\u2192';
+      var color = d < -10 ? 'color:var(--danger)' : d < -3 ? 'color:var(--warning)' : '';
+      return '<span style="' + color + '">' + first[key].toFixed(0) + arrow + last[key].toFixed(0) + '</span>';
+    }
+
+    // Sync counts
+    var satASyncs = de.filter(function(e){return e.satABatV!==null;}).length;
+    var satBSyncs = de.filter(function(e){return e.satBBatV!==null;}).length;
+
+    // Gap count within day (>2.5× median)
+    var dayGaps = 0;
+    if (de.length > 1) {
+      var ints = [];
+      for (var j = 1; j < de.length; j++) ints.push(de[j].timestamp - de[j-1].timestamp);
+      ints.sort(function(a,b){return a-b;});
+      var med = ints[Math.floor(ints.length/2)];
+      var thresh = med * 2.5;
+      dayGaps = ints.filter(function(v){return v > thresh;}).length;
+    }
+
+    html += '<tr>' +
+      '<td>' + dateLabel + '</td>' +
+      '<td>' + de.length + '</td>' +
+      '<td>' + batDelta(de, 't0BatPct') + '</td>' +
+      '<td>' + batDelta(de, 'satABatPct') + '</td>' +
+      '<td>' + batDelta(de, 'satBBatPct') + '</td>' +
+      '<td style="color:' + (satASyncs > 0 ? 'var(--success)' : 'var(--text-muted)') + '">' + satASyncs + '/' + de.length + '</td>' +
+      '<td style="color:' + (satBSyncs > 0 ? 'var(--success)' : 'var(--text-muted)') + '">' + satBSyncs + '/' + de.length + '</td>' +
+      '<td style="color:' + (dayGaps === 0 ? 'var(--success)' : 'var(--warning)') + '">' + dayGaps + '</td>' +
+    '</tr>';
+  }
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+  container.appendChild(wrap);
+}
+
+// ============================================================
+// CHART HELPERS
+// ============================================================
+function chartOpts(yLabel, yMin, yMax) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    interaction: { mode: 'nearest', axis: 'x', intersect: false },
+    plugins: {
+      legend: { display: true, position: 'top', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12, padding: 8 } },
+      tooltip: { backgroundColor: '#1e293b', titleColor: '#f1f5f9', bodyColor: '#94a3b8', borderColor: '#334155', borderWidth: 1 },
+    },
+    scales: {
+      x: { type: 'time', time: { tooltipFormat: 'dd MMM HH:mm', displayFormats: { hour: 'HH:mm', day: 'dd MMM' } },
+        ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 8 }, grid: { color: '#1e293b' } },
+      y: { title: { display: true, text: yLabel, color: '#64748b', font: { size: 10 } },
+        min: yMin, max: yMax,
+        ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e293b' } },
+    },
+  };
+}
+
+function timeAgo(date) {
+  var sec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (sec < 60) return sec + 's';
+  var min = Math.floor(sec / 60);
+  if (min < 60) return min + 'm';
+  var hrs = Math.floor(min / 60);
+  if (hrs < 24) return hrs + 'h ' + (min % 60) + 'm';
+  var days = Math.floor(hrs / 24);
+  return days + 'd ' + (hrs % 24) + 'h';
+}
+
+// ============================================================
+// BOOT: Load all stations sequentially
+// ============================================================
+(function() {
+  // Load stations one at a time to avoid THINGSPEAK_DATA collision
+  var idx = 0;
+  function loadNext() {
+    if (idx >= STATIONS.length) return;
+    var station = STATIONS[idx];
+    var folder = getDataFolder(station.configKey, station.defaultFolder);
+    var script = document.createElement('script');
+    script.src = '../data/' + folder + '/merged_data.js';
+    script.onload = function() {
+      if (window.THINGSPEAK_DATA) {
+        stationData[station.id] = parseStationData(window.THINGSPEAK_DATA, station);
+        window.THINGSPEAK_DATA = null;
+      } else {
+        stationData[station.id] = { entries: [], raw: null };
+      }
+      idx++;
+      if (idx < STATIONS.length) loadNext();
+      else onAllLoaded();
+    };
+    script.onerror = function() {
+      console.warn('[Health] No data for ' + station.name);
+      stationData[station.id] = { entries: [], raw: null };
+      idx++;
+      if (idx < STATIONS.length) loadNext();
+      else onAllLoaded();
+    };
+    document.body.appendChild(script);
+  }
+  loadNext();
+})();
+</script>
+
+</body>
+</html>

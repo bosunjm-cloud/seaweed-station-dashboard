@@ -378,6 +378,95 @@ body {
 .low-tide-table th { text-align:left; color:var(--text-muted); font-weight:600; padding:5px 8px; border-bottom:1px solid var(--border); font-size:0.72rem; text-transform:uppercase; letter-spacing:0.5px; }
 .low-tide-table td { padding:5px 8px; border-bottom:1px solid var(--border); }
 @media (max-width:768px) { .harvest-calendar { flex-direction:column; } }
+
+/* -- Collapsible sections -------------------------------------- */
+.collapsible-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.collapsible-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  background: none; border: none; cursor: pointer;
+  padding: 12px 16px; color: var(--text-sec); font-size: 0.9rem; font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.collapsible-toggle:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.collapsible-chevron { font-size: 0.75rem; transition: transform 0.2s; display: inline-block; }
+.collapsible-chevron.open { transform: rotate(180deg); }
+.collapsible-body { border-top: 1px solid var(--border); }
+
+/* -- Sensor summary cards -------------------------------------- */
+.sensor-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.sensor-summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.sensor-summary-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0;
+  height: 3px; background: var(--border);
+}
+.sensor-summary-card.ok::before { background: var(--success); }
+.sensor-summary-card.warn::before { background: var(--warning); }
+.sensor-summary-card.nc::before { background: var(--text-muted); }
+.sensor-summary-card .ss-label {
+  font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;
+  font-weight: 600; letter-spacing: 0.04em; margin-bottom: 6px;
+}
+.sensor-summary-card .ss-readings { display: flex; gap: 16px; }
+.sensor-summary-card .ss-val { font-size: 1.4rem; font-weight: 700; line-height: 1.1; }
+.sensor-summary-card .ss-unit { font-size: 0.65rem; color: var(--text-muted); }
+.sensor-summary-card .ss-range { font-size: 0.68rem; color: var(--text-muted); margin-top: 4px; }
+
+/* -- Sensor Placement Map -------------------------------------- */
+.sensor-map-panel {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+.sensor-map-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  background: none; border: none; cursor: pointer;
+  padding: 10px 16px; color: var(--text-sec); font-size: 0.85rem; font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.sensor-map-toggle:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.sensor-map-chevron { font-size: 0.75rem; transition: transform 0.2s; display: inline-block; }
+.sensor-map-chevron.open { transform: rotate(180deg); }
+.sensor-map-body { border-top: 1px solid var(--border); }
+.sensor-map-inner { padding: 14px 20px 18px; }
+.rack-svg { width: 100%; max-width: 680px; display: block; margin: 0 auto 14px; }
+.sensor-map-legend {
+  display: flex; flex-wrap: wrap; gap: 10px 22px;
+  justify-content: center; padding-top: 4px;
+}
+.sml-item { display: flex; align-items: center; gap: 7px; font-size: 0.8rem; font-weight: 600; }
+.sml-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* -- Daily summary highlights ---------------------------------- */
+.peaks-table td.hl-min { background: rgba(56,189,248,0.15); color: #38bdf8; font-weight: 700; }
+.peaks-table td.hl-avg { background: rgba(34,197,94,0.15); color: #22c55e; font-weight: 700; }
+.peaks-table td.hl-max { background: rgba(239,68,68,0.15); color: #ef4444; font-weight: 700; }
+
+/* -- Station Health link bar ----------------------------------- */
+.health-link-bar {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; padding: 14px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text-sec);
+  font-size: 0.85rem;
+}
+.health-link-bar a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.health-link-bar a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -395,6 +484,7 @@ body {
   </div>
   <div class="header-actions">
     <a class="btn btn-sm" href="../ESP32_Weather_Station_Dashboard.html" title="All tables overview">&#9664; Overview</a>
+    <a class="btn btn-sm" href="station_health.html" title="Station health metrics">&#128267; Station Health</a>
     <button class="btn btn-primary" id="btnFetch" onclick="fetchLiveData()">Fetch Live</button>
     <button class="btn" id="btnLoadFile" onclick="document.getElementById('fileInput').click()">Load JSON</button>
     <input type="file" id="fileInput" multiple accept=".json" style="display:none"
@@ -447,103 +537,32 @@ body {
       <button class="btn btn-sm" onclick="clearDateRange()" title="Reset to all data">Clear</button>
     </section>
 
-    <!-- -- Network At-A-Glance Bar -------------------------------- -->
-    <section class="network-bar" id="networkBar"></section>
-
-    <!-- -- Status Cards ------------------------------------------- -->
-    <section class="status-grid">
-      <!-- T0 Gateway -->
-      <div class="status-card" id="cardT0">
-        <div class="card-header">
-          <h3>T0 Gateway</h3>
-          <span class="card-badge badge-nc" id="t0Badge">No Data</span>
-        </div>
-        <div class="big-number" id="t0BatPct">--</div>
-        <div class="big-label">Battery %</div>
-        <div class="detail-grid">
-          <div class="detail-item"><div class="detail-label">Voltage</div><div class="detail-value" id="t0BatV">--</div></div>
-          <div class="detail-item"><div class="detail-label">RSSI</div><div class="detail-value" id="t0Rssi">--</div></div>
-          <div class="detail-item"><div class="detail-label">Boot Count</div><div class="detail-value" id="t0Boot">--</div></div>
-          <div class="detail-item"><div class="detail-label">Free Heap</div><div class="detail-value" id="t0Heap">--</div></div>
-          <div class="detail-item"><div class="detail-label">T0 Sensors</div><div class="detail-value" id="t0Sensors">--</div></div>
-          <div class="detail-item"><div class="detail-label">Firmware</div><div class="detail-value" id="t0Firmware">--</div></div>
-          <div class="detail-item"><div class="detail-label">Data Span</div><div class="detail-value" id="t0Uptime">--</div></div>
-        </div>
-        <div class="card-footer">
-          <span class="dot dot-grey" id="t0Dot"></span>
-          <span>Last upload: <span id="t0LastSeen">--</span></span>
+    <!-- -- Sensor Placement Reference (collapsible) -------------- -->
+    <section class="sensor-map-panel">
+      <button class="sensor-map-toggle" onclick="toggleSensorMap()" id="sensorMapToggle" aria-expanded="false">
+        <span>&#128205; Sensor Placement Reference</span>
+        <span class="sensor-map-chevron" id="sensorMapChevron">&#9660;</span>
+      </button>
+      <div class="sensor-map-body" id="sensorMapBody" style="display:none">
+        <div class="sensor-map-inner">
+          <div class="sensor-map-legend" style="padding-bottom:8px">
+            <span class="sml-item" style="color:#3b82f6"><span class="sml-dot" style="background:#3b82f6"></span>T0 Sensor 1</span>
+            <span class="sml-item" style="color:#06b6d4"><span class="sml-dot" style="background:#06b6d4"></span>T0 Sensor 2</span>
+            <span class="sml-item" style="color:#22c55e"><span class="sml-dot" style="background:#22c55e"></span>Sat-A Sensor 1</span>
+            <span class="sml-item" style="color:#84cc16"><span class="sml-dot" style="background:#84cc16"></span>Sat-A Sensor 2</span>
+            <span class="sml-item" style="color:#a855f7"><span class="sml-dot" style="background:#a855f7"></span>Sat-B Sensor 1</span>
+            <span class="sml-item" style="color:#ec4899"><span class="sml-dot" style="background:#ec4899"></span>Sat-B Sensor 2</span>
+          </div>
+          <div style="font-size:0.78rem;color:var(--text-muted);text-align:center">
+            T0 Gateway (2 probes) &bull; Satellite A (2 probes) &bull; Satellite B (2 probes) &mdash; 6 sensors total
+          </div>
         </div>
       </div>
+    </section>
 
-      <!-- Satellite A -->
-      <div class="status-card" id="cardSatA">
-        <div class="card-header">
-          <h3>Satellite A</h3>
-          <span class="card-badge badge-nc" id="satABadge">No Data</span>
-        </div>
-        <div class="big-number" id="satABatPct">--</div>
-        <div class="big-label">Battery %</div>
-        <div class="detail-grid">
-          <div class="detail-item"><div class="detail-label">Voltage</div><div class="detail-value" id="satABatV">--</div></div>
-          <div class="detail-item"><div class="detail-label">RSSI</div><div class="detail-value" id="satARssi">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="satASyncDrift" title="Satellite SYNC arrival drift vs expected">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sample ID</div><div class="detail-value" id="satASampleId">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sensors</div><div class="detail-value" id="satASensors">--</div></div>
-          <div class="detail-item"><div class="detail-label">Firmware</div><div class="detail-value" id="satAFirmware">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sync Rate (24h)</div><div class="detail-value" id="satASyncRate">--</div></div>
-          <div class="detail-item"><div class="detail-label">Missed (24h)</div><div class="detail-value" id="satAMissed">--</div></div>
-        </div>
-        <div class="card-footer">
-          <span class="dot dot-grey" id="satADot"></span>
-          <span>Last synced: <span id="satALastSeen">--</span></span>
-        </div>
-      </div>
-
-      <!-- Satellite B -->
-      <div class="status-card" id="cardSatB">
-        <div class="card-header">
-          <h3>Satellite B</h3>
-          <span class="card-badge badge-nc" id="satBBadge">No Data</span>
-        </div>
-        <div class="big-number" id="satBBatPct">--</div>
-        <div class="big-label">Battery %</div>
-        <div class="detail-grid">
-          <div class="detail-item"><div class="detail-label">Voltage</div><div class="detail-value" id="satBBatV">--</div></div>
-          <div class="detail-item"><div class="detail-label">RSSI</div><div class="detail-value" id="satBRssi">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="satBSyncDrift" title="Satellite SYNC arrival drift vs expected">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sample ID</div><div class="detail-value" id="satBSampleId">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sensors</div><div class="detail-value" id="satBSensors">--</div></div>
-          <div class="detail-item"><div class="detail-label">Firmware</div><div class="detail-value" id="satBFirmware">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sync Rate (24h)</div><div class="detail-value" id="satBSyncRate">--</div></div>
-          <div class="detail-item"><div class="detail-label">Missed (24h)</div><div class="detail-value" id="satBMissed">--</div></div>
-        </div>
-        <div class="card-footer">
-          <span class="dot dot-grey" id="satBDot"></span>
-          <span>Last synced: <span id="satBLastSeen">--</span></span>
-        </div>
-      </div>
-
-      <!-- System -->
-      <div class="status-card" id="cardSystem">
-        <div class="card-header">
-          <h3>System</h3>
-          <span class="card-badge badge-nc" id="sysBadge">No Data</span>
-        </div>
-        <div class="big-number" id="sysSDFree">--</div>
-        <div class="big-label">SD Free Space</div>
-        <div class="detail-grid">
-          <div class="detail-item"><div class="detail-label">Cell Signal</div><div class="detail-value" id="sysCSQ">--</div></div>
-          <div class="detail-item"><div class="detail-label">Upload OK</div><div class="detail-value" id="sysUploadOk">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sync Drift</div><div class="detail-value" id="sysSyncDrift" title="Max satellite sync timing drift (seconds) since last upload">--</div></div>
-          <div class="detail-item"><div class="detail-label">Total Entries</div><div class="detail-value" id="sysTotalEntries">--</div></div>
-          <div class="detail-item"><div class="detail-label">Sample Period</div><div class="detail-value" id="sysSamplePeriod">--</div></div>
-          <div class="detail-item" style="grid-column:1/-1" title="SD space consumed since first recorded entry"><div class="detail-label">Data Written (SD)</div><div class="detail-value" id="sysSDUsed">--</div></div>
-        </div>
-        <div class="card-footer">
-          <span class="dot dot-grey" id="sysDot"></span>
-          <span>Channel: <span id="sysChannelName">--</span></span>
-        </div>
-      </div>
+    <!-- -- Sensor Summary Cards (JS-generated) -------------------- -->
+    <section class="sensor-summary-grid" id="sensorCards">
+      <!-- Generated by updateSensorSummary() -->
     </section>
 
     <!-- Sensor Chart Overlay Controls -->
@@ -601,8 +620,14 @@ body {
       </div>
     </section>
 
-    <!-- -- Local Weather (Open-Meteo hindcast) --------------------- -->
-    <section class="chart-panel" id="weatherSection" style="display:none">
+    <!-- -- Local Weather (collapsible, default collapsed) --------- -->
+    <div class="collapsible-section" id="weatherCollapsible">
+      <button class="collapsible-toggle" onclick="toggleCollapsible('weather')">
+        <span>&#127326; Local Weather (Open-Meteo)</span>
+        <span class="collapsible-chevron" id="weatherChevron">&#9660;</span>
+      </button>
+      <div class="collapsible-body" id="weatherBody" style="display:none">
+    <section class="chart-panel" id="weatherSection" style="border:none;border-radius:0;box-shadow:none">
       <div class="chart-header">
         <h3>&#127326; Local Weather (Open-Meteo)</h3>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -634,9 +659,17 @@ body {
         </div>
       </div>
     </section>
+      </div>
+    </div>
 
-    <!-- -- Tides & Moon Phase ------------------------------------- -->
-    <section class="chart-panel" id="tidesSection" style="display:none">
+    <!-- -- Tides & Moon Phase (collapsible, default collapsed) ---- -->
+    <div class="collapsible-section" id="tidesCollapsible">
+      <button class="collapsible-toggle" onclick="toggleCollapsible('tides')">
+        <span>&#127754; Tides &amp; Moon Phase</span>
+        <span class="collapsible-chevron" id="tidesChevron">&#9660;</span>
+      </button>
+      <div class="collapsible-body" id="tidesBody" style="display:none">
+    <section class="chart-panel" id="tidesSection" style="border:none;border-radius:0;box-shadow:none">
       <div class="chart-header">
         <h3>&#127754; Tides &amp; Moon Phase</h3>
         <span class="chart-subhead" id="tideStation" style="margin:0"></span>
@@ -689,105 +722,29 @@ body {
       <div class="chart-subhead" style="margin-top:16px">Harvest Calendar (3 months)</div>
       <div id="harvestCalendar" class="harvest-calendar"></div>
     </section>
-
-    <!-- -- Battery Charts (side by side: % and Voltage) ----------- -->
-    <div class="two-charts">
-      <section class="chart-panel">
-        <div class="chart-header">
-          <h3>Battery %</h3>
-          <div class="time-btns">
-            <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
-            <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
-            <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
-            <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
-          </div>
-        </div>
-        <div class="chart-subhead" id="batSubhead">Showing: All data</div>
-        <div class="chart-wrap">
-          <canvas id="batChart"></canvas>
-        </div>
-      </section>
-
-      <section class="chart-panel">
-        <div class="chart-header">
-          <h3>Battery Voltage (V)</h3>
-        </div>
-        <div class="chart-subhead" id="voltSubhead">Raw voltage -- useful for spotting charge/discharge cycles</div>
-        <div class="chart-wrap">
-          <canvas id="voltChart"></canvas>
-        </div>
-      </section>
+      </div>
     </div>
-
-    <!-- -- Battery Forecast Chart --------------------------------- -->
-    <section class="chart-panel" id="forecastPanel">
-      <div class="chart-header">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <h3>&#128267; Battery Forecast</h3>
-          <span style="font-size:11px;color:#64748b;">From</span>
-          <input type="date" id="fcStartDate" style="background:#0f172a;border:1px solid #334155;border-radius:4px;color:#94a3b8;font-size:11px;padding:2px 6px;cursor:pointer;">
-        </div>
-        <div class="time-btns">
-          <button class="btn btn-sm" data-fcrange="day">Day</button>
-          <button class="btn btn-sm active" data-fcrange="week">Week</button>
-          <button class="btn btn-sm" data-fcrange="month">Month</button>
-          <button class="btn btn-sm" data-fcrange="all">All</button>
-          <span style="border-left:1px solid #334155;margin:0 8px;height:20px;display:inline-block"></span>
-          <button class="btn btn-sm active" id="fcAnchorAuto" title="Re-anchor prediction from latest reading">Auto</button>
-          <button class="btn btn-sm" id="fcAnchorLock" title="Lock anchor — click chart to pick point. Shows long-term drift.">&#128204; Lock</button>
-        </div>
-      </div>
-      <div class="chart-subhead">Solid = actual &nbsp;&bull;&nbsp; Dashed = predicted &nbsp;&bull;&nbsp; Red dashed = config change &nbsp;&bull;&nbsp; Click chart in Lock mode to set anchor &nbsp;&bull;&nbsp; Click legend to show/hide &nbsp;&bull;&nbsp; Scroll to zoom</div>
-      <div class="chart-wrap" style="height:320px">
-        <canvas id="forecastChart"></canvas>
-      </div>
-      <div id="fcInfoCards"></div>
-    </section>
-
-    <!-- -- Satellite Sync Reliability Chart ----------------------- -->
-    <section class="chart-panel" id="syncChartPanel">
-      <div class="chart-header">
-        <h3>&#128225; Satellite Sync Reliability</h3>
-        <div class="time-btns">
-          <button class="btn btn-sm active" id="syncGroupDay" onclick="setSyncGroup('day')">Daily</button>
-          <button class="btn btn-sm" id="syncGroupWeek" onclick="setSyncGroup('week')">Weekly</button>
-        </div>
-      </div>
-      <div class="chart-subhead" id="syncSubhead">Missed syncs per day/week &mdash; Sat-A and Sat-B stacked (green/blue = synced, red/orange = missed)</div>
-      <div class="chart-wrap" style="height:260px">
-        <canvas id="syncChart"></canvas>
-      </div>
-    </section>
-
-    <!-- -- Sync Drift & RSSI Over Time ----------------------------- -->
-    <section class="chart-panel" id="driftChartPanel">
-      <div class="chart-header">
-        <h3>&#8635; Satellite Sync Drift &amp; RSSI</h3>
-      </div>
-      <div class="chart-subhead" id="driftSubhead">Sync drift (seconds) and receive signal strength per upload cycle</div>
-      <div class="chart-wrap" style="height:240px">
-        <canvas id="driftChart"></canvas>
-      </div>
-      <div class="chart-wrap" style="height:200px;margin-top:8px">
-        <canvas id="rssiChart"></canvas>
-      </div>
-    </section>
-
-    <!-- -- Data Health --------------------------------------------- -->
-    <section class="health-panel" id="healthPanel">
-      <h3>Data Health &amp; Network Reliability</h3>
-      <div class="health-grid" id="healthGrid"></div>
-    </section>
 
     <!-- -- Daily Summary Table ------------------------------------ -->
     <section class="peaks-panel" id="peaksPanel">
       <h3>Daily Summary</h3>
-      <div class="peaks-sub" id="peaksSub">Battery trends + sensor peaks per day -- most recent first</div>
+      <div class="peaks-sub" id="peaksSub">Sensor min / avg / max per day &mdash; temps grouped, then humidities &mdash; most recent first</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;font-size:0.72rem">
+        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(56,189,248,0.3);border:1px solid #38bdf8;border-radius:2px;vertical-align:middle;margin-right:4px"></span> Lowest Min</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(34,197,94,0.3);border:1px solid #22c55e;border-radius:2px;vertical-align:middle;margin-right:4px"></span> Highest Avg</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:rgba(239,68,68,0.3);border:1px solid #ef4444;border-radius:2px;vertical-align:middle;margin-right:4px"></span> Highest Max</span>
+      </div>
       <table class="peaks-table">
         <thead id="peaksHead"></thead>
         <tbody id="peaksBody"></tbody>
       </table>
     </section>
+
+    <!-- -- Station Health Link ------------------------------------ -->
+    <div class="health-link-bar">
+      &#128267; Battery, Sync Reliability, Data Health &amp; more &mdash;
+      <a href="station_health.html">View Station Health Dashboard &rarr;</a>
+    </div>
 
   </div> <!-- /dashboardContent -->
 
@@ -1340,11 +1297,9 @@ function renderDashboard() {
 
   updateHeaderInfo();
   updateFreshnessBanner();
-  updateNetworkBar();
-  updateStatusCards();
+  updateSensorSummary();
   createOrUpdateCharts();
   updateChartSubheads();
-  updateDataHealth();
   updatePeaksTable();
   updateTimeButtons();
 
@@ -1370,6 +1325,80 @@ function updateHeaderInfo() {
     document.getElementById('dateRangeLabel').textContent =
       fmtDate(e[0].timestamp) + ' \u2192 ' + fmtDate(e[e.length - 1].timestamp);
   }
+}
+
+// =====================================================================
+// COLLAPSIBLE SECTIONS & SENSOR MAP TOGGLE
+// =====================================================================
+function toggleCollapsible(id) {
+  var body = document.getElementById(id + 'Body');
+  var chev = document.getElementById(id + 'Chevron');
+  if (!body) return;
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  if (chev) chev.classList.toggle('open', !open);
+}
+
+function toggleSensorMap() {
+  var body = document.getElementById('sensorMapBody');
+  var chev = document.getElementById('sensorMapChevron');
+  if (!body) return;
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  if (chev) chev.classList.toggle('open', !open);
+}
+
+// =====================================================================
+// RENDER: SENSOR SUMMARY CARDS
+// =====================================================================
+function updateSensorSummary() {
+  var entries = state.filteredEntries;
+  if (!entries.length) return;
+
+  var SENSORS = [
+    { tKey: 't0Temp1',   hKey: 't0Hum1',   label: 'T0 Sensor 1',   color: '#3b82f6' },
+    { tKey: 't0Temp2',   hKey: 't0Hum2',   label: 'T0 Sensor 2',   color: '#06b6d4' },
+    { tKey: 'satATemp1', hKey: 'satAHum1', label: 'Sat-A Sensor 1', color: '#22c55e' },
+    { tKey: 'satATemp2', hKey: 'satAHum2', label: 'Sat-A Sensor 2', color: '#84cc16' },
+    { tKey: 'satBTemp1', hKey: 'satBHum1', label: 'Sat-B Sensor 1', color: '#a855f7' },
+    { tKey: 'satBTemp2', hKey: 'satBHum2', label: 'Sat-B Sensor 2', color: '#ec4899' },
+  ];
+
+  function stats(key) {
+    var vals = entries.map(function(e) { return e[key]; }).filter(function(v) { return v !== null && v !== undefined; });
+    if (!vals.length) return null;
+    return {
+      latest: vals[vals.length - 1],
+      min: Math.min.apply(null, vals),
+      max: Math.max.apply(null, vals),
+      avg: vals.reduce(function(a,b){return a+b;},0) / vals.length,
+      count: vals.length
+    };
+  }
+
+  var html = '';
+  SENSORS.forEach(function(s) {
+    var tS = stats(s.tKey);
+    var hS = stats(s.hKey);
+    if (!tS && !hS) return; // sensor has no data
+
+    var statusClass = tS ? 'ok' : 'nc';
+    html += '<div class="sensor-summary-card ' + statusClass + '" style="border-top: 3px solid ' + s.color + '">';
+    html += '<div class="ss-label" style="color:' + s.color + '">' + s.label + '</div>';
+    html += '<div class="ss-readings">';
+    if (tS) {
+      html += '<div><div class="ss-val">' + tS.latest.toFixed(1) + '<span class="ss-unit"> \u00B0C</span></div>';
+      html += '<div class="ss-range">' + tS.min.toFixed(1) + ' / ' + tS.avg.toFixed(1) + ' / ' + tS.max.toFixed(1) + '</div></div>';
+    }
+    if (hS) {
+      html += '<div><div class="ss-val">' + hS.latest.toFixed(1) + '<span class="ss-unit"> %RH</span></div>';
+      html += '<div class="ss-range">' + hS.min.toFixed(1) + ' / ' + hS.avg.toFixed(1) + ' / ' + hS.max.toFixed(1) + '</div></div>';
+    }
+    html += '</div></div>';
+  });
+
+  var container = document.getElementById('sensorCards');
+  if (container) container.innerHTML = html || '<div style="color:var(--text-muted);text-align:center;padding:20px">No sensor data available</div>';
 }
 
 // =====================================================================
@@ -2111,7 +2140,8 @@ function createOrUpdateCharts() {
     });
   }
 
-  // -- Battery % --
+  // -- Battery % (only if canvas exists - moved to Station Health page) --
+  if (document.getElementById('batChart')) {
   var batDS = [
     makeDataset(e, 't0BatPct',   'T0 Gateway',  COLORS.t0Bat, false),
     makeDataset(e, 'satABatPct', 'Satellite A',  COLORS.satABat, false),
@@ -2126,8 +2156,10 @@ function createOrUpdateCharts() {
       options: baseChartOptions('Battery (%)', 0, 100),
     });
   }
+  }
 
-  // -- Battery Voltage --
+  // -- Battery Voltage (only if canvas exists) --
+  if (document.getElementById('voltChart')) {
   var voltDS = [
     makeDataset(e, 't0BatV',   'T0 Gateway',  COLORS.t0V, false),
     makeDataset(e, 'satABatV', 'Satellite A',  COLORS.satAV, false),
@@ -2142,9 +2174,10 @@ function createOrUpdateCharts() {
       options: baseChartOptions('Voltage (V)', 2.5, 4.5),
     });
   }
+  }
 
-  createOrUpdateSyncChart();
-  createOrUpdateDriftChart();
+  if (document.getElementById('syncChart')) createOrUpdateSyncChart();
+  if (document.getElementById('driftChart')) createOrUpdateDriftChart();
 }
 
 function updateCharts() {
@@ -2506,7 +2539,7 @@ function updateDataHealth() {
 }
 
 // =====================================================================
-// RENDER: DAILY SUMMARY TABLE
+// RENDER: DAILY SUMMARY TABLE (sensor-focused, grouped temps/hums, highlights)
 // =====================================================================
 function updatePeaksTable() {
   var entries = state.filteredEntries;
@@ -2531,30 +2564,37 @@ function updatePeaksTable() {
     };
   }
 
-  // Determine which sensor columns have any data
-  var sensorKeys = {
-    't0Temp1': 'T0 S1 Temp', 't0Hum1': 'T0 S1 Hum',
-    't0Temp2': 'T0 S2 Temp', 't0Hum2': 'T0 S2 Hum',
-    'satATemp1': 'SatA S1 Temp', 'satAHum1': 'SatA S1 Hum',
-    'satATemp2': 'SatA S2 Temp', 'satAHum2': 'SatA S2 Hum',
-    'satBTemp1': 'SatB S1 Temp', 'satBHum1': 'SatB S1 Hum',
-    'satBTemp2': 'SatB S2 Temp', 'satBHum2': 'SatB S2 Hum',
-  };
-  var batKeys = {
-    't0BatPct': 'T0 Bat%', 'satABatPct': 'SatA Bat%', 'satBBatPct': 'SatB Bat%'
-  };
+  // Group sensor keys: temps first, then humidities
+  var tempKeys = [
+    { key: 't0Temp1', label: 'T0 S1' },
+    { key: 't0Temp2', label: 'T0 S2' },
+    { key: 'satATemp1', label: 'SatA S1' },
+    { key: 'satATemp2', label: 'SatA S2' },
+    { key: 'satBTemp1', label: 'SatB S1' },
+    { key: 'satBTemp2', label: 'SatB S2' },
+  ];
+  var humKeys = [
+    { key: 't0Hum1', label: 'T0 S1' },
+    { key: 't0Hum2', label: 'T0 S2' },
+    { key: 'satAHum1', label: 'SatA S1' },
+    { key: 'satAHum2', label: 'SatA S2' },
+    { key: 'satBHum1', label: 'SatB S1' },
+    { key: 'satBHum2', label: 'SatB S2' },
+  ];
 
-  var activeSensorKeys = {};
-  for (var sk in sensorKeys) {
-    if (entries.some(function (e) { return e[sk] !== null; })) {
-      activeSensorKeys[sk] = sensorKeys[sk];
-    }
+  // Filter to only active sensors
+  var activeTemps = tempKeys.filter(function(s) { return entries.some(function(e) { return e[s.key] !== null; }); });
+  var activeHums  = humKeys.filter(function(s) { return entries.some(function(e) { return e[s.key] !== null; }); });
+  var allActive = activeTemps.concat(activeHums);
+
+  // Build header: Date | Pts | Temps... | Hums...
+  var headHtml = '<tr><th>Date</th><th>Pts</th>';
+  if (activeTemps.length) {
+    activeTemps.forEach(function(s) { headHtml += '<th>' + s.label + ' Temp</th>'; });
   }
-
-  // Build header
-  var headHtml = '<tr><th>Date</th><th>Entries</th>';
-  for (var bk in batKeys) headHtml += '<th>' + batKeys[bk] + '</th>';
-  for (var ak in activeSensorKeys) headHtml += '<th>' + activeSensorKeys[ak] + ' (min/avg/max)</th>';
+  if (activeHums.length) {
+    activeHums.forEach(function(s) { headHtml += '<th>' + s.label + ' Hum</th>'; });
+  }
   headHtml += '</tr>';
   document.getElementById('peaksHead').innerHTML = headHtml;
 
@@ -2568,40 +2608,53 @@ function updatePeaksTable() {
     var dl  = new Date(day + 'T00:00:00Z');
     var dateLabel = dl.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
 
+    // Compute stats for all active sensors
+    var dayStats = {};
+    allActive.forEach(function(s) { dayStats[s.key] = fieldStats(de, s.key); });
+
+    // Find highlight targets across all sensors for this day
+    var minVal = Infinity, minKey = null;
+    var maxAvg = -Infinity, avgKey = null;
+    var maxVal = -Infinity, maxKey = null;
+
+    allActive.forEach(function(s) {
+      var st = dayStats[s.key];
+      if (!st) return;
+      if (st.min < minVal) { minVal = st.min; minKey = s.key; }
+      if (st.avg > maxAvg) { maxAvg = st.avg; avgKey = s.key; }
+      if (st.max > maxVal) { maxVal = st.max; maxKey = s.key; }
+    });
+
     bodyHtml += '<tr><td>' + dateLabel + '</td><td>' + de.length + '</td>';
 
-    // Battery columns: start -> end with delta arrow
-    for (var bk2 in batKeys) {
-      var first = de.find(function (e) { return e[bk2] !== null; });
-      var last  = de.slice().reverse().find(function (e) { return e[bk2] !== null; });
-      if (first && last) {
-        var delta = last[bk2] - first[bk2];
-        var arrow = delta > 0.5 ? '\u2197' : delta < -0.5 ? '\u2198' : '\u2192';
-        var color = delta < -10 ? 'color:var(--danger)' : delta < -3 ? 'color:var(--warning)' : '';
-        bodyHtml += '<td style="' + color + '">' + first[bk2].toFixed(1) + ' ' + arrow + ' ' + last[bk2].toFixed(1) + '</td>';
-      } else {
-        bodyHtml += '<td class="peaks-nc">--</td>';
-      }
-    }
+    // Temperature columns
+    activeTemps.forEach(function(s) {
+      var st = dayStats[s.key];
+      if (!st) { bodyHtml += '<td class="peaks-nc">NC</td>'; return; }
+      var hlClass = '';
+      if (s.key === minKey) hlClass = ' hl-min';
+      else if (s.key === maxKey) hlClass = ' hl-max';
+      else if (s.key === avgKey) hlClass = ' hl-avg';
+      bodyHtml += '<td class="' + hlClass + '">' + st.min.toFixed(1) + ' / ' + st.avg.toFixed(1) + ' / ' + st.max.toFixed(1) + '</td>';
+    });
 
-    // Sensor columns: min / avg / max
-    for (var ak2 in activeSensorKeys) {
-      var stats = fieldStats(de, ak2);
-      if (stats) {
-        bodyHtml += '<td>' + stats.min.toFixed(1) + ' / ' + stats.avg.toFixed(1) + ' / ' + stats.max.toFixed(1) + '</td>';
-      } else {
-        bodyHtml += '<td class="peaks-nc">NC</td>';
-      }
-    }
+    // Humidity columns
+    activeHums.forEach(function(s) {
+      var st = dayStats[s.key];
+      if (!st) { bodyHtml += '<td class="peaks-nc">NC</td>'; return; }
+      var hlClass = '';
+      if (s.key === minKey) hlClass = ' hl-min';
+      else if (s.key === maxKey) hlClass = ' hl-max';
+      else if (s.key === avgKey) hlClass = ' hl-avg';
+      bodyHtml += '<td class="' + hlClass + '">' + st.min.toFixed(1) + ' / ' + st.avg.toFixed(1) + ' / ' + st.max.toFixed(1) + '</td>';
+    });
+
     bodyHtml += '</tr>';
   }
 
-  // Show message if no sensor columns at all
-  if (Object.keys(activeSensorKeys).length === 0) {
-    var colSpan = 2 + Object.keys(batKeys).length;
-    bodyHtml += '<tr><td colspan="' + colSpan + '" class="peaks-nc" style="text-align:center;padding:20px">' +
-      'No temperature/humidity sensor data available yet -- probes may not be connected' +
-    '</td></tr>';
+  if (!allActive.length) {
+    bodyHtml = '<tr><td colspan="2" class="peaks-nc" style="text-align:center;padding:20px">' +
+      'No temperature/humidity sensor data available yet</td></tr>';
   }
 
   document.getElementById('peaksBody').innerHTML = bodyHtml;
@@ -2744,6 +2797,9 @@ function renderWeatherCharts() {
   if (!w || !w.time || !w.time.length) return;
 
   document.getElementById('weatherSection').style.display = '';
+  // Keep the collapsible wrapper visible (but still collapsed by default)
+  var wxCollapsible = document.getElementById('weatherCollapsible');
+  if (wxCollapsible) wxCollapsible.style.display = '';
   var locEl = document.getElementById('weatherLocation');
   if (locEl) locEl.textContent = w._location + ' (' + w._timezone + ')';
 

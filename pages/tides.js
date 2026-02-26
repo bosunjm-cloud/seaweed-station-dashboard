@@ -834,6 +834,9 @@ function initTides(locationKey) {
   var container = document.getElementById('tidesSection');
   if (!container) return;
   container.style.display = '';
+  // Show collapsible wrapper if present (station pages use collapsible tides)
+  var tidesCollapsible = document.getElementById('tidesCollapsible');
+  if (tidesCollapsible) tidesCollapsible.style.display = '';
 
   var stationEl = document.getElementById('tideStation');
   if (stationEl) {

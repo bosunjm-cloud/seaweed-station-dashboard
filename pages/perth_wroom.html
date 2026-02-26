@@ -15,6 +15,22 @@
 /* ===================================================================
    CSS -- Dark monitoring dashboard theme (self-contained)
    =================================================================== */
+
+/* -- Collapsible sections ---------------------------------------- */
+.collapsible-section{margin-bottom:12px}
+.collapsible-toggle{width:100%;background:#1e293b;border:1px solid #334155;border-radius:8px;color:#f1f5f9;font-size:1rem;font-weight:600;padding:10px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .2s}
+.collapsible-toggle:hover{background:#334155}
+.collapsible-chevron{font-size:.7rem;transition:transform .3s}
+.collapsible-body{padding-top:10px}
+
+/* -- Daily summary highlight classes ------------------------------ */
+.peaks-table td .hl-min{color:#38bdf8;font-weight:700}
+.peaks-table td .hl-avg{color:#22c55e;font-weight:700}
+.peaks-table td .hl-max{color:#ef4444;font-weight:700}
+
+/* -- Health link bar ---------------------------------------------- */
+.health-link-bar{text-align:center;padding:18px 0;margin:12px 0;border:1px dashed #334155;border-radius:8px;font-size:.95rem}
+
 :root {
   --bg:          #0f172a;
   --bg-card:     #1e293b;
@@ -392,6 +408,7 @@ body {
     <input type="file" id="csvInput" multiple accept=".csv,.txt" style="display:none"
            onchange="handleCSVUpload(this.files)">
     <button class="btn" id="btnExportCSV" onclick="exportCSV()" title="Export merged data as CSV" style="display:none">Export CSV</button>
+    <a class="btn btn-sm" href="station_health.html" title="Battery, Sync, Data Health">&#128267; Station Health</a>
   </div>
   <div class="header-meta">
     <span><span class="label">Source:</span> <span id="dataSourceLabel">No data loaded</span></span>
@@ -582,7 +599,13 @@ body {
     </section>
 
     <!-- Local Weather (Open-Meteo) -->
-    <section class="chart-panel" id="weatherSection" style="display:none">
+    <div class="collapsible-section" id="weatherCollapsible" style="display:none">
+    <button class="collapsible-toggle" onclick="toggleCollapsible('weatherCollapsible')">
+      &#127326; Local Weather (Open-Meteo)
+      <span class="collapsible-chevron">&#9660;</span>
+    </button>
+    <div class="collapsible-body" style="display:none">
+    <section class="chart-panel" id="weatherSection" style="display:block">
       <div class="chart-header">
         <h3>&#127326; Local Weather (Open-Meteo)</h3>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -606,11 +629,19 @@ body {
         <div class="chart-wrap" style="height:200px"><canvas id="weatherUVChart"></canvas></div>
       </div>
     </section>
+    </div><!-- /collapsible-body -->
+    </div><!-- /weatherCollapsible -->
 
     <!-- =================================================================
          TIDES & MOON PHASE
          ================================================================= -->
-    <section class="chart-panel" id="tidesSection" style="display:none">
+    <div class="collapsible-section" id="tidesCollapsible" style="display:none">
+    <button class="collapsible-toggle" onclick="toggleCollapsible('tidesCollapsible')">
+      &#127754; Tides &amp; Moon Phase
+      <span class="collapsible-chevron">&#9660;</span>
+    </button>
+    <div class="collapsible-body" style="display:none">
+    <section class="chart-panel" id="tidesSection" style="display:block">
       <div class="chart-header">
         <h3>&#127754; Tides &amp; Moon Phase</h3>
         <span class="chart-subhead" id="tideStation" style="margin:0"></span>
@@ -663,11 +694,18 @@ body {
       <div class="chart-subhead" style="margin-top:16px">Harvest Calendar (3 months)</div>
       <div id="harvestCalendar" class="harvest-calendar"></div>
     </section>
+    </div><!-- /collapsible-body -->
+    </div><!-- /tidesCollapsible -->
 
     <!-- Daily Summary Table -->
     <section class="peaks-panel" id="peaksPanel">
       <h3>Daily Summary</h3>
-      <div class="peaks-sub">Sensor min / avg / max per day &mdash; most recent first</div>
+      <div class="peaks-sub">
+        Sensor min / avg / max per day &mdash; most recent first &mdash;
+        <span style="color:#38bdf8">&#9632; Lowest Min</span> &nbsp;
+        <span style="color:#22c55e">&#9632; Highest Avg</span> &nbsp;
+        <span style="color:#ef4444">&#9632; Highest Max</span>
+      </div>
       <table class="peaks-table">
         <thead id="peaksHead"></thead>
         <tbody id="peaksBody"></tbody>
@@ -1304,6 +1342,20 @@ function renderDashboard() {
 }
 
 // =====================================================================
+// COLLAPSIBLE SECTIONS
+// =====================================================================
+function toggleCollapsible(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var body = el.querySelector('.collapsible-body');
+  var chev = el.querySelector('.collapsible-chevron');
+  if (!body) return;
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+// =====================================================================
 // RENDER: HEADER INFO
 // =====================================================================
 function updateHeaderInfo() {
@@ -1841,7 +1893,6 @@ function updatePeaksTable() {
   var entries = state.filteredEntries;
   if (!entries.length) return;
 
-  // Group by day
   var byDay = {};
   entries.forEach(function(e) {
     var day = e.timestamp.toISOString().slice(0, 10);
@@ -1852,31 +1903,27 @@ function updatePeaksTable() {
   function fieldStats(dayEntries, key) {
     var vals = dayEntries.map(function(e) { return e[key]; }).filter(function(v) { return v !== null && v !== undefined; });
     if (!vals.length) return null;
-    return {
-      min: Math.min.apply(null, vals),
-      max: Math.max.apply(null, vals),
-      avg: vals.reduce(function(a, b) { return a + b; }, 0) / vals.length,
-    };
+    return { min: Math.min.apply(null, vals), max: Math.max.apply(null, vals),
+      avg: vals.reduce(function(a, b) { return a + b; }, 0) / vals.length };
   }
 
-  // Determine which sensors have data
-  var activeSensors = [];
+  // Group temps first, then humidities
+  var tempKeys = [], humKeys = [];
   for (var s = 1; s <= SENSOR_COUNT; s++) {
-    var hasT  = entries.some(function(e) { return e['t' + s] !== null; });
-    var hasRH = entries.some(function(e) { return e['rh' + s] !== null; });
-    if (hasT || hasRH) activeSensors.push(s);
+    if (entries.some(function(e) { return e['t' + s] !== null; }))
+      tempKeys.push(['t' + s, 'S' + s + ' T', SENSOR_COLORS[s-1]]);
+    if (entries.some(function(e) { return e['rh' + s] !== null; }))
+      humKeys.push(['rh' + s, 'S' + s + ' H', SENSOR_COLORS[s-1]]);
   }
+  var allKeys = tempKeys.concat(humKeys);
 
-  // Header
   var headHtml = '<tr><th>Date</th><th>Pts</th>';
-  activeSensors.forEach(function(s) {
-    headHtml += '<th style="color:' + SENSOR_COLORS[s-1] + '">S' + s + ' Temp (min/avg/max)</th>';
-    headHtml += '<th style="color:' + SENSOR_COLORS[s-1] + '">S' + s + ' Hum (min/avg/max)</th>';
+  allKeys.forEach(function(k) {
+    headHtml += '<th style="color:' + k[2] + '">' + k[1] + ' (min/avg/max)</th>';
   });
   headHtml += '</tr>';
   document.getElementById('peaksHead').innerHTML = headHtml;
 
-  // Body (most recent first)
   var days = Object.keys(byDay).sort().reverse();
   var bodyHtml = '';
 
@@ -1886,24 +1933,37 @@ function updatePeaksTable() {
     var dl  = new Date(day + 'T00:00:00Z');
     var dateLabel = dl.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
 
+    var dayStats = {};
+    allKeys.forEach(function(k) { dayStats[k[0]] = fieldStats(de, k[0]); });
+
+    // Highlights across temp sensors
+    var tMinVals = [], tAvgVals = [], tMaxVals = [];
+    tempKeys.forEach(function(k) { var st = dayStats[k[0]]; if (st) { tMinVals.push(st.min); tAvgVals.push(st.avg); tMaxVals.push(st.max); } });
+    var hMinVals = [], hAvgVals = [], hMaxVals = [];
+    humKeys.forEach(function(k) { var st = dayStats[k[0]]; if (st) { hMinVals.push(st.min); hAvgVals.push(st.avg); hMaxVals.push(st.max); } });
+
+    var lowestTMin  = tMinVals.length ? Math.min.apply(null, tMinVals) : null;
+    var highestTAvg = tAvgVals.length ? Math.max.apply(null, tAvgVals) : null;
+    var highestTMax = tMaxVals.length ? Math.max.apply(null, tMaxVals) : null;
+    var lowestHMin  = hMinVals.length ? Math.min.apply(null, hMinVals) : null;
+    var highestHAvg = hAvgVals.length ? Math.max.apply(null, hAvgVals) : null;
+    var highestHMax = hMaxVals.length ? Math.max.apply(null, hMaxVals) : null;
+
     bodyHtml += '<tr><td>' + dateLabel + '</td><td>' + de.length + '</td>';
 
-    activeSensors.forEach(function(s) {
-      var tStats  = fieldStats(de, 't' + s);
-      var rhStats = fieldStats(de, 'rh' + s);
-
-      bodyHtml += '<td>' + (tStats
-        ? tStats.min.toFixed(1) + ' / ' + tStats.avg.toFixed(1) + ' / ' + tStats.max.toFixed(1)
-        : '<span class="peaks-nc">NC</span>') + '</td>';
-      bodyHtml += '<td>' + (rhStats
-        ? rhStats.min.toFixed(1) + ' / ' + rhStats.avg.toFixed(1) + ' / ' + rhStats.max.toFixed(1)
-        : '<span class="peaks-nc">NC</span>') + '</td>';
+    allKeys.forEach(function(k) {
+      var stats = dayStats[k[0]];
+      if (!stats) { bodyHtml += '<td><span class="peaks-nc">NC</span></td>'; return; }
+      var isTemp = k[0].charAt(0) === 't';
+      var hlMin = isTemp ? (stats.min === lowestTMin  ? ' hl-min' : '') : (stats.min === lowestHMin  ? ' hl-min' : '');
+      var hlAvg = isTemp ? (stats.avg === highestTAvg ? ' hl-avg' : '') : (stats.avg === highestHAvg ? ' hl-avg' : '');
+      var hlMax = isTemp ? (stats.max === highestTMax ? ' hl-max' : '') : (stats.max === highestHMax ? ' hl-max' : '');
+      bodyHtml += '<td><span class="' + hlMin.trim() + '">' + stats.min.toFixed(1) + '</span> / <span class="' + hlAvg.trim() + '">' + stats.avg.toFixed(1) + '</span> / <span class="' + hlMax.trim() + '">' + stats.max.toFixed(1) + '</span></td>';
     });
-
     bodyHtml += '</tr>';
   }
 
-  if (!activeSensors.length) {
+  if (!allKeys.length) {
     bodyHtml = '<tr><td colspan="2" class="peaks-nc" style="text-align:center;padding:20px">' +
       'No sensor data available</td></tr>';
   }
@@ -2082,6 +2142,8 @@ function renderWeatherCharts() {
   if (!w || !w.time || !w.time.length) return;
 
   document.getElementById('weatherSection').style.display = '';
+  var wxCollapsible = document.getElementById('weatherCollapsible');
+  if (wxCollapsible) wxCollapsible.style.display = '';
   var locEl = document.getElementById('weatherLocation');
   if (locEl) locEl.textContent = w._location + ' (' + w._timezone + ')';
 
