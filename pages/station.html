@@ -1536,20 +1536,19 @@ function updateSensorCards() {
   var latest = e[e.length - 1];
 
   var sensors = [
-    { label: 'T0 - S1',   tempKey: 't0Temp1',   humKey: 't0Hum1',   color: COLORS.t0s1   },
-    { label: 'T0 - S2',   tempKey: 't0Temp2',   humKey: 't0Hum2',   color: COLORS.t0s2   },
-    { label: 'S.A - S1',  tempKey: 'satATemp1', humKey: 'satAHum1', color: COLORS.satAs1 },
-    { label: 'S.A - S2',  tempKey: 'satATemp2', humKey: 'satAHum2', color: COLORS.satAs2 },
-    { label: 'S.B - S1',  tempKey: 'satBTemp1', humKey: 'satBHum1', color: COLORS.satBs1 },
-    { label: 'S.B - S2',  tempKey: 'satBTemp2', humKey: 'satBHum2', color: COLORS.satBs2 },
+    { num: 'S1', sub: 'T0.S1',  tempKey: 't0Temp1',   humKey: 't0Hum1',   color: COLORS.t0s1   },
+    { num: 'S2', sub: 'T0.S2',  tempKey: 't0Temp2',   humKey: 't0Hum2',   color: COLORS.t0s2   },
+    { num: 'S3', sub: 'A-S1',   tempKey: 'satATemp1', humKey: 'satAHum1', color: COLORS.satAs1 },
+    { num: 'S4', sub: 'A-S2',   tempKey: 'satATemp2', humKey: 'satAHum2', color: COLORS.satAs2 },
+    { num: 'S5', sub: 'B-S1',   tempKey: 'satBTemp1', humKey: 'satBHum1', color: COLORS.satBs1 },
+    { num: 'S6', sub: 'B-S2',   tempKey: 'satBTemp2', humKey: 'satBHum2', color: COLORS.satBs2 },
   ];
 
-  // Override labels from sensor map legend if available
+  // Override colors (not labels) from sensor map legend if available
   var mapKey = STATION ? STATION.sensorMap : null;
   var legend = (mapKey && SENSOR_MAPS[mapKey]) ? SENSOR_MAPS[mapKey].legend : null;
   if (legend) {
     for (var li = 0; li < Math.min(legend.length, sensors.length); li++) {
-      sensors[li].label = legend[li].label;
       sensors[li].color = legend[li].color;
     }
   }
@@ -1575,7 +1574,9 @@ function updateSensorCards() {
 
     html += '<div class="status-card ' + cardClass + '">' +
       '<div class="card-header">' +
-        '<h3 style="color:' + s.color + ';text-transform:none;font-size:.9rem;font-weight:700">' + s.label + '</h3>' +
+        '<h3 style="color:' + s.color + ';text-transform:none;font-size:.9rem;font-weight:700">' +
+          s.num + ' <span style="color:#888;font-weight:400;font-size:.85em">(' + s.sub + ')</span>' +
+        '</h3>' +
         '<span class="card-badge ' + badgeClass + '">' + badgeText + '</span>' +
       '</div>' +
       '<div class="sensor-readings">' +
