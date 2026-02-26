@@ -1840,8 +1840,9 @@ function updatePeaksTable() {
   var byDay = {};
   entries.forEach(function (e) { var day = e.timestamp.toISOString().slice(0, 10); if (!byDay[day]) byDay[day] = []; byDay[day].push(e); });
 
+  // Filter out nulls AND zeros (zero = disconnected/invalid sensor reading)
   function fieldStats(dayEntries, key) {
-    var vals = dayEntries.map(function (e) { return e[key]; }).filter(function (v) { return v !== null; });
+    var vals = dayEntries.map(function (e) { return e[key]; }).filter(function (v) { return v !== null && v !== 0; });
     if (!vals.length) return null;
     return { min: Math.min.apply(null, vals), max: Math.max.apply(null, vals), avg: vals.reduce(function (a, b) { return a + b; }, 0) / vals.length, count: vals.length };
   }
@@ -1859,9 +1860,9 @@ function updatePeaksTable() {
   };
 
   var activeTempKeys = {};
-  for (var tk in tempKeys) { if (entries.some(function (e) { return e[tk] !== null; })) activeTempKeys[tk] = tempKeys[tk]; }
+  for (var tk in tempKeys) { if (entries.some(function (e) { return e[tk] !== null && e[tk] !== 0; })) activeTempKeys[tk] = tempKeys[tk]; }
   var activeHumKeys = {};
-  for (var hk in humKeys) { if (entries.some(function (e) { return e[hk] !== null; })) activeHumKeys[hk] = humKeys[hk]; }
+  for (var hk in humKeys) { if (entries.some(function (e) { return e[hk] !== null && e[hk] !== 0; })) activeHumKeys[hk] = humKeys[hk]; }
 
   var headHtml = '<tr><th>Date</th><th>Pts</th>';
   for (var atk in activeTempKeys) headHtml += '<th>Temp ' + activeTempKeys[atk] + '</th>';
@@ -1871,54 +1872,58 @@ function updatePeaksTable() {
 
   var days = Object.keys(byDay).sort().reverse();
 
-  // Collect cross-day extremes for highlighting
-  var allTempStats = {}, allHumStats = {};
-  for (var atk2 in activeTempKeys) allTempStats[atk2] = { globalMinMin: Infinity, globalMaxMax: -Infinity, globalMaxAvg: -Infinity };
-  for (var ahk2 in activeHumKeys)  allHumStats[ahk2]  = { globalMinMin: Infinity, globalMaxMax: -Infinity, globalMaxAvg: -Infinity };
-
+  // Pre-compute stats for every cell
   var dayStats = {};
   for (var di = 0; di < days.length; di++) {
     var day = days[di];
     var de  = byDay[day];
     dayStats[day] = { temp: {}, hum: {} };
-    for (var atk3 in activeTempKeys) {
-      var s = fieldStats(de, atk3);
-      dayStats[day].temp[atk3] = s;
-      if (s) {
-        if (s.min < allTempStats[atk3].globalMinMin) allTempStats[atk3].globalMinMin = s.min;
-        if (s.max > allTempStats[atk3].globalMaxMax) allTempStats[atk3].globalMaxMax = s.max;
-        if (s.avg > allTempStats[atk3].globalMaxAvg) allTempStats[atk3].globalMaxAvg = s.avg;
-      }
-    }
-    for (var ahk3 in activeHumKeys) {
-      var sh = fieldStats(de, ahk3);
-      dayStats[day].hum[ahk3] = sh;
-      if (sh) {
-        if (sh.min < allHumStats[ahk3].globalMinMin) allHumStats[ahk3].globalMinMin = sh.min;
-        if (sh.max > allHumStats[ahk3].globalMaxMax) allHumStats[ahk3].globalMaxMax = sh.max;
-        if (sh.avg > allHumStats[ahk3].globalMaxAvg) allHumStats[ahk3].globalMaxAvg = sh.avg;
-      }
-    }
+    for (var atk3 in activeTempKeys) dayStats[day].temp[atk3] = fieldStats(de, atk3);
+    for (var ahk3 in activeHumKeys)  dayStats[day].hum[ahk3]  = fieldStats(de, ahk3);
   }
 
-  function fmtCell(stats, globals) {
-    if (!stats) return '<td class="peaks-nc">NC</td>';
-    var minCls = (stats.min === globals.globalMinMin && days.length > 1) ? ' class="hl-min"' : '';
-    var avgCls = (Math.abs(stats.avg - globals.globalMaxAvg) < 0.005 && days.length > 1) ? ' class="hl-avg"' : '';
-    var maxCls = (stats.max === globals.globalMaxMax && days.length > 1) ? ' class="hl-max"' : '';
-    return '<td><span' + minCls + '>' + stats.min.toFixed(1) + '</span> / <span' + avgCls + '>' + stats.avg.toFixed(1) + '</span> / <span' + maxCls + '>' + stats.max.toFixed(1) + '</span></td>';
+  // Per-row highlight: find which cell holds the single lowest min / highest avg / highest max
+  // Temps and humidities are highlighted independently (different scales)
+  function rowExtremes(statsMap) {
+    var rowMin = Infinity, rowMaxAvg = -Infinity, rowMaxMax = -Infinity;
+    var minKey = null, avgKey = null, maxKey = null;
+    for (var k in statsMap) {
+      var s = statsMap[k];
+      if (!s) continue;
+      if (s.min < rowMin)       { rowMin = s.min;       minKey = k; }
+      if (s.avg > rowMaxAvg)    { rowMaxAvg = s.avg;    avgKey = k; }
+      if (s.max > rowMaxMax)    { rowMaxMax = s.max;    maxKey = k; }
+    }
+    return { minKey: minKey, avgKey: avgKey, maxKey: maxKey };
+  }
+
+  function fmtCell(stats, isMinRow, isAvgRow, isMaxRow) {
+    if (!stats) return '<td class="peaks-nc">--</td>';
+    var minSpan = '<span' + (isMinRow ? ' class="hl-min"' : '') + '>' + stats.min.toFixed(1) + '</span>';
+    var avgSpan = '<span' + (isAvgRow ? ' class="hl-avg"' : '') + '>' + stats.avg.toFixed(1) + '</span>';
+    var maxSpan = '<span' + (isMaxRow ? ' class="hl-max"' : '') + '>' + stats.max.toFixed(1) + '</span>';
+    return '<td>' + minSpan + ' / ' + avgSpan + ' / ' + maxSpan + '</td>';
   }
 
   var bodyHtml = '';
   for (var di2 = 0; di2 < days.length; di2++) {
-    var day2 = days[di2];
-    var de2  = byDay[day2];
-    var dl2  = new Date(day2 + 'T00:00:00Z');
+    var day2   = days[di2];
+    var de2    = byDay[day2];
+    var dl2    = new Date(day2 + 'T00:00:00Z');
     var dateLabel2 = dl2.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', weekday: 'short' });
     bodyHtml += '<tr><td>' + dateLabel2 + '</td><td>' + de2.length + '</td>';
 
-    for (var atk4 in activeTempKeys) bodyHtml += fmtCell(dayStats[day2].temp[atk4], allTempStats[atk4]);
-    for (var ahk4 in activeHumKeys)  bodyHtml += fmtCell(dayStats[day2].hum[ahk4], allHumStats[ahk4]);
+    var tEx = rowExtremes(dayStats[day2].temp);
+    var hEx = rowExtremes(dayStats[day2].hum);
+
+    for (var atk4 in activeTempKeys) {
+      bodyHtml += fmtCell(dayStats[day2].temp[atk4],
+        atk4 === tEx.minKey, atk4 === tEx.avgKey, atk4 === tEx.maxKey);
+    }
+    for (var ahk4 in activeHumKeys) {
+      bodyHtml += fmtCell(dayStats[day2].hum[ahk4],
+        ahk4 === hEx.minKey, ahk4 === hEx.avgKey, ahk4 === hEx.maxKey);
+    }
     bodyHtml += '</tr>';
   }
 
