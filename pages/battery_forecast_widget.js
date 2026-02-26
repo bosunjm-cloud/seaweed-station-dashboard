@@ -844,6 +844,14 @@ window.BatteryForecast = (function () {
       rows.push({ ts: ch.timestamp, cfg: ch.newCfg, diff: diffLabel(ch.oldCfg, ch.newCfg) });
     });
 
+    rows = rows
+      .sort(function (a, b) {
+        var aTs = (a.ts instanceof Date) ? a.ts.getTime() : 0;
+        var bTs = (b.ts instanceof Date) ? b.ts.getTime() : 0;
+        return bTs - aTs;
+      })
+      .slice(0, 15);
+
     var html = '<div class="fc-config-table-wrap"><table class="fc-config-table">'
       + '<thead><tr><th>When</th><th>Configuration</th><th>Changed</th></tr></thead><tbody>';
     rows.forEach(function (r) {

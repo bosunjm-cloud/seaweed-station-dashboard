@@ -1122,12 +1122,177 @@ function findLastEntryWith(entries, key) {
   return null;
 }
 
-function countRecentMissing(entries, key, hoursBack) {
-  if (!entries.length) return { total: 0, missing: 0 };
-  var cutoff = new Date(entries[entries.length - 1].timestamp.getTime() - hoursBack * 3600000);
-  var recent  = entries.filter(function (e) { return e.timestamp >= cutoff; });
-  var missing = recent.filter(function (e) { return e[key] === null; }).length;
-  return { total: recent.length, missing: missing };
+function collectSyncEventTimes(entries, sampleIdKey, valueKey) {
+  var times = [];
+  var lastSampleId = null;
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    var sid = sampleIdKey ? entry[sampleIdKey] : null;
+    if (sid !== null && sid !== undefined) {
+      if (lastSampleId === null || sid !== lastSampleId) {
+        times.push(entry.timestamp.getTime());
+        lastSampleId = sid;
+      }
+      continue;
+    }
+    if (entry[valueKey] !== null && entry[valueKey] !== undefined) {
+      times.push(entry.timestamp.getTime());
+    }
+  }
+  return times;
+}
+
+function parseSyncPeriodMsFromField8(rawField8) {
+  if (!rawField8 || typeof rawField8 !== 'string') return null;
+  var parts = rawField8.split('|');
+  if (parts.length < 2) return null;
+  var cfg = parts[1].split(',');
+  if (cfg.length < 6) return null;
+  var periodSec = parseInt(cfg[5], 10);
+  if (!isFinite(periodSec) || periodSec <= 0) return null;
+  periodSec = Math.max(60, Math.min(24 * 3600, periodSec));
+  return periodSec * 1000;
+}
+
+function buildSyncPeriodTimeline(entries, sampleIdKey, valueKey, defaultPeriodMs) {
+  var eventTimes = collectSyncEventTimes(entries, sampleIdKey, valueKey);
+  var inferredPeriodMs = estimateSyncPeriodMs(eventTimes, defaultPeriodMs);
+  var timeline = [];
+  var lastPeriod = null;
+
+  timeline.push({ ts: entries[0].timestamp.getTime(), periodMs: inferredPeriodMs });
+  lastPeriod = inferredPeriodMs;
+
+  for (var i = 0; i < entries.length; i++) {
+    var periodMs = parseSyncPeriodMsFromField8(entries[i]._rawField8);
+    if (!(periodMs > 0)) continue;
+    if (periodMs !== lastPeriod) {
+      timeline.push({ ts: entries[i].timestamp.getTime(), periodMs: periodMs });
+      lastPeriod = periodMs;
+    }
+  }
+
+  return timeline;
+}
+
+function periodMsAt(tsMs, timeline, defaultPeriodMs) {
+function parseField8ConfigUnified(rawField8) {
+  if (!rawField8 || typeof rawField8 !== 'string') return null;
+  if (window.BatteryModel && typeof window.BatteryModel.parseField8Config === 'function') {
+    return window.BatteryModel.parseField8Config(rawField8);
+  }
+  var parts = rawField8.split('|');
+  if (parts.length < 2) return null;
+  var tokens = parts[1].split(',');
+  if (tokens.length < 8) return null;
+  return {
+    deployMode: parseInt(tokens[0], 10) || 0,
+    sleepEnable: parseInt(tokens[1], 10) === 1,
+    samplePeriod_s: parseInt(tokens[2], 10) || 600,
+    tsBulkInterval_s: parseInt(tokens[3], 10) || 900,
+    tsBulkFreqHours: parseInt(tokens[4], 10) || 24,
+    espnowSyncPeriod_s: parseInt(tokens[5], 10) || 3600,
+    satAInstalled: parseInt(tokens[6], 10) === 1,
+    satBInstalled: parseInt(tokens[7], 10) === 1
+  };
+}
+
+function parseSyncConfigFromField8(rawField8) {
+  var cfg = parseField8ConfigUnified(rawField8);
+  if (!cfg) return null;
+  var periodSec = parseInt(cfg.espnowSyncPeriod_s, 10);
+  if (!isFinite(periodSec) || periodSec <= 0) return null;
+  periodSec = Math.max(60, Math.min(24 * 3600, periodSec));
+  return {
+    periodMs: periodSec * 1000,
+    satAInstalled: !!cfg.satAInstalled,
+    satBInstalled: !!cfg.satBInstalled
+  };
+  var deltas = [];
+  for (var i = 1; i < eventTimes.length; i++) {
+function buildSyncPeriodTimeline(entries, sampleIdKey, valueKey, defaultPeriodMs) {
+    if (d > 0) deltas.push(d);
+  }
+  if (!deltas.length) return defaultPeriodMs;
+  var lastPeriod = inferredPeriodMs;
+  var lastSatAInstalled = true;
+  var lastSatBInstalled = true;
+  var median = deltas[Math.floor(deltas.length / 2)];
+  timeline.push({ ts: entries[0].timestamp.getTime(), periodMs: inferredPeriodMs, satAInstalled: true, satBInstalled: true });
+  var maxMs = 12 * 3600000;
+  return Math.max(minMs, Math.min(maxMs, median));
+    var syncCfg = parseSyncConfigFromField8(entries[i]._rawField8);
+    if (!syncCfg) continue;
+    var changed = syncCfg.periodMs !== lastPeriod || syncCfg.satAInstalled !== lastSatAInstalled || syncCfg.satBInstalled !== lastSatBInstalled;
+    if (changed) {
+      timeline.push({
+        ts: entries[i].timestamp.getTime(),
+        periodMs: syncCfg.periodMs,
+        satAInstalled: syncCfg.satAInstalled,
+        satBInstalled: syncCfg.satBInstalled
+      });
+      lastPeriod = syncCfg.periodMs;
+      lastSatAInstalled = syncCfg.satAInstalled;
+      lastSatBInstalled = syncCfg.satBInstalled;
+  var latestMs = entries[entries.length - 1].timestamp.getTime();
+  var startMs = latestMs - hoursBack * 3600000;
+  var defaultPeriodMs = (defaultPeriodHours || 3) * 3600000;
+  var eventTimes = collectSyncEventTimes(entries, sampleIdKey, key);
+  var periodTimeline = buildSyncPeriodTimeline(entries, sampleIdKey, key, defaultPeriodMs);
+
+function syncCfgAt(tsMs, timeline, defaultPeriodMs) {
+  var cfg = { periodMs: defaultPeriodMs, satAInstalled: true, satBInstalled: true };
+    if (eventTimes[i] <= latestMs) {
+    if (timeline[i].ts <= tsMs) {
+      cfg.periodMs = timeline[i].periodMs;
+      cfg.satAInstalled = timeline[i].satAInstalled;
+      cfg.satBInstalled = timeline[i].satBInstalled;
+    }
+      break;
+    }
+  return cfg;
+
+  var slotTimes = [];
+function countRecentMissing(entries, key, hoursBack, sampleIdKey, defaultPeriodHours, satInstallKey) {
+  var guard = 0;
+  while (t >= startMs && guard < 20000) {
+    slotTimes.push(t);
+    var stepMs = syncCfgAt(t, periodTimeline, defaultPeriodMs).periodMs;
+    if (!(stepMs > 0)) stepMs = defaultPeriodMs;
+    t -= stepMs;
+    guard++;
+  }
+  if (!slotTimes.length) slotTimes.push(latestMs);
+
+  var synced = 0;
+  for (var s = 0; s < slotTimes.length; s++) {
+    var slotTs = slotTimes[s];
+    var slotCfg = syncCfgAt(slotTs, periodTimeline, defaultPeriodMs);
+    if (satInstallKey && slotCfg[satInstallKey] === false) continue;
+    var slotPeriodMs = slotCfg.periodMs;
+    var graceMs = Math.min(30 * 60000, Math.max(10 * 60000, Math.round(slotPeriodMs * 0.2)));
+    var minTs = slotTs - graceMs;
+    var maxTs = slotTs + graceMs;
+    var hit = false;
+    for (var j = 0; j < eventTimes.length; j++) {
+      var evTs = eventTimes[j];
+      if (evTs < minTs) continue;
+      if (evTs > maxTs) break;
+      hit = true;
+      break;
+    }
+    if (hit) synced++;
+  }
+
+  var totalSlots = slotTimes.length;
+  if (satInstallKey) {
+    totalSlots = 0;
+    for (var q = 0; q < slotTimes.length; q++) {
+      if (syncCfgAt(slotTimes[q], periodTimeline, defaultPeriodMs)[satInstallKey] !== false) totalSlots++;
+    }
+  }
+
+  return { total: totalSlots, missing: totalSlots - synced, synced: synced };
 }
 </script>
 
@@ -1759,7 +1924,7 @@ function updateStatusCards() {
   document.getElementById('satASensors').className   = 'detail-value ' + (satAHasSensors ? 'ok-text' : 'nc-text');
   document.getElementById('satAFirmware').textContent = (lastSatA && lastSatA.satAFwVersion) ? 'v' + lastSatA.satAFwVersion : '--';
 
-  var satAMissed24 = countRecentMissing(e, 'satABatV', 24);
+  var satAMissed24 = countRecentMissing(e, 'satABatV', 24, 'satASampleId', 3, 'satAInstalled');
   var satASyncPct  = satAMissed24.total > 0 ? ((satAMissed24.total - satAMissed24.missing) / satAMissed24.total * 100) : 0;
   document.getElementById('satASyncRate').textContent = satAMissed24.total > 0 ? satASyncPct.toFixed(0) + '%' : '--';
   document.getElementById('satASyncRate').className   = 'detail-value ' + (satASyncPct > 80 ? 'ok-text' : satASyncPct > 50 ? 'warn-text' : 'error-text');
@@ -1785,7 +1950,7 @@ function updateStatusCards() {
   document.getElementById('satBSensors').className   = 'detail-value ' + (satBHasSensors ? 'ok-text' : 'nc-text');
   document.getElementById('satBFirmware').textContent = (lastSatB && lastSatB.satBFwVersion) ? 'v' + lastSatB.satBFwVersion : '--';
 
-  var satBMissed24 = countRecentMissing(e, 'satBBatV', 24);
+  var satBMissed24 = countRecentMissing(e, 'satBBatV', 24, 'satBSampleId', 3, 'satBInstalled');
   var satBSyncPct  = satBMissed24.total > 0 ? ((satBMissed24.total - satBMissed24.missing) / satBMissed24.total * 100) : 0;
   document.getElementById('satBSyncRate').textContent = satBMissed24.total > 0 ? satBSyncPct.toFixed(0) + '%' : '--';
   document.getElementById('satBSyncRate').className   = 'detail-value ' + (satBSyncPct > 80 ? 'ok-text' : satBSyncPct > 50 ? 'warn-text' : 'error-text');
@@ -2528,22 +2693,65 @@ function createOrUpdateSyncChart() {
 function createOrUpdateDriftChart() {
   var e = state.filteredEntries;
   if (!e.length) return;
+  var MAX_POINT_GAP_MS = 60 * 60000;
 
   var satADrift = [], satBDrift = [], sysDrift = [];
   var satARssiArr = [], satBRssiArr = [];
+  var lastSatASampleId = null, lastSatBSampleId = null;
+  var satALastDrift = null, satBLastDrift = null;
+  var satALastRssi = null, satBLastRssi = null;
+  var satALastDriftTs = null, satBLastDriftTs = null;
+  var satALastRssiTs = null, satBLastRssiTs = null;
   e.forEach(function(entry) {
     var t = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
-    if (entry.satASyncDrift != null) satADrift.push({ x: t, y: entry.satASyncDrift });
-    if (entry.satBSyncDrift != null) satBDrift.push({ x: t, y: entry.satBSyncDrift });
+    var tsMs = t.getTime();
+    var satAHasSampleId = entry.satASampleId != null;
+    var satBHasSampleId = entry.satBSampleId != null;
+    var satANewSync = satAHasSampleId ? (entry.satASampleId !== lastSatASampleId) : true;
+    var satBNewSync = satBHasSampleId ? (entry.satBSampleId !== lastSatBSampleId) : true;
+
+    if (satAHasSampleId) lastSatASampleId = entry.satASampleId;
+    if (satBHasSampleId) lastSatBSampleId = entry.satBSampleId;
+
+    if (entry.satASyncDrift != null) {
+      var emitSatADrift = satANewSync || satALastDrift === null || entry.satASyncDrift !== satALastDrift || satALastDriftTs === null || (tsMs - satALastDriftTs >= MAX_POINT_GAP_MS);
+      if (emitSatADrift) {
+        satADrift.push({ x: t, y: entry.satASyncDrift });
+        satALastDrift = entry.satASyncDrift;
+        satALastDriftTs = tsMs;
+      }
+    }
+    if (entry.satBSyncDrift != null) {
+      var emitSatBDrift = satBNewSync || satBLastDrift === null || entry.satBSyncDrift !== satBLastDrift || satBLastDriftTs === null || (tsMs - satBLastDriftTs >= MAX_POINT_GAP_MS);
+      if (emitSatBDrift) {
+        satBDrift.push({ x: t, y: entry.satBSyncDrift });
+        satBLastDrift = entry.satBSyncDrift;
+        satBLastDriftTs = tsMs;
+      }
+    }
     if (entry.syncDrift != null)     sysDrift.push({ x: t, y: entry.syncDrift });
-    if (entry.satARssi != null && entry.satARssi !== 0) satARssiArr.push({ x: t, y: entry.satARssi });
-    if (entry.satBRssi != null && entry.satBRssi !== 0) satBRssiArr.push({ x: t, y: entry.satBRssi });
+    if (entry.satARssi != null && entry.satARssi !== 0) {
+      var emitSatARssi = satANewSync || satALastRssi === null || entry.satARssi !== satALastRssi || satALastRssiTs === null || (tsMs - satALastRssiTs >= MAX_POINT_GAP_MS);
+      if (emitSatARssi) {
+        satARssiArr.push({ x: t, y: entry.satARssi });
+        satALastRssi = entry.satARssi;
+        satALastRssiTs = tsMs;
+      }
+    }
+    if (entry.satBRssi != null && entry.satBRssi !== 0) {
+      var emitSatBRssi = satBNewSync || satBLastRssi === null || entry.satBRssi !== satBLastRssi || satBLastRssiTs === null || (tsMs - satBLastRssiTs >= MAX_POINT_GAP_MS);
+      if (emitSatBRssi) {
+        satBRssiArr.push({ x: t, y: entry.satBRssi });
+        satBLastRssi = entry.satBRssi;
+        satBLastRssiTs = tsMs;
+      }
+    }
   });
 
   var subEl = document.getElementById('driftSubhead');
   if (subEl) {
     var fmtS = function(d) { return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' }) + ' ' + d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }); };
-    subEl.textContent = fmtS(e[0].timestamp) + ' \u2013 ' + fmtS(e[e.length-1].timestamp) + ' \u2014 Sync drift (s) & RSSI (dBm) per upload cycle';
+    subEl.textContent = fmtS(e[0].timestamp) + ' \u2013 ' + fmtS(e[e.length-1].timestamp) + ' \u2014 Sync drift (s) & RSSI (dBm) on sync events, value changes, or periodic gap samples';
   }
 
   if (state.charts.drift) { state.charts.drift.destroy(); state.charts.drift = null; }
@@ -2801,32 +3009,54 @@ function setupPage() {
 // =====================================================================
 // INITIALIZATION
 // =====================================================================
-document.addEventListener('DOMContentLoaded', function () {
-  // Setup page chrome
-  setupPage();
-  setupSensorMap();
-
-  // Display timezone
-  document.getElementById('tzLabel').textContent = getTimezoneLabel();
-
-  // Tides (always available -- no sensor data needed)
-  window._harvestOpts = { enabled: true, maxHeight: 0.50 };
-  if (window.SeaweedTides) {
-    SeaweedTides.init(STATION.tideStation);
+function safeInitStep(label, fn) {
+  try {
+    fn();
+  } catch (err) {
+    console.warn('[Init] ' + label + ' failed:', err);
   }
+}
 
-  // Fetch weather early (Kenya pages do this regardless of sensor data)
-  fetchWeatherData();
-
-  // Restore saved date range preference
-  restoreViewPrefs();
-
-  // Auto-load merged_data.js if present
-  if (window.THINGSPEAK_DATA) {
+function tryAutoLoadMergedData(sourceLabel) {
+  if (window.THINGSPEAK_DATA && window.THINGSPEAK_DATA.feeds && window.THINGSPEAK_DATA.feeds.length) {
     console.log('[Dashboard] Auto-loaded merged_data.js');
-    handleNewData(window.THINGSPEAK_DATA, 'Local file (' + STATION.dataFolder + '/merged_data.js)');
-  } else {
-    // Restore from localStorage cache
+    handleNewData(window.THINGSPEAK_DATA, sourceLabel || ('Local file (' + STATION.dataFolder + '/merged_data.js)'));
+    return true;
+  }
+  return false;
+}
+
+function tryDeferredMergedDataLoad() {
+  var script = document.createElement('script');
+  script.src = '../data/' + STATION.dataFolder + '/merged_data.js';
+  script.onload = function () {
+    if (!tryAutoLoadMergedData('Local file (' + STATION.dataFolder + '/merged_data.js)')) {
+      console.warn('[Dashboard] merged_data.js loaded but no feeds found');
+    }
+  };
+  script.onerror = function () {
+    console.warn('[Dashboard] Failed to load local merged_data.js from', script.src);
+  };
+  document.head.appendChild(script);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  safeInitStep('setup page chrome', function () {
+    setupPage();
+    setupSensorMap();
+    document.getElementById('tzLabel').textContent = getTimezoneLabel();
+  });
+
+  safeInitStep('restore view prefs', function () {
+    restoreViewPrefs();
+  });
+
+  var loadedLocalData = tryAutoLoadMergedData('Local file (' + STATION.dataFolder + '/merged_data.js)');
+  if (!loadedLocalData) {
+    safeInitStep('deferred merged_data.js load', function () {
+      tryDeferredMergedDataLoad();
+    });
+
     try {
       var _raw = localStorage.getItem('seaweed_cache_' + TABLE_ID);
       if (_raw) {
@@ -2848,8 +3078,20 @@ document.addEventListener('DOMContentLoaded', function () {
     } catch (e) { console.warn('[Cache] Restore failed:', e); }
   }
 
-  // Setup auto-refresh
-  setupAutoRefresh();
+  safeInitStep('init tides', function () {
+    window._harvestOpts = { enabled: true, maxHeight: 0.50 };
+    if (window.SeaweedTides) {
+      SeaweedTides.init(STATION.tideStation);
+    }
+  });
+
+  safeInitStep('prefetch weather', function () {
+    fetchWeatherData();
+  });
+
+  safeInitStep('setup auto refresh', function () {
+    setupAutoRefresh();
+  });
 });
 </script>
 

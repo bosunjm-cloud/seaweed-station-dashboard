@@ -65,6 +65,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .chart-modal-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
 .chart-modal-header h3{font-size:1rem;font-weight:600}
 .chart-modal-actions{display:flex;gap:6px;align-items:center}
+.chart-modal-range{display:none;gap:4px;align-items:center;margin-right:6px}
 .chart-modal-close{background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:3px 12px;cursor:pointer;font-size:.8rem;transition:background .15s}
 .chart-modal-close:hover{background:var(--bg-hover);color:var(--text)}
 .chart-modal-hint{font-size:.7rem;color:var(--text-muted)}
@@ -201,7 +202,7 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
 
     <!-- ===== FORECAST CONFIG LOG ===== -->
     <div class="fc-config-section" id="fcConfigLogSection">
-      <h4>Config Change Log</h4>
+      <h4>Config Change Log <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(Latest 15)</span></h4>
       <div id="fcConfigChangeLog"><div style="color:var(--text-muted);font-size:.75rem;padding:8px 0">Loading…</div></div>
     </div>
   </section>
@@ -373,6 +374,28 @@ function parseStationData(raw, station) {
   return { entries: entries, raw: raw };
 }
 
+function getCachedStationData(stationId) {
+  try {
+    var raw = localStorage.getItem('seaweed_cache_' + stationId);
+    if (!raw) return null;
+    var cached = JSON.parse(raw);
+    if (!cached || !Array.isArray(cached.allEntries) || !cached.allEntries.length) return null;
+    var entries = cached.allEntries
+      .map(function(entry) {
+        entry.timestamp = new Date(entry.timestamp);
+        return entry;
+      })
+      .filter(function(entry) {
+        return entry.timestamp && !isNaN(entry.timestamp.getTime());
+      })
+      .sort(function(a, b) { return a.timestamp - b.timestamp; });
+    if (!entries.length) return null;
+    return { entries: entries, raw: null, source: 'cache' };
+  } catch (e) {
+    return null;
+  }
+}
+
 // ============================================================
 // RENDERING
 // ============================================================
@@ -511,6 +534,180 @@ function setStationRange(stationId, range) {
   renderDailyHealth(body, chartEntries);
 }
 
+function collectSyncEventTimes(entries, sampleIdKey, valueKey) {
+  var times = [];
+  var lastSampleId = null;
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    var sid = entry[sampleIdKey];
+    if (sid !== null && sid !== undefined) {
+      if (lastSampleId === null || sid !== lastSampleId) {
+        times.push(entry.timestamp.getTime());
+        lastSampleId = sid;
+      }
+      continue;
+    }
+    if (entry[valueKey] !== null && entry[valueKey] !== undefined) {
+      times.push(entry.timestamp.getTime());
+    }
+  }
+  return times;
+}
+
+function parseField8ConfigUnified(rawField8) {
+  if (!rawField8 || typeof rawField8 !== 'string') return null;
+  if (window.BatteryModel && typeof window.BatteryModel.parseField8Config === 'function') {
+    return window.BatteryModel.parseField8Config(rawField8);
+  }
+  var parts = rawField8.split('|');
+  if (parts.length < 2) return null;
+  var tokens = parts[1].split(',');
+  if (tokens.length < 8) return null;
+  return {
+    deployMode: parseInt(tokens[0], 10) || 0,
+    sleepEnable: parseInt(tokens[1], 10) === 1,
+    samplePeriod_s: parseInt(tokens[2], 10) || 600,
+    tsBulkInterval_s: parseInt(tokens[3], 10) || 900,
+    tsBulkFreqHours: parseInt(tokens[4], 10) || 24,
+    espnowSyncPeriod_s: parseInt(tokens[5], 10) || 3600,
+    satAInstalled: parseInt(tokens[6], 10) === 1,
+    satBInstalled: parseInt(tokens[7], 10) === 1
+  };
+}
+
+function parseSyncConfigFromField8(rawField8) {
+  var cfg = parseField8ConfigUnified(rawField8);
+  if (!cfg) return null;
+  var periodSec = parseInt(cfg.espnowSyncPeriod_s, 10);
+  if (!isFinite(periodSec) || periodSec <= 0) return null;
+  periodSec = Math.max(60, Math.min(24 * 3600, periodSec));
+  return {
+    periodMs: periodSec * 1000,
+    satAInstalled: !!cfg.satAInstalled,
+    satBInstalled: !!cfg.satBInstalled
+  };
+}
+
+function buildSyncPeriodTimeline(entries, sampleIdKey, valueKey, defaultPeriodMs) {
+  var eventTimes = collectSyncEventTimes(entries, sampleIdKey, valueKey);
+  var inferredPeriodMs = estimateSyncPeriodMs(eventTimes, defaultPeriodMs);
+  var timeline = [];
+  var lastPeriod = inferredPeriodMs;
+  var lastSatAInstalled = true;
+  var lastSatBInstalled = true;
+
+  timeline.push({ ts: entries[0].timestamp.getTime(), periodMs: inferredPeriodMs, satAInstalled: true, satBInstalled: true });
+
+  for (var i = 0; i < entries.length; i++) {
+    var syncCfg = parseSyncConfigFromField8(entries[i]._rawField8);
+    if (!syncCfg) continue;
+    var changed = syncCfg.periodMs !== lastPeriod || syncCfg.satAInstalled !== lastSatAInstalled || syncCfg.satBInstalled !== lastSatBInstalled;
+    if (changed) {
+      timeline.push({
+        ts: entries[i].timestamp.getTime(),
+        periodMs: syncCfg.periodMs,
+        satAInstalled: syncCfg.satAInstalled,
+        satBInstalled: syncCfg.satBInstalled
+      });
+      lastPeriod = syncCfg.periodMs;
+      lastSatAInstalled = syncCfg.satAInstalled;
+      lastSatBInstalled = syncCfg.satBInstalled;
+    }
+  }
+
+  return timeline;
+}
+
+function syncCfgAt(tsMs, timeline, defaultPeriodMs) {
+  var cfg = { periodMs: defaultPeriodMs, satAInstalled: true, satBInstalled: true };
+  for (var i = 0; i < timeline.length; i++) {
+    if (timeline[i].ts <= tsMs) {
+      cfg.periodMs = timeline[i].periodMs;
+      cfg.satAInstalled = timeline[i].satAInstalled;
+      cfg.satBInstalled = timeline[i].satBInstalled;
+    }
+    else break;
+  }
+  return cfg;
+}
+
+function estimateSyncPeriodMs(eventTimes, defaultPeriodMs) {
+  if (!eventTimes || eventTimes.length < 2) return defaultPeriodMs;
+  var deltas = [];
+  for (var i = 1; i < eventTimes.length; i++) {
+    var d = eventTimes[i] - eventTimes[i - 1];
+    if (d > 0) deltas.push(d);
+  }
+  if (!deltas.length) return defaultPeriodMs;
+  deltas.sort(function(a, b) { return a - b; });
+  var median = deltas[Math.floor(deltas.length / 2)];
+  if (!(median > 0)) return defaultPeriodMs;
+  var minMs = 45 * 60000;
+  var maxMs = 12 * 3600000;
+  return Math.max(minMs, Math.min(maxMs, median));
+}
+
+function evaluateSyncWindows(entries, sampleIdKey, valueKey, startMs, endMs, defaultPeriodMs, satInstallKey) {
+  if (!entries || !entries.length || !(endMs >= startMs)) {
+    return { synced: 0, missed: 0, total: 0, slots: [], periodMs: defaultPeriodMs, installKey: satInstallKey };
+  }
+
+  var eventTimes = collectSyncEventTimes(entries, sampleIdKey, valueKey);
+  var periodTimeline = buildSyncPeriodTimeline(entries, sampleIdKey, valueKey, defaultPeriodMs);
+
+  var anchor = endMs;
+  for (var i = eventTimes.length - 1; i >= 0; i--) {
+    if (eventTimes[i] <= endMs) {
+      anchor = eventTimes[i];
+      break;
+    }
+  }
+
+  var slotTimes = [];
+  var t = anchor;
+  var guard = 0;
+  while (t >= startMs && guard < 20000) {
+    slotTimes.push(t);
+    var stepMs = syncCfgAt(t, periodTimeline, defaultPeriodMs).periodMs;
+    if (!(stepMs > 0)) stepMs = defaultPeriodMs;
+    t -= stepMs;
+    guard++;
+  }
+  if (!slotTimes.length) slotTimes.push(endMs);
+  slotTimes.sort(function(a, b) { return a - b; });
+
+  var slots = [];
+  var synced = 0;
+  for (var s = 0; s < slotTimes.length; s++) {
+    var slotTs = slotTimes[s];
+    var slotCfg = syncCfgAt(slotTs, periodTimeline, defaultPeriodMs);
+    if (satInstallKey && slotCfg[satInstallKey] === false) continue;
+    var slotPeriodMs = slotCfg.periodMs;
+    var graceMs = Math.min(30 * 60000, Math.max(10 * 60000, Math.round(slotPeriodMs * 0.2)));
+    var minTs = slotTs - graceMs;
+    var maxTs = slotTs + graceMs;
+    var hit = false;
+    for (var j = 0; j < eventTimes.length; j++) {
+      var evTs = eventTimes[j];
+      if (evTs < minTs) continue;
+      if (evTs > maxTs) break;
+      hit = true;
+      break;
+    }
+    if (hit) synced++;
+    slots.push({ ts: slotTs, hit: hit, periodMs: slotPeriodMs });
+  }
+
+  return {
+    synced: synced,
+    missed: slots.length - synced,
+    total: slots.length,
+    slots: slots,
+    periodMs: syncCfgAt(endMs, periodTimeline, defaultPeriodMs).periodMs,
+    installKey: satInstallKey
+  };
+}
+
 // ============================================================
 // COMPACT SUMMARY CARDS
 // ============================================================
@@ -544,29 +741,58 @@ function renderSummaryCards(container, entries, stationId) {
   var satAFw = (satA && satA.satAFwVersion) ? 'v' + satA.satAFwVersion : '--';
   var satBFw = (satB && satB.satBFwVersion) ? 'v' + satB.satBFwVersion : '--';
 
-  // Sync rates (24h)
-  var cutoff24h = new Date(latest.timestamp.getTime() - 24*3600000);
-  var last24 = e.filter(function(x) { return x.timestamp >= cutoff24h; });
-  var total24 = last24.length || 1;
-  var satACount24 = last24.filter(function(x) { return x.satABatV !== null; }).length;
-  var satBCount24 = last24.filter(function(x) { return x.satBBatV !== null; }).length;
-  function syncPctStr(n, total) {
+  // Sync rates (24h) based on expected sync windows (default 3h cadence)
+  var cutoff24h = latest.timestamp.getTime() - 24 * 3600000;
+  var satA24 = evaluateSyncWindows(e, 'satASampleId', 'satABatV', cutoff24h, latest.timestamp.getTime(), 3 * 3600000, 'satAInstalled');
+  var satB24 = evaluateSyncWindows(e, 'satBSampleId', 'satBBatV', cutoff24h, latest.timestamp.getTime(), 3 * 3600000, 'satBInstalled');
+  function syncPctStr(stats) {
+    var total = stats.total || 1;
+    var n = stats.synced;
     var p = (n / total * 100);
     var color = p > 90 ? 'var(--success)' : p > 70 ? 'var(--warning)' : 'var(--danger)';
     return '<span style="color:' + color + '">' + p.toFixed(0) + '%</span> (' + n + '/' + total + ')';
   }
 
-  // Latest sync drift
-  var lastDriftA = null, lastDriftB = null;
-  for (var i = e.length-1; i >= 0; i--) {
-    if (lastDriftA === null && e[i].satASyncDrift !== null) lastDriftA = e[i].satASyncDrift;
-    if (lastDriftB === null && e[i].satBSyncDrift !== null) lastDriftB = e[i].satBSyncDrift;
-    if (lastDriftA !== null && lastDriftB !== null) break;
+  // Returns { last: <drift_s|null>, stale: <bool> }
+  // stale = no new sync event has appeared within 1.5× the estimated sync period
+  function satDriftInfo(sampleIdKey, driftKey) {
+    var syncEvents = [];
+    var lastSampleId = null;
+    for (var i = 0; i < e.length; i++) {
+      var sid = e[i][sampleIdKey];
+      if (sid === null) continue;
+      if (lastSampleId === null || sid !== lastSampleId) {
+        syncEvents.push({ timestamp: e[i].timestamp, drift: e[i][driftKey] });
+        lastSampleId = sid;
+      }
+    }
+    if (!syncEvents.length) return { last: null, stale: true };
+    var lastEv = syncEvents[syncEvents.length - 1];
+    var stale = false;
+    if (syncEvents.length >= 2) {
+      var periodMs = lastEv.timestamp.getTime() - syncEvents[syncEvents.length - 2].timestamp.getTime();
+      if (periodMs > 0) {
+        var ageMs = latest.timestamp.getTime() - lastEv.timestamp.getTime();
+        stale = ageMs > periodMs * 1.5;
+      }
+    }
+    return { last: lastEv.drift, stale: stale };
   }
+
+  var driftA = satDriftInfo('satASampleId', 'satASyncDrift');
+  var driftB = satDriftInfo('satBSampleId', 'satBSyncDrift');
+
   function driftStr(v) {
     if (v === null) return '--';
     var color = Math.abs(v) <= 5 ? 'var(--success)' : Math.abs(v) <= 20 ? 'var(--warning)' : 'var(--danger)';
     return '<span style="color:' + color + '">' + (v >= 0 ? '+' : '') + v + 's</span>';
+  }
+
+  function driftCardLine(info) {
+    if (!info || info.last === null) return '<span style="color:var(--text-muted)">--</span>';
+    var out = driftStr(info.last);
+    if (info.stale) out += ' <span style="color:var(--text-muted);font-size:0.82em">(stale)</span>';
+    return out;
   }
 
   row.innerHTML =
@@ -585,8 +811,8 @@ function renderSummaryCards(container, entries, stationId) {
       '<div class="sum-val" style="color:' + batColor(satA ? satA.satABatPct : null) + '">' + (satA ? satA.satABatPct.toFixed(0) + '%' : '--') + '</div>' +
       '<div class="sum-sub">Voltage: ' + (satA ? satA.satABatV.toFixed(2) + 'V' : '--') + ' &nbsp; RSSI: ' + (satA ? satA.satARssi : '--') + '</div>' +
       '<div class="sum-sub">24h \u0394: ' + drain24('satABatPct') + '</div>' +
-      '<div class="sum-sub">Sync (24h): ' + syncPctStr(satACount24, total24) + '</div>' +
-      '<div class="sum-sub">Drift: ' + driftStr(lastDriftA) + '</div>' +
+      '<div class="sum-sub">Sync (24h): ' + syncPctStr(satA24) + '</div>' +
+      '<div class="sum-sub">Drift: ' + driftCardLine(driftA) + '</div>' +
       '<div class="sum-sub" style="margin-top:4px;color:var(--accent)">FW: ' + satAFw + '</div>' +
     '</div>' +
     '<div class="sum-card">' +
@@ -594,8 +820,8 @@ function renderSummaryCards(container, entries, stationId) {
       '<div class="sum-val" style="color:' + batColor(satB ? satB.satBBatPct : null) + '">' + (satB ? satB.satBBatPct.toFixed(0) + '%' : '--') + '</div>' +
       '<div class="sum-sub">Voltage: ' + (satB ? satB.satBBatV.toFixed(2) + 'V' : '--') + ' &nbsp; RSSI: ' + (satB ? satB.satBRssi : '--') + '</div>' +
       '<div class="sum-sub">24h \u0394: ' + drain24('satBBatPct') + '</div>' +
-      '<div class="sum-sub">Sync (24h): ' + syncPctStr(satBCount24, total24) + '</div>' +
-      '<div class="sum-sub">Drift: ' + driftStr(lastDriftB) + '</div>' +
+      '<div class="sum-sub">Sync (24h): ' + syncPctStr(satB24) + '</div>' +
+      '<div class="sum-sub">Drift: ' + driftCardLine(driftB) + '</div>' +
       '<div class="sum-sub" style="margin-top:4px;color:var(--accent)">FW: ' + satBFw + '</div>' +
     '</div>' +
     '<div class="sum-card">' +
@@ -661,7 +887,7 @@ function renderBatteryCharts(container, entries, stationId, range) {
       makeDS(entries, 'satBBatPct', 'Sat-B', '#f59e0b'),
     ]},
     options: chartOpts('Battery (%)', 0, 100),
-  });
+  }, { stationId: stationId, chartKey: 'battery_pct' });
 
   makeLiveChart(voltBox, voltCanvas, 'Battery Voltage \u2013 ' + rangeLabel(range), {
     type: 'line',
@@ -671,7 +897,7 @@ function renderBatteryCharts(container, entries, stationId, range) {
       makeDS(entries, 'satBBatV', 'Sat-B', '#fbbf24'),
     ]},
     options: chartOpts('Voltage (V)', 2.5, 4.5),
-  });
+  }, { stationId: stationId, chartKey: 'battery_voltage' });
 }
 
 
@@ -690,39 +916,74 @@ function renderSyncCharts(container, entries, stationId, range) {
     var syncBoxWrap = document.createElement('div');
     syncBoxWrap.className = 'chart-box';
     syncBoxWrap.style.marginBottom = '12px';
-    syncBoxWrap.innerHTML = '<h4>Satellite Sync Reliability (' + rangeLabel(range) + ')</h4>';
+    var latestCfg = parseField8ConfigUnified(entries[entries.length - 1]._rawField8);
+    var cfgSyncTxt = '--';
+    if (latestCfg && latestCfg.espnowSyncPeriod_s) {
+      cfgSyncTxt = latestCfg.espnowSyncPeriod_s >= 3600
+        ? (latestCfg.espnowSyncPeriod_s / 3600).toFixed(1) + 'h'
+        : Math.round(latestCfg.espnowSyncPeriod_s / 60) + 'm';
+    }
+    syncBoxWrap.innerHTML = '<h4>Satellite Sync Reliability (' + rangeLabel(range) + ')</h4><div class="chart-subhead">Configured Sat sync: ' + cfgSyncTxt + '</div>';
     var syncCanvas = document.createElement('canvas');
     syncBoxWrap.appendChild(syncCanvas);
     container.appendChild(syncBoxWrap);
 
     var byBucket = {}, bucketKeys = [], labels = [];
     var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var rangeStartMs = entries[0].timestamp.getTime();
+    var rangeEndMs = entries[entries.length - 1].timestamp.getTime();
+    var satAWindowEval = evaluateSyncWindows(entries, 'satASampleId', 'satABatV', rangeStartMs, rangeEndMs, 3 * 3600000, 'satAInstalled');
+    var satBWindowEval = evaluateSyncWindows(entries, 'satBSampleId', 'satBBatV', rangeStartMs, rangeEndMs, 3 * 3600000, 'satBInstalled');
+
+    function keyFromTs(tsMs) {
+      var d = new Date(tsMs);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
     if (range === 'day') {
-      var tMax = entries[entries.length - 1].timestamp.getTime();
+      var tMax = rangeEndMs;
       var floorHour = new Date(tMax); floorHour.setMinutes(0, 0, 0, 0);
       var windowStart = floorHour.getTime() - 24 * 3600000;
       for (var h = 0; h < 24; h++) {
         var bStart = windowStart + h * 3600000;
-        byBucket[h] = { total: 0, satA: 0, satB: 0, bStart: bStart };
+        byBucket[h] = { satATotal: 0, satA: 0, satBTotal: 0, satB: 0, bStart: bStart };
         bucketKeys.push(h);
         labels.push(String(new Date(bStart).getHours()).padStart(2, '0') + ':00');
       }
-      entries.forEach(function(entry) {
-        var idx = Math.floor((entry.timestamp.getTime() - windowStart) / 3600000);
+
+      satAWindowEval.slots.forEach(function(slot) {
+        var idx = Math.floor((slot.ts - windowStart) / 3600000);
         if (idx < 0 || idx > 23) return;
-        byBucket[idx].total++;
-        if (entry.satABatV !== null) byBucket[idx].satA++;
-        if (entry.satBBatV !== null) byBucket[idx].satB++;
+        byBucket[idx].satATotal++;
+        if (slot.hit) byBucket[idx].satA++;
+      });
+      satBWindowEval.slots.forEach(function(slot) {
+        var idx = Math.floor((slot.ts - windowStart) / 3600000);
+        if (idx < 0 || idx > 23) return;
+        byBucket[idx].satBTotal++;
+        if (slot.hit) byBucket[idx].satB++;
       });
     } else {
-      entries.forEach(function(entry) {
-        var d = entry.timestamp;
-        var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-        if (!byBucket[key]) byBucket[key] = { total: 0, satA: 0, satB: 0 };
-        byBucket[key].total++;
-        if (entry.satABatV !== null) byBucket[key].satA++;
-        if (entry.satBBatV !== null) byBucket[key].satB++;
+      var dayStart = new Date(rangeStartMs); dayStart.setHours(0, 0, 0, 0);
+      var dayEnd = new Date(rangeEndMs); dayEnd.setHours(0, 0, 0, 0);
+      for (var dayTs = dayStart.getTime(); dayTs <= dayEnd.getTime(); dayTs += 24 * 3600000) {
+        var kInit = keyFromTs(dayTs);
+        byBucket[kInit] = { satATotal: 0, satA: 0, satBTotal: 0, satB: 0 };
+      }
+
+      satAWindowEval.slots.forEach(function(slot) {
+        var k = keyFromTs(slot.ts);
+        if (!byBucket[k]) byBucket[k] = { satATotal: 0, satA: 0, satBTotal: 0, satB: 0 };
+        byBucket[k].satATotal++;
+        if (slot.hit) byBucket[k].satA++;
       });
+      satBWindowEval.slots.forEach(function(slot) {
+        var k = keyFromTs(slot.ts);
+        if (!byBucket[k]) byBucket[k] = { satATotal: 0, satA: 0, satBTotal: 0, satB: 0 };
+        byBucket[k].satBTotal++;
+        if (slot.hit) byBucket[k].satB++;
+      });
+
       bucketKeys = Object.keys(byBucket).sort();
       labels = bucketKeys.map(function(k) {
         var p = k.split('-');
@@ -737,9 +998,9 @@ function renderSyncCharts(container, entries, stationId, range) {
         labels: labels,
         datasets: [
           { label: 'Sat-A Synced', data: bucketKeys.map(function(k) { return byBucket[k].satA; }), backgroundColor: '#22c55e99', stack: 'a' },
-          { label: 'Sat-A Missed', data: bucketKeys.map(function(k) { return byBucket[k].total - byBucket[k].satA; }), backgroundColor: '#ef444466', stack: 'a' },
+          { label: 'Sat-A Missed', data: bucketKeys.map(function(k) { return byBucket[k].satATotal - byBucket[k].satA; }), backgroundColor: '#ef444466', stack: 'a' },
           { label: 'Sat-B Synced', data: bucketKeys.map(function(k) { return byBucket[k].satB; }), backgroundColor: '#3b82f699', stack: 'b' },
-          { label: 'Sat-B Missed', data: bucketKeys.map(function(k) { return byBucket[k].total - byBucket[k].satB; }), backgroundColor: '#f59e0b66', stack: 'b' },
+          { label: 'Sat-B Missed', data: bucketKeys.map(function(k) { return byBucket[k].satBTotal - byBucket[k].satB; }), backgroundColor: '#f59e0b66', stack: 'b' },
         ]
       },
       options: {
@@ -754,7 +1015,7 @@ function renderSyncCharts(container, entries, stationId, range) {
           y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, title: { display: true, text: 'Uploads', color: '#64748b' } }
         }
       }
-    });
+    }, { stationId: stationId, chartKey: 'sync_reliability' });
   }
 
   var row = document.createElement('div');
@@ -783,10 +1044,85 @@ function renderSyncCharts(container, entries, stationId, range) {
   container.appendChild(row);
 
   var recent = entries;
+  var MAX_POINT_GAP_MS = 60 * 60000;
 
-  function makeDS(data, key, label, color) {
-    return { label: label, data: data.filter(function(e){return e[key]!==null;}).map(function(e){return {x:e.timestamp,y:e[key]};}),
-      borderColor: color, backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 1.5, tension: 0.2, fill: false };
+  var satADriftSeries = [], satBDriftSeries = [], sysDriftSeries = [];
+  var satARssiSeries = [], satBRssiSeries = [];
+  var lastSatASampleId = null, lastSatBSampleId = null;
+  var satALastDrift = null, satBLastDrift = null;
+  var satALastRssi = null, satBLastRssi = null;
+  var satALastDriftTs = null, satBLastDriftTs = null;
+  var satALastRssiTs = null, satBLastRssiTs = null;
+
+  recent.forEach(function(e) {
+    var tsMs = e.timestamp.getTime();
+    var satAHasSampleId = e.satASampleId !== null;
+    var satBHasSampleId = e.satBSampleId !== null;
+    var satANewSync = satAHasSampleId ? (e.satASampleId !== lastSatASampleId) : true;
+    var satBNewSync = satBHasSampleId ? (e.satBSampleId !== lastSatBSampleId) : true;
+
+    if (satAHasSampleId) lastSatASampleId = e.satASampleId;
+    if (satBHasSampleId) lastSatBSampleId = e.satBSampleId;
+
+    if (e.satASyncDrift !== null) {
+      var emitSatADrift = satANewSync || satALastDrift === null || e.satASyncDrift !== satALastDrift || satALastDriftTs === null || (tsMs - satALastDriftTs >= MAX_POINT_GAP_MS);
+      if (emitSatADrift) {
+        satADriftSeries.push({ x: e.timestamp, y: e.satASyncDrift });
+        satALastDrift = e.satASyncDrift;
+        satALastDriftTs = tsMs;
+      }
+    }
+    if (e.satBSyncDrift !== null) {
+      var emitSatBDrift = satBNewSync || satBLastDrift === null || e.satBSyncDrift !== satBLastDrift || satBLastDriftTs === null || (tsMs - satBLastDriftTs >= MAX_POINT_GAP_MS);
+      if (emitSatBDrift) {
+        satBDriftSeries.push({ x: e.timestamp, y: e.satBSyncDrift });
+        satBLastDrift = e.satBSyncDrift;
+        satBLastDriftTs = tsMs;
+      }
+    }
+    // syncDrift is g_maxSyncDrift_s: a running max reset to 0 after each cellular upload.
+    // Only emit one point per upload cycle — the last value before the reset to 0.
+    if (e.syncDrift !== null) {
+      if (sysDriftSeries._prev !== undefined && e.syncDrift === 0 && sysDriftSeries._prev.y !== 0) {
+        sysDriftSeries.push(sysDriftSeries._prev);  // commit the peak from the completed cycle
+      }
+      sysDriftSeries._prev = { x: e.timestamp, y: e.syncDrift };
+    }
+    if (e.satARssi !== null && e.satARssi !== 0) {
+      var emitSatARssi = satANewSync || satALastRssi === null || e.satARssi !== satALastRssi || satALastRssiTs === null || (tsMs - satALastRssiTs >= MAX_POINT_GAP_MS);
+      if (emitSatARssi) {
+        satARssiSeries.push({ x: e.timestamp, y: e.satARssi });
+        satALastRssi = e.satARssi;
+        satALastRssiTs = tsMs;
+      }
+    }
+    if (e.satBRssi !== null && e.satBRssi !== 0) {
+      var emitSatBRssi = satBNewSync || satBLastRssi === null || e.satBRssi !== satBLastRssi || satBLastRssiTs === null || (tsMs - satBLastRssiTs >= MAX_POINT_GAP_MS);
+      if (emitSatBRssi) {
+        satBRssiSeries.push({ x: e.timestamp, y: e.satBRssi });
+        satBLastRssi = e.satBRssi;
+        satBLastRssiTs = tsMs;
+      }
+    }
+  });
+
+  // Flush the last in-progress system drift cycle (not yet reset to 0)
+  if (sysDriftSeries._prev !== undefined && sysDriftSeries._prev.y !== 0) {
+    sysDriftSeries.push(sysDriftSeries._prev);
+  }
+  delete sysDriftSeries._prev;
+
+  function makeSeriesDS(series, label, color) {
+    return {
+      label: label,
+      data: series,
+      borderColor: color,
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      pointRadius: 1.5,
+      tension: 0.2,
+      fill: false
+    };
   }
 
   if (hasDrift && driftCanvas) {
@@ -795,37 +1131,37 @@ function renderSyncCharts(container, entries, stationId, range) {
     makeLiveChart(driftBox, driftCanvas, 'Satellite Sync Drift \u2013 ' + rangeLabel(range), {
       type: 'line',
       data: { datasets: [
-        makeDS(recent, 'satASyncDrift', 'Sat-A Drift', '#22c55e'),
-        makeDS(recent, 'satBSyncDrift', 'Sat-B Drift', '#3b82f6'),
-        makeDS(recent, 'syncDrift', 'System Drift', '#f59e0b'),
+        makeSeriesDS(satADriftSeries, 'Sat-A Drift', '#22c55e'),
+        makeSeriesDS(satBDriftSeries, 'Sat-B Drift', '#3b82f6'),
+        makeSeriesDS(sysDriftSeries, 'System Drift', '#f59e0b'),
       ]},
       options: dOpts,
-    });
+    }, { stationId: stationId, chartKey: 'sync_drift' });
   }
 
   if (hasRssi && rssiCanvas) {
     makeLiveChart(rssiBox, rssiCanvas, 'RSSI \u2013 ' + rangeLabel(range), {
       type: 'line',
       data: { datasets: [
-        makeDS(recent, 'satARssi', 'Sat-A RSSI', '#22c55e'),
-        makeDS(recent, 'satBRssi', 'Sat-B RSSI', '#3b82f6'),
+        makeSeriesDS(satARssiSeries, 'Sat-A RSSI', '#22c55e'),
+        makeSeriesDS(satBRssiSeries, 'Sat-B RSSI', '#3b82f6'),
       ]},
       options: chartOpts('RSSI (dBm)', -100, 0),
-    });
+    }, { stationId: stationId, chartKey: 'rssi' });
   }
 
-  // Sync reliability stats row
-  var cutoff24 = new Date(entries[entries.length-1].timestamp.getTime() - 24*3600000);
-  var recent24 = entries.filter(function(e) { return e.timestamp >= cutoff24; });
-  var satAPresent = recent24.filter(function(e) { return e.satABatV !== null; }).length;
-  var satBPresent = recent24.filter(function(e) { return e.satBBatV !== null; }).length;
-  var total24 = recent24.length || 1;
+  // Sync reliability stats row (24h expected windows)
+  var cutoff24 = entries[entries.length - 1].timestamp.getTime() - 24 * 3600000;
+  var satA24 = evaluateSyncWindows(entries, 'satASampleId', 'satABatV', cutoff24, entries[entries.length - 1].timestamp.getTime(), 3 * 3600000, 'satAInstalled');
+  var satB24 = evaluateSyncWindows(entries, 'satBSampleId', 'satBBatV', cutoff24, entries[entries.length - 1].timestamp.getTime(), 3 * 3600000, 'satBInstalled');
+  var satAPct = satA24.total > 0 ? satA24.synced / satA24.total * 100 : 0;
+  var satBPct = satB24.total > 0 ? satB24.synced / satB24.total * 100 : 0;
 
   var syncRow = document.createElement('div');
   syncRow.className = 'summary-row';
   syncRow.innerHTML =
-    '<div class="sum-card"><h4>Sat-A Sync Rate (24h)</h4><div class="sum-val" style="color:' + pctColor(satAPresent/total24*100) + '">' + (satAPresent/total24*100).toFixed(1) + '%</div><div class="sum-sub">' + satAPresent + ' / ' + total24 + ' entries</div></div>' +
-    '<div class="sum-card"><h4>Sat-B Sync Rate (24h)</h4><div class="sum-val" style="color:' + pctColor(satBPresent/total24*100) + '">' + (satBPresent/total24*100).toFixed(1) + '%</div><div class="sum-sub">' + satBPresent + ' / ' + total24 + ' entries</div></div>';
+    '<div class="sum-card"><h4>Sat-A Sync Rate (24h)</h4><div class="sum-val" style="color:' + pctColor(satAPct) + '">' + satAPct.toFixed(1) + '%</div><div class="sum-sub">' + satA24.synced + ' / ' + satA24.total + ' windows</div></div>' +
+    '<div class="sum-card"><h4>Sat-B Sync Rate (24h)</h4><div class="sum-val" style="color:' + pctColor(satBPct) + '">' + satBPct.toFixed(1) + '%</div><div class="sum-sub">' + satB24.synced + ' / ' + satB24.total + ' windows</div></div>';
   container.appendChild(syncRow);
 }
 
@@ -840,10 +1176,13 @@ function rangeLabel(range) {
 // CHART EXPAND MODAL
 // ============================================================
 var _modalChart = null;
+var _modalSource = null;
 
 // Wraps new Chart() -- stores title on canvas and attaches an expand button
-function makeLiveChart(box, canvas, title, cfg) {
+function makeLiveChart(box, canvas, title, cfg, meta) {
   canvas._expandTitle = title;
+  canvas._stationId = meta && meta.stationId ? meta.stationId : null;
+  canvas._chartKey = meta && meta.chartKey ? meta.chartKey : null;
   var btn = document.createElement('button');
   btn.className = 'chart-expand-btn';
   btn.title = 'Expand \u2022 Scroll=zoom \u2022 Drag=pan \u2022 Dbl-click=reset';
@@ -858,6 +1197,11 @@ function makeLiveChart(box, canvas, title, cfg) {
 function openChartModal(title, srcCanvas) {
   var srcChart = Chart.getChart(srcCanvas);
   if (!srcChart) return;
+  _modalSource = {
+    stationId: srcCanvas._stationId || null,
+    chartKey: srcCanvas._chartKey || null
+  };
+  updateModalRangeControls();
   document.getElementById('chartModalTitle').textContent = title;
   var overlay = document.getElementById('chartModalOverlay');
   overlay.classList.add('open');
@@ -919,16 +1263,57 @@ function openChartModal(title, srcCanvas) {
   });
 }
 
+function updateModalRangeControls() {
+  var wrap = document.getElementById('chartModalRange');
+  if (!wrap) return;
+  var stationId = _modalSource && _modalSource.stationId;
+  if (!stationId) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'flex';
+  var activeRange = stationRanges[stationId] || 'week';
+  var btns = wrap.querySelectorAll('[data-mrange]');
+  btns.forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-mrange') === activeRange);
+  });
+}
+
+function findStationChartCanvas(stationId, chartKey) {
+  if (!stationId || !chartKey) return null;
+  var body = document.getElementById('body_' + stationId);
+  if (!body) return null;
+  var canvases = body.querySelectorAll('canvas');
+  for (var i = 0; i < canvases.length; i++) {
+    if (canvases[i]._stationId === stationId && canvases[i]._chartKey === chartKey) return canvases[i];
+  }
+  return null;
+}
+
+function setModalRange(range) {
+  if (!_modalSource || !_modalSource.stationId) return;
+  var stationId = _modalSource.stationId;
+  var chartKey = _modalSource.chartKey;
+  setStationRange(stationId, range);
+  updateModalRangeControls();
+  var nextCanvas = findStationChartCanvas(stationId, chartKey);
+  if (nextCanvas) openChartModal(nextCanvas._expandTitle, nextCanvas);
+}
+
 function closeChartModal(evt) {
   if (evt && evt.target.id !== 'chartModalOverlay' && !evt.target.classList.contains('chart-modal-close')) return;
   document.getElementById('chartModalOverlay').classList.remove('open');
   if (_modalChart) { _modalChart.destroy(); _modalChart = null; }
+  _modalSource = null;
+  updateModalRangeControls();
 }
 
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
     document.getElementById('chartModalOverlay').classList.remove('open');
     if (_modalChart) { _modalChart.destroy(); _modalChart = null; }
+    _modalSource = null;
+    updateModalRangeControls();
   }
 });
 
@@ -1214,6 +1599,12 @@ async function fetchLiveAll() {
           return tryLoadFolder(defaultFolder, false);
         }
 
+        var cachedOnLoad = getCachedStationData(station.id);
+        if (cachedOnLoad) {
+          console.warn('[Health] Using cached data for ' + station.name + ' (loader returned empty)');
+          return doneWithStation(cachedOnLoad);
+        }
+
         doneWithStation({ entries: [], raw: null });
       };
 
@@ -1221,6 +1612,12 @@ async function fetchLiveAll() {
         if (allowFallback && folder !== defaultFolder) {
           console.warn('[Health] Data folder not found for ' + station.name + ': ' + folder + ' (trying ' + defaultFolder + ')');
           return tryLoadFolder(defaultFolder, false);
+        }
+
+        var cachedOnError = getCachedStationData(station.id);
+        if (cachedOnError) {
+          console.warn('[Health] Using cached data for ' + station.name + ' (data file not reachable)');
+          return doneWithStation(cachedOnError);
         }
 
         console.warn('[Health] No data for ' + station.name);
@@ -1244,6 +1641,12 @@ async function fetchLiveAll() {
     <div class="chart-modal-header">
       <h3 id="chartModalTitle"></h3>
       <div class="chart-modal-actions">
+        <div class="chart-modal-range" id="chartModalRange">
+          <button class="btn btn-sm" data-mrange="day" onclick="setModalRange('day')">Day</button>
+          <button class="btn btn-sm" data-mrange="week" onclick="setModalRange('week')">Week</button>
+          <button class="btn btn-sm" data-mrange="month" onclick="setModalRange('month')">Month</button>
+          <button class="btn btn-sm" data-mrange="all" onclick="setModalRange('all')">All</button>
+        </div>
         <span class="chart-modal-hint">Scroll = zoom &nbsp;&bull;&nbsp; Drag = pan &nbsp;&bull;&nbsp; Dbl-click = reset</span>
         <button class="chart-modal-close" onclick="closeChartModal({target:this})">&#10005; Close</button>
       </div>
