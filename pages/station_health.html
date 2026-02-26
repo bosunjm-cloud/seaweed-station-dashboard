@@ -230,13 +230,25 @@ var stationRanges = {}; // { stationId: 'day'|'week'|'month'|'all' }
 var stationData = {}; // { stationId: { entries: [], raw: {} } }
 var loadedCount = 0;
 
+function normalizeDataFolder(folder, fallback) {
+  if (typeof folder !== 'string') return fallback;
+  var out = folder.trim();
+  if (!out) return fallback;
+  out = out.replace(/\\/g, '/');
+  out = out.replace(/^(\.\.\/)?data\//i, '');
+  out = out.replace(/\/merged_data\.js$/i, '');
+  out = out.replace(/^\/+|\/+$/g, '');
+  return out || fallback;
+}
+
 function getDataFolder(configKey, defaultFolder) {
+  var fallback = normalizeDataFolder(defaultFolder, defaultFolder);
   try {
     var s = JSON.parse(localStorage.getItem('seaweed_dashboard_config') || '{}');
     var c = (s.channels || []).find(function(ch) { return ch.id === configKey; });
-    if (c && c.dataFolder) return c.dataFolder;
+    if (c && c.dataFolder) return normalizeDataFolder(c.dataFolder, fallback);
   } catch(e) {}
-  return defaultFolder;
+  return fallback;
 }
 
 function loadStation(station) {
@@ -1173,28 +1185,52 @@ async function fetchLiveAll() {
   function loadNext() {
     if (idx >= STATIONS.length) return;
     var station = STATIONS[idx];
-    var folder = getDataFolder(station.configKey, station.defaultFolder);
-    var script = document.createElement('script');
-    script.src = '../data/' + folder + '/merged_data.js';
-    script.onload = function() {
-      if (window.THINGSPEAK_DATA) {
-        stationData[station.id] = parseStationData(window.THINGSPEAK_DATA, station);
-        window.THINGSPEAK_DATA = null;
-      } else {
-        stationData[station.id] = { entries: [], raw: null };
-      }
+    var configuredFolder = getDataFolder(station.configKey, station.defaultFolder);
+    var defaultFolder = normalizeDataFolder(station.defaultFolder, station.defaultFolder);
+
+    function doneWithStation(dataObj) {
+      stationData[station.id] = dataObj;
       idx++;
       if (idx < STATIONS.length) loadNext();
       else onAllLoaded();
-    };
-    script.onerror = function() {
-      console.warn('[Health] No data for ' + station.name);
-      stationData[station.id] = { entries: [], raw: null };
-      idx++;
-      if (idx < STATIONS.length) loadNext();
-      else onAllLoaded();
-    };
-    document.body.appendChild(script);
+    }
+
+    function tryLoadFolder(folder, allowFallback) {
+      var script = document.createElement('script');
+      script.src = '../data/' + folder + '/merged_data.js';
+      script.onload = function() {
+        if (window.THINGSPEAK_DATA) {
+          try {
+            stationData[station.id] = parseStationData(window.THINGSPEAK_DATA, station);
+            window.THINGSPEAK_DATA = null;
+            return doneWithStation(stationData[station.id]);
+          } catch (err) {
+            console.warn('[Health] Parse failed for ' + station.name + ' from ' + folder + ':', err);
+          }
+        }
+
+        if (allowFallback && folder !== defaultFolder) {
+          console.warn('[Health] Falling back to default data folder for ' + station.name + ': ' + defaultFolder);
+          return tryLoadFolder(defaultFolder, false);
+        }
+
+        doneWithStation({ entries: [], raw: null });
+      };
+
+      script.onerror = function() {
+        if (allowFallback && folder !== defaultFolder) {
+          console.warn('[Health] Data folder not found for ' + station.name + ': ' + folder + ' (trying ' + defaultFolder + ')');
+          return tryLoadFolder(defaultFolder, false);
+        }
+
+        console.warn('[Health] No data for ' + station.name);
+        doneWithStation({ entries: [], raw: null });
+      };
+
+      document.body.appendChild(script);
+    }
+
+    tryLoadFolder(configuredFolder, true);
   }
   loadNext();
 })();
