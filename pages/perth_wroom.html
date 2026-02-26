@@ -1276,6 +1276,8 @@ function restoreViewPrefs() {
     var raw = localStorage.getItem(VIEW_PREFS_KEY);
     if (!raw) return;
     var p = JSON.parse(raw);
+    // If saved prefs pre-date the independent humTimeRange feature, clear and start fresh
+    if (!p.humTimeRange) { localStorage.removeItem(VIEW_PREFS_KEY); return; }
     if (p.dateStart) {
       document.getElementById('dateStart').value = p.dateStart;
       state.dateStart = new Date(p.dateStart + 'T00:00:00');
