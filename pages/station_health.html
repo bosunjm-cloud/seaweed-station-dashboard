@@ -60,13 +60,37 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .health-table td{padding:5px 8px;border-bottom:1px solid #1e293b;white-space:nowrap}
 .health-table tr:hover{background:var(--bg-hover)}
 
+/* ======================== CHART TIME RANGE CONTROLS ======================== */
+.chart-box-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px}
+.chart-box-header h4{font-size:.78rem;color:var(--text-sec);margin:0}
+.trange-btns{display:flex;gap:3px}
+.trange-btn{background:var(--bg);border:1px solid var(--border);color:var(--text-muted);padding:2px 8px;border-radius:4px;font-size:.7rem;cursor:pointer;transition:background .15s}
+.trange-btn:hover{background:var(--bg-hover);color:var(--text)}
+.trange-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* ======================== SYNC BAR CHART ======================== */
+.chart-box-full{background:var(--bg-card-alt);border-radius:8px;padding:10px 12px;margin-bottom:14px}
+.chart-box-full canvas{width:100%!important;height:220px!important}
+
+/* ======================== FORECAST CONFIG LOG ======================== */
+.fc-config-section{margin-top:16px}
+.fc-config-section h4{font-size:.85rem;font-weight:600;color:var(--text-sec);margin-bottom:8px}
+.fc-config-table-wrap{overflow-x:auto}
+.fc-config-table{width:100%;border-collapse:collapse;font-size:.75rem}
+.fc-config-table th{background:var(--bg-card);color:var(--text-muted);padding:5px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+.fc-config-table td{padding:4px 8px;border-bottom:1px solid #1e293b;white-space:nowrap}
+.fc-config-table tr:hover{background:var(--bg-hover)}
+.fc-cfg-form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;padding:10px;background:var(--bg-card-alt);border-radius:8px}
+.fc-cfg-form label{display:flex;flex-direction:column;gap:3px;font-size:.72rem;color:var(--text-muted)}
+.fc-cfg-form input,.fc-cfg-form select,.fc-cfg-form textarea{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 7px;font-size:.75rem}
+.fc-cfg-form textarea{resize:vertical;min-height:40px;width:220px}
+
+
 /* ======================== FOOTER ======================== */
 .footer{text-align:center;padding:20px;color:var(--text-muted);font-size:.75rem;border-top:1px solid var(--border);margin-top:20px}
-
-/* ======================== LOADING ======================== */
 .loading-msg{text-align:center;padding:40px;color:var(--text-muted);font-size:1rem}
 
-/* ======================== FETCH BUTTON ======================== */
+/* ======================== LOADING ======================== */
 .btn-fetch{background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#fff;border:none;padding:7px 18px;border-radius:6px;font-size:.85rem;font-weight:600;cursor:pointer;transition:opacity .2s,transform .15s;display:inline-flex;align-items:center;gap:6px}
 .btn-fetch:hover{opacity:.9;transform:translateY(-1px);text-decoration:none}
 .btn-fetch:disabled{opacity:.5;cursor:not-allowed;transform:none}
@@ -74,7 +98,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 @keyframes spin{to{transform:rotate(360deg)}}
 .fetch-status{font-size:.75rem;color:var(--text-muted);margin-left:8px}
 
-/* ======================== BATTERY FORECAST PANEL ======================== */
+/* ======================== FETCH BUTTON ======================== */
 .chart-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-bottom:20px}
 .chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px}
 .chart-header h3{font-size:1rem;font-weight:600}
@@ -89,6 +113,8 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .fc-card-value{font-size:1.35rem;font-weight:700;line-height:1.2}
 .fc-card-unit{font-size:.7rem;font-weight:400}
 .fc-card-sub{font-size:.68rem;color:var(--text-muted)}
+.station-range{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:0 0 10px 0}
+.station-range .label{font-size:.74rem;color:var(--text-muted)}
 </style>
 </head>
 <body>
@@ -149,6 +175,64 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
       <canvas id="forecastChart"></canvas>
     </div>
     <div id="fcInfoCards"></div>
+
+    <!-- ===== FORECAST CONFIG LOG ===== -->
+    <div class="fc-config-section" id="fcConfigLogSection">
+      <h4>&#128221; Configuration Log</h4>
+      <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:10px">
+        Record configuration changes (panels, battery age, etc.) so the forecast chart can show when conditions changed.
+        Entries are stored in your browser and exported as CSV. Red dashed lines on the chart mark these dates.
+      </p>
+
+      <!-- Add-entry form -->
+      <form class="fc-cfg-form" id="fcCfgForm" onsubmit="fcCfgAdd(event)">
+        <label>Date of change
+          <input type="date" id="fcCfgDate" required style="width:130px">
+        </label>
+        <label>Station
+          <select id="fcCfgStation">
+            <option value="perth">Perth TT</option>
+            <option value="shangani">Shangani</option>
+            <option value="funzi">Funzi</option>
+          </select>
+        </label>
+        <label>Panel (front) W
+          <input type="number" id="fcCfgPanelF" placeholder="e.g. 20" step="0.1" min="0" style="width:80px">
+        </label>
+        <label>Panel (rear) W
+          <input type="number" id="fcCfgPanelR" placeholder="e.g. 10" step="0.1" min="0" style="width:80px">
+        </label>
+        <label>Battery cap. Ah
+          <input type="number" id="fcCfgBatAh" placeholder="e.g. 100" step="1" min="0" style="width:80px">
+        </label>
+        <label>Battery age yrs
+          <input type="number" id="fcCfgBatAge" placeholder="e.g. 1.5" step="0.1" min="0" style="width:80px">
+        </label>
+        <label>Notes
+          <textarea id="fcCfgNotes" placeholder="e.g. replaced rear panel"></textarea>
+        </label>
+        <button type="submit" class="btn-fetch" style="align-self:flex-end">&#43; Add</button>
+      </form>
+
+      <!-- Log table -->
+      <div class="fc-config-table-wrap">
+        <table class="fc-config-table" id="fcCfgTable">
+          <thead>
+            <tr>
+              <th>Date</th><th>Station</th><th>Panel F (W)</th><th>Panel R (W)</th>
+              <th>Bat. Ah</th><th>Bat. Age (yr)</th><th>Notes</th><th>Added</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="fcCfgTbody"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button class="btn btn-sm" onclick="fcCfgExportCSV()">&#128190; Export CSV</button>
+        <label class="btn btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+          &#128194; Import CSV <input type="file" accept=".csv" style="display:none" onchange="fcCfgImportCSV(event)">
+        </label>
+      </div>
+    </div>
   </section>
 </main>
 
@@ -170,6 +254,7 @@ var STATIONS = [
 ];
 
 var liveCharts = [];  // track Chart.js instances for cleanup on refresh
+var stationRanges = {}; // { stationId: 'day'|'week'|'month'|'all' }
 
 var stationData = {}; // { stationId: { entries: [], raw: {} } }
 var loadedCount = 0;
@@ -228,7 +313,7 @@ function parseStationData(raw, station) {
     entry.t0Temp2 = parseFloat(f2[2]); if (isNaN(entry.t0Temp2)) entry.t0Temp2 = null;
     entry.t0Hum2  = parseFloat(f2[3]); if (isNaN(entry.t0Hum2))  entry.t0Hum2  = null;
 
-    // T0 status (field3: batV,rssi,boot,heap|fwVersion,buildDate)
+    // T0 status (field3: batV,rssi,boot,heap  OR  batV,rssi,boot,heap|fwVersion,buildDate)
     var f3Str = (f.field3 || '');
     var f3p = f3Str.split('|');
     var f3 = (f3p[0] || '').split(',');
@@ -236,9 +321,10 @@ function parseStationData(raw, station) {
     entry.t0Rssi = parseInt(f3[1]);   if (isNaN(entry.t0Rssi)) entry.t0Rssi = null;
     entry.t0Boot = parseInt(f3[2]);   if (isNaN(entry.t0Boot)) entry.t0Boot = null;
     entry.t0Heap = parseInt(f3[3]);   if (isNaN(entry.t0Heap)) entry.t0Heap = null;
+    // Firmware version: in pipe segment if present (newer firmware)
     var f3fw = (f3p[1] || '').split(',');
-    entry.t0FwVersion = f3fw[0] ? f3fw[0].trim() : null;
-    entry.t0BuildDate = f3fw[1] ? f3fw[1].trim() : null;
+    entry.t0FwVersion = (f3fw[0] && f3fw[0].trim()) ? f3fw[0].trim() : null;
+    entry.t0BuildDate = (f3fw[1] && f3fw[1].trim()) ? f3fw[1].trim() : null;
 
     // SatA status (field4: batV,batPct,rssi,sampleId,[syncDrift],[fwVer])
     var f4 = (f.field4 || '').split(',');
@@ -246,8 +332,10 @@ function parseStationData(raw, station) {
     entry.satABatPct   = parseFloat(f4[1]); if (isNaN(entry.satABatPct))   entry.satABatPct   = null;
     entry.satARssi     = parseInt(f4[2]);   if (isNaN(entry.satARssi))     entry.satARssi     = null;
     entry.satASampleId = parseInt(f4[3]);   if (isNaN(entry.satASampleId)) entry.satASampleId = null;
-    entry.satASyncDrift= parseFloat(f4[4]); if (isNaN(entry.satASyncDrift))entry.satASyncDrift= null;
-    entry.satAFwVersion = f4[5] ? f4[5].trim() : null;
+    entry.satASyncDrift= parseFloat(f4[5]);
+    if (isNaN(entry.satASyncDrift)) entry.satASyncDrift = parseFloat(f4[4]);
+    if (isNaN(entry.satASyncDrift)) entry.satASyncDrift = null;
+    entry.satAFwVersion = f4[6] ? f4[6].trim() : (f4[5] ? f4[5].trim() : null);
 
     // SatA sensors (field5: temp1,hum1,temp2,hum2)
     var f5 = (f.field5 || '').split(',');
@@ -262,8 +350,10 @@ function parseStationData(raw, station) {
     entry.satBBatPct   = parseFloat(f6[1]); if (isNaN(entry.satBBatPct))   entry.satBBatPct   = null;
     entry.satBRssi     = parseInt(f6[2]);   if (isNaN(entry.satBRssi))     entry.satBRssi     = null;
     entry.satBSampleId = parseInt(f6[3]);   if (isNaN(entry.satBSampleId)) entry.satBSampleId = null;
-    entry.satBSyncDrift= parseFloat(f6[4]); if (isNaN(entry.satBSyncDrift))entry.satBSyncDrift= null;
-    entry.satBFwVersion = f6[5] ? f6[5].trim() : null;
+    entry.satBSyncDrift= parseFloat(f6[5]);
+    if (isNaN(entry.satBSyncDrift)) entry.satBSyncDrift = parseFloat(f6[4]);
+    if (isNaN(entry.satBSyncDrift)) entry.satBSyncDrift = null;
+    entry.satBFwVersion = f6[6] ? f6[6].trim() : (f6[5] ? f6[5].trim() : null);
 
     // SatB sensors (field7: temp1,hum1,temp2,hum2)
     var f7 = (f.field7 || '').split(',');
@@ -282,6 +372,15 @@ function parseStationData(raw, station) {
       entry.csq       = parseInt(diag[1]);   if (isNaN(entry.csq))       entry.csq       = null;
       entry.uploadOk  = parseInt(diag[2]);   if (isNaN(entry.uploadOk))  entry.uploadOk  = null;
       entry.syncDrift  = parseFloat(diag[3]); if (isNaN(entry.syncDrift)) entry.syncDrift = null;
+      if (parts.length > 2) {
+        var t0FwParts = (parts[2] || '').split(',');
+        entry.t0FwVersion = t0FwParts[0] ? t0FwParts[0].trim() : null;
+        entry.t0BuildDate = t0FwParts[1] ? t0FwParts[1].trim() : null;
+      }
+    } else {
+      var f3fw = (f3p[1] || '').split(',');
+      entry.t0FwVersion = f3fw[0] ? f3fw[0].trim() : null;
+      entry.t0BuildDate = f3fw[1] ? f3fw[1].trim() : null;
     }
 
     entries.push(entry);
@@ -320,13 +419,32 @@ function onAllLoaded() {
       document.getElementById('forecastPanel').style.display = '';
       BatteryForecast.init({ allEntries: stationData[firstId].entries });
     }
+  } else {
+    // Show forecast panel even if BatteryForecast not available, so config log is visible
+    document.getElementById('forecastPanel').style.display = '';
   }
+
+  // Default the config-log date input to today
+  var dateInput = document.getElementById('fcCfgDate');
+  if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0,10);
+
+  // Sync station select to first loaded station
+  var cfgSel = document.getElementById('fcCfgStation');
+  if (cfgSel && window.BatteryForecast) {
+    var fcSel = document.getElementById('fcStationSelect');
+    if (fcSel) cfgSel.value = fcSel.value;
+  }
+
+  fcCfgRender();
 }
 
 function switchForecastStation(id) {
   if (!window.BatteryForecast || !stationData[id] || !stationData[id].entries.length) return;
   BatteryForecast.reset();
   BatteryForecast.init({ allEntries: stationData[id].entries });
+  // Sync config log station selector
+  var cfgSel = document.getElementById('fcCfgStation');
+  if (cfgSel) cfgSel.value = id;
 }
 
 function renderStationSection(station, data) {
@@ -359,11 +477,23 @@ function renderStationSection(station, data) {
 
   if (hasData) {
     var body = sec.querySelector('.station-body');
+    var range = stationRanges[stationId] || 'week';
+    var chartEntries = filterByRange(e, range);
+    var rangeBar = document.createElement('div');
+    rangeBar.className = 'station-range';
+    rangeBar.innerHTML =
+      '<span class="label">Plots:</span>' +
+      '<button class="btn btn-sm ' + (range === 'day' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'day\')">Day</button>' +
+      '<button class="btn btn-sm ' + (range === 'week' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'week\')">Week</button>' +
+      '<button class="btn btn-sm ' + (range === 'month' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'month\')">Month</button>' +
+      '<button class="btn btn-sm ' + (range === 'all' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'all\')">All</button>';
+    body.appendChild(rangeBar);
     renderSummaryCards(body, e, stationId);
-    renderBatteryCharts(body, e, stationId);
-    renderSyncCharts(body, e, stationId);
-    renderDataHealth(body, e);
-    renderDailyHealth(body, e);
+    renderBatteryCharts(body, chartEntries, stationId, range);
+    renderSensorCharts(body, chartEntries, stationId, range);
+    renderSyncCharts(body, chartEntries, stationId, range);
+    renderDataHealth(body, chartEntries);
+    renderDailyHealth(body, chartEntries);
   }
 
   return sec;
@@ -376,6 +506,44 @@ function toggleStation(id) {
   var open = body.style.display !== 'none';
   body.style.display = open ? 'none' : '';
   if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+function filterByRange(entries, range) {
+  if (!entries || !entries.length || range === 'all') return entries || [];
+  var latest = entries[entries.length - 1].timestamp;
+  var start = null;
+  if (range === 'day') start = new Date(latest.getTime() - 24 * 3600000);
+  else if (range === 'week') start = new Date(latest.getTime() - 7 * 24 * 3600000);
+  else if (range === 'month') start = new Date(latest.getTime() - 30 * 24 * 3600000);
+  if (!start) return entries;
+  return entries.filter(function(x) { return x.timestamp >= start; });
+}
+
+function setStationRange(stationId, range) {
+  stationRanges[stationId] = range;
+  var data = stationData[stationId];
+  if (!data || !data.entries || !data.entries.length) return;
+  var body = document.getElementById('body_' + stationId);
+  if (!body) return;
+  body.innerHTML = '';
+
+  var rangeBar = document.createElement('div');
+  rangeBar.className = 'station-range';
+  rangeBar.innerHTML =
+    '<span class="label">Plots:</span>' +
+    '<button class="btn btn-sm ' + (range === 'day' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'day\')">Day</button>' +
+    '<button class="btn btn-sm ' + (range === 'week' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'week\')">Week</button>' +
+    '<button class="btn btn-sm ' + (range === 'month' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'month\')">Month</button>' +
+    '<button class="btn btn-sm ' + (range === 'all' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'all\')">All</button>';
+  body.appendChild(rangeBar);
+
+  var chartEntries = filterByRange(data.entries, range);
+  renderSummaryCards(body, data.entries, stationId);
+  renderBatteryCharts(body, chartEntries, stationId, range);
+  renderSensorCharts(body, chartEntries, stationId, range);
+  renderSyncCharts(body, chartEntries, stationId, range);
+  renderDataHealth(body, chartEntries);
+  renderDailyHealth(body, chartEntries);
 }
 
 // ============================================================
@@ -493,7 +661,8 @@ function formatKB(kb) {
 // ============================================================
 // BATTERY CHARTS
 // ============================================================
-function renderBatteryCharts(container, entries, stationId) {
+function renderBatteryCharts(container, entries, stationId, range) {
+  if (!entries || !entries.length) return;
   var row = document.createElement('div');
   row.className = 'chart-row';
 
@@ -501,22 +670,18 @@ function renderBatteryCharts(container, entries, stationId) {
   var batCanvas = document.createElement('canvas');
   var batBox = document.createElement('div');
   batBox.className = 'chart-box';
-  batBox.innerHTML = '<h4>Battery % (last 7 days)</h4>';
+  batBox.innerHTML = '<h4>Battery % (' + rangeLabel(range) + ')</h4>';
   batBox.appendChild(batCanvas);
   row.appendChild(batBox);
 
   var voltCanvas = document.createElement('canvas');
   var voltBox = document.createElement('div');
   voltBox.className = 'chart-box';
-  voltBox.innerHTML = '<h4>Battery Voltage (last 7 days)</h4>';
+  voltBox.innerHTML = '<h4>Battery Voltage (' + rangeLabel(range) + ')</h4>';
   voltBox.appendChild(voltCanvas);
   row.appendChild(voltBox);
 
   container.appendChild(row);
-
-  // Filter to last 7 days
-  var cutoff = new Date(entries[entries.length-1].timestamp.getTime() - 7*86400000);
-  var recent = entries.filter(function(e) { return e.timestamp >= cutoff; });
 
   function makeDS(data, key, label, color) {
     return { label: label, data: data.filter(function(e){return e[key]!==null;}).map(function(e){return {x:e.timestamp,y:e[key]};}),
@@ -526,9 +691,9 @@ function renderBatteryCharts(container, entries, stationId) {
   liveCharts.push(new Chart(batCanvas, {
     type: 'line',
     data: { datasets: [
-      makeDS(recent, 't0BatPct', 'T0', '#3b82f6'),
-      makeDS(recent, 'satABatPct', 'Sat-A', '#10b981'),
-      makeDS(recent, 'satBBatPct', 'Sat-B', '#f59e0b'),
+      makeDS(entries, 't0BatPct', 'T0', '#3b82f6'),
+      makeDS(entries, 'satABatPct', 'Sat-A', '#10b981'),
+      makeDS(entries, 'satBBatPct', 'Sat-B', '#f59e0b'),
     ]},
     options: chartOpts('Battery (%)', 0, 100),
   }));
@@ -536,22 +701,157 @@ function renderBatteryCharts(container, entries, stationId) {
   liveCharts.push(new Chart(voltCanvas, {
     type: 'line',
     data: { datasets: [
-      makeDS(recent, 't0BatV', 'T0', '#60a5fa'),
-      makeDS(recent, 'satABatV', 'Sat-A', '#34d399'),
-      makeDS(recent, 'satBBatV', 'Sat-B', '#fbbf24'),
+      makeDS(entries, 't0BatV', 'T0', '#60a5fa'),
+      makeDS(entries, 'satABatV', 'Sat-A', '#34d399'),
+      makeDS(entries, 'satBBatV', 'Sat-B', '#fbbf24'),
     ]},
     options: chartOpts('Voltage (V)', 2.5, 4.5),
+  }));
+}
+
+function renderSensorCharts(container, entries, stationId, range) {
+  if (!entries || !entries.length) return;
+  var row = document.createElement('div');
+  row.className = 'chart-row';
+
+  var tempCanvas = document.createElement('canvas');
+  var tempBox = document.createElement('div');
+  tempBox.className = 'chart-box';
+  tempBox.innerHTML = '<h4>Temperature (°C) (' + rangeLabel(range) + ')</h4>';
+  tempBox.appendChild(tempCanvas);
+  row.appendChild(tempBox);
+
+  var humCanvas = document.createElement('canvas');
+  var humBox = document.createElement('div');
+  humBox.className = 'chart-box';
+  humBox.innerHTML = '<h4>Humidity (%RH) (' + rangeLabel(range) + ')</h4>';
+  humBox.appendChild(humCanvas);
+  row.appendChild(humBox);
+
+  container.appendChild(row);
+
+  function makeDS(data, key, label, color, dashed) {
+    return {
+      label: label,
+      data: data.filter(function(e) { return e[key] !== null; }).map(function(e) { return { x: e.timestamp, y: e[key] }; }),
+      borderColor: color,
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      tension: 0.3,
+      borderDash: dashed ? [5, 3] : [],
+      fill: false,
+    };
+  }
+
+  liveCharts.push(new Chart(tempCanvas, {
+    type: 'line',
+    data: { datasets: [
+      makeDS(entries, 't0Temp1', 'T0 S1', '#3b82f6', false),
+      makeDS(entries, 't0Temp2', 'T0 S2', '#60a5fa', true),
+      makeDS(entries, 'satATemp1', 'Sat-A S1', '#10b981', false),
+      makeDS(entries, 'satATemp2', 'Sat-A S2', '#34d399', true),
+      makeDS(entries, 'satBTemp1', 'Sat-B S1', '#f59e0b', false),
+      makeDS(entries, 'satBTemp2', 'Sat-B S2', '#fbbf24', true),
+    ]},
+    options: chartOpts('Temperature (°C)'),
+  }));
+
+  liveCharts.push(new Chart(humCanvas, {
+    type: 'line',
+    data: { datasets: [
+      makeDS(entries, 't0Hum1', 'T0 S1', '#3b82f6', false),
+      makeDS(entries, 't0Hum2', 'T0 S2', '#60a5fa', true),
+      makeDS(entries, 'satAHum1', 'Sat-A S1', '#10b981', false),
+      makeDS(entries, 'satAHum2', 'Sat-A S2', '#34d399', true),
+      makeDS(entries, 'satBHum1', 'Sat-B S1', '#f59e0b', false),
+      makeDS(entries, 'satBHum2', 'Sat-B S2', '#fbbf24', true),
+    ]},
+    options: chartOpts('Humidity (%RH)', 0, 100),
   }));
 }
 
 // ============================================================
 // SYNC DRIFT & RSSI CHARTS
 // ============================================================
-function renderSyncCharts(container, entries, stationId) {
+function renderSyncCharts(container, entries, stationId, range) {
+  if (!entries || !entries.length) return;
   // Check if any sync/RSSI data exists
   var hasDrift = entries.some(function(e) { return e.satASyncDrift !== null || e.satBSyncDrift !== null; });
   var hasRssi  = entries.some(function(e) { return (e.satARssi !== null && e.satARssi !== 0) || (e.satBRssi !== null && e.satBRssi !== 0); });
-  if (!hasDrift && !hasRssi) return;
+  var hasSyncData = entries.some(function(e) { return e.satABatV !== null || e.satBBatV !== null; });
+  if (!hasDrift && !hasRssi && !hasSyncData) return;
+
+  if (hasSyncData) {
+    var syncBoxWrap = document.createElement('div');
+    syncBoxWrap.className = 'chart-box';
+    syncBoxWrap.style.marginBottom = '12px';
+    syncBoxWrap.innerHTML = '<h4>Satellite Sync Reliability (' + rangeLabel(range) + ')</h4>';
+    var syncCanvas = document.createElement('canvas');
+    syncBoxWrap.appendChild(syncCanvas);
+    container.appendChild(syncBoxWrap);
+
+    var byBucket = {}, bucketKeys = [], labels = [];
+    var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    if (range === 'day') {
+      var tMax = entries[entries.length - 1].timestamp.getTime();
+      var floorHour = new Date(tMax); floorHour.setMinutes(0, 0, 0, 0);
+      var windowStart = floorHour.getTime() - 24 * 3600000;
+      for (var h = 0; h < 24; h++) {
+        var bStart = windowStart + h * 3600000;
+        byBucket[h] = { total: 0, satA: 0, satB: 0, bStart: bStart };
+        bucketKeys.push(h);
+        labels.push(String(new Date(bStart).getHours()).padStart(2, '0') + ':00');
+      }
+      entries.forEach(function(entry) {
+        var idx = Math.floor((entry.timestamp.getTime() - windowStart) / 3600000);
+        if (idx < 0 || idx > 23) return;
+        byBucket[idx].total++;
+        if (entry.satABatV !== null) byBucket[idx].satA++;
+        if (entry.satBBatV !== null) byBucket[idx].satB++;
+      });
+    } else {
+      entries.forEach(function(entry) {
+        var d = entry.timestamp;
+        var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        if (!byBucket[key]) byBucket[key] = { total: 0, satA: 0, satB: 0 };
+        byBucket[key].total++;
+        if (entry.satABatV !== null) byBucket[key].satA++;
+        if (entry.satBBatV !== null) byBucket[key].satB++;
+      });
+      bucketKeys = Object.keys(byBucket).sort();
+      labels = bucketKeys.map(function(k) {
+        var p = k.split('-');
+        var d2 = new Date(+p[0], +p[1] - 1, +p[2], 12);
+        return [DAY_NAMES[d2.getDay()], k.slice(5)];
+      });
+    }
+
+    liveCharts.push(new Chart(syncCanvas, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Sat-A Synced', data: bucketKeys.map(function(k) { return byBucket[k].satA; }), backgroundColor: '#22c55e99', stack: 'a' },
+          { label: 'Sat-A Missed', data: bucketKeys.map(function(k) { return byBucket[k].total - byBucket[k].satA; }), backgroundColor: '#ef444466', stack: 'a' },
+          { label: 'Sat-B Synced', data: bucketKeys.map(function(k) { return byBucket[k].satB; }), backgroundColor: '#3b82f699', stack: 'b' },
+          { label: 'Sat-B Missed', data: bucketKeys.map(function(k) { return byBucket[k].total - byBucket[k].satB; }), backgroundColor: '#f59e0b66', stack: 'b' },
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: { position: 'top', labels: { color: '#94a3b8', font: { size: 11 } } }
+        },
+        scales: {
+          x: { stacked: true, ticks: { color: '#64748b', maxTicksLimit: range === 'day' ? 24 : 14 }, grid: { color: '#1e293b' } },
+          y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, title: { display: true, text: 'Uploads', color: '#64748b' } }
+        }
+      }
+    }));
+  }
 
   var row = document.createElement('div');
   row.className = 'chart-row';
@@ -562,7 +862,7 @@ function renderSyncCharts(container, entries, stationId) {
     driftCanvas = document.createElement('canvas');
     var driftBox = document.createElement('div');
     driftBox.className = 'chart-box';
-    driftBox.innerHTML = '<h4>Satellite Sync Drift (last 7 days)</h4>';
+    driftBox.innerHTML = '<h4>Satellite Sync Drift (' + rangeLabel(range) + ')</h4>';
     driftBox.appendChild(driftCanvas);
     row.appendChild(driftBox);
   }
@@ -571,15 +871,14 @@ function renderSyncCharts(container, entries, stationId) {
     rssiCanvas = document.createElement('canvas');
     var rssiBox = document.createElement('div');
     rssiBox.className = 'chart-box';
-    rssiBox.innerHTML = '<h4>RSSI (last 7 days)</h4>';
+    rssiBox.innerHTML = '<h4>RSSI (' + rangeLabel(range) + ')</h4>';
     rssiBox.appendChild(rssiCanvas);
     row.appendChild(rssiBox);
   }
 
   container.appendChild(row);
 
-  var cutoff = new Date(entries[entries.length-1].timestamp.getTime() - 7*86400000);
-  var recent = entries.filter(function(e) { return e.timestamp >= cutoff; });
+  var recent = entries;
 
   function makeDS(data, key, label, color) {
     return { label: label, data: data.filter(function(e){return e[key]!==null;}).map(function(e){return {x:e.timestamp,y:e[key]};}),
@@ -624,6 +923,13 @@ function renderSyncCharts(container, entries, stationId) {
     '<div class="sum-card"><h4>Sat-A Sync Rate (24h)</h4><div class="sum-val" style="color:' + pctColor(satAPresent/total24*100) + '">' + (satAPresent/total24*100).toFixed(1) + '%</div><div class="sum-sub">' + satAPresent + ' / ' + total24 + ' entries</div></div>' +
     '<div class="sum-card"><h4>Sat-B Sync Rate (24h)</h4><div class="sum-val" style="color:' + pctColor(satBPresent/total24*100) + '">' + (satBPresent/total24*100).toFixed(1) + '%</div><div class="sum-sub">' + satBPresent + ' / ' + total24 + ' entries</div></div>';
   container.appendChild(syncRow);
+}
+
+function rangeLabel(range) {
+  if (range === 'day') return 'Day';
+  if (range === 'week') return 'Week';
+  if (range === 'month') return 'Month';
+  return 'All';
 }
 
 function pctColor(v) {
@@ -870,6 +1176,153 @@ async function fetchLiveAll() {
   } else {
     status.innerHTML = '<span style="color:var(--success)">All ' + fetched + ' stations updated &mdash; ' + ts + '</span>';
   }
+}
+
+// ============================================================
+// FORECAST CONFIG LOG
+// ============================================================
+var FC_CFG_KEY = 'seaweed_fc_config_log';
+
+function fcCfgLoad() {
+  try { return JSON.parse(localStorage.getItem(FC_CFG_KEY) || '[]'); } catch(e) { return []; }
+}
+function fcCfgSave(entries) {
+  localStorage.setItem(FC_CFG_KEY, JSON.stringify(entries));
+}
+
+function fcCfgRender() {
+  var entries = fcCfgLoad();
+  var tbody = document.getElementById('fcCfgTbody');
+  if (!tbody) return;
+  if (!entries.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:12px">No configuration entries yet</td></tr>';
+    return;
+  }
+  // Sort by date
+  entries = entries.slice().sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+  tbody.innerHTML = entries.map(function(r) {
+    return '<tr>' +
+      '<td>' + r.date + '</td>' +
+      '<td>' + (r.station || '--') + '</td>' +
+      '<td>' + (r.panelF !== '' && r.panelF !== null && r.panelF !== undefined ? r.panelF : '--') + '</td>' +
+      '<td>' + (r.panelR !== '' && r.panelR !== null && r.panelR !== undefined ? r.panelR : '--') + '</td>' +
+      '<td>' + (r.batAh  !== '' && r.batAh  !== null && r.batAh  !== undefined ? r.batAh  : '--') + '</td>' +
+      '<td>' + (r.batAge !== '' && r.batAge !== null && r.batAge !== undefined ? r.batAge : '--') + '</td>' +
+      '<td style="max-width:200px;white-space:normal">' + (r.notes || '') + '</td>' +
+      '<td style="color:var(--text-muted)">' + (r.addedAt ? r.addedAt.slice(0,10) : '') + '</td>' +
+      '<td><button class="btn btn-sm" onclick="fcCfgDelete(\'' + r.id + '\')" title="Delete" style="padding:1px 7px">&#10005;</button></td>' +
+      '</tr>';
+  }).join('');
+}
+
+function fcCfgAdd(evt) {
+  evt.preventDefault();
+  var date    = document.getElementById('fcCfgDate').value;
+  var station = document.getElementById('fcCfgStation').value;
+  var panelF  = document.getElementById('fcCfgPanelF').value;
+  var panelR  = document.getElementById('fcCfgPanelR').value;
+  var batAh   = document.getElementById('fcCfgBatAh').value;
+  var batAge  = document.getElementById('fcCfgBatAge').value;
+  var notes   = document.getElementById('fcCfgNotes').value.trim();
+  if (!date) return;
+  var entries = fcCfgLoad();
+  entries.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,5),
+    date: date,
+    station: station,
+    panelF:  panelF  !== '' ? parseFloat(panelF)  : null,
+    panelR:  panelR  !== '' ? parseFloat(panelR)  : null,
+    batAh:   batAh   !== '' ? parseFloat(batAh)   : null,
+    batAge:  batAge  !== '' ? parseFloat(batAge)  : null,
+    notes:   notes,
+    addedAt: new Date().toISOString()
+  });
+  fcCfgSave(entries);
+  fcCfgRender();
+  // Reset form except station
+  document.getElementById('fcCfgDate').value    = '';
+  document.getElementById('fcCfgPanelF').value  = '';
+  document.getElementById('fcCfgPanelR').value  = '';
+  document.getElementById('fcCfgBatAh').value   = '';
+  document.getElementById('fcCfgBatAge').value  = '';
+  document.getElementById('fcCfgNotes').value   = '';
+}
+
+function fcCfgDelete(id) {
+  var entries = fcCfgLoad().filter(function(r){ return r.id !== id; });
+  fcCfgSave(entries);
+  fcCfgRender();
+}
+
+function fcCfgExportCSV() {
+  var entries = fcCfgLoad().slice().sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+  var hdr = ['id','date','station','panelF_W','panelR_W','batAh','batAge_yr','notes','addedAt'];
+  var rows = [hdr.join(',')].concat(entries.map(function(r) {
+    return [r.id, r.date, r.station,
+            r.panelF !== null && r.panelF !== undefined ? r.panelF : '',
+            r.panelR !== null && r.panelR !== undefined ? r.panelR : '',
+            r.batAh  !== null && r.batAh  !== undefined ? r.batAh  : '',
+            r.batAge !== null && r.batAge !== undefined ? r.batAge : '',
+            '"' + (r.notes || '').replace(/"/g,'""') + '"',
+            r.addedAt || ''].join(',');
+  }));
+  var blob = new Blob([rows.join('\n')], {type:'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'forecast_config_log.csv';
+  a.click();
+}
+
+function fcCfgImportCSV(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var lines = e.target.result.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+      if (!lines.length) return;
+      var hdr = lines[0].split(',');
+      var imported = [];
+      for (var i = 1; i < lines.length; i++) {
+        var cols = lines[i].match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || lines[i].split(',');
+        // Simple CSV parse (handles quoted notes field)
+        var raw = lines[i];
+        var parts = [];
+        var inQ = false, cur = '';
+        for (var ci = 0; ci < raw.length; ci++) {
+          var ch = raw[ci];
+          if (ch === '"') { inQ = !inQ; }
+          else if (ch === ',' && !inQ) { parts.push(cur); cur = ''; }
+          else { cur += ch; }
+        }
+        parts.push(cur);
+        var o = {};
+        hdr.forEach(function(h, idx) { o[h.trim()] = (parts[idx] || '').trim(); });
+        if (!o.date) continue;
+        imported.push({
+          id:      o.id || Date.now().toString(36) + i,
+          date:    o.date,
+          station: o.station || 'perth',
+          panelF:  o['panelF_W'] !== '' ? parseFloat(o['panelF_W']) : null,
+          panelR:  o['panelR_W'] !== '' ? parseFloat(o['panelR_W']) : null,
+          batAh:   o['batAh']    !== '' ? parseFloat(o['batAh'])    : null,
+          batAge:  o['batAge_yr']!== '' ? parseFloat(o['batAge_yr']): null,
+          notes:   o.notes || '',
+          addedAt: o.addedAt || new Date().toISOString()
+        });
+      }
+      // Merge with existing (skip duplicate ids)
+      var existing = fcCfgLoad();
+      var existIds = {};
+      existing.forEach(function(r){ existIds[r.id] = true; });
+      imported.forEach(function(r){ if (!existIds[r.id]) existing.push(r); });
+      fcCfgSave(existing);
+      fcCfgRender();
+      alert('Imported ' + imported.length + ' entries.');
+    } catch(err) { alert('CSV parse error: ' + err.message); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
 }
 
 // ============================================================
