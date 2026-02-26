@@ -87,10 +87,9 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
     <h1>&#128267; Station Health <span>Battery &bull; Sync &bull; Data Quality</span></h1>
     <div class="nav-links">
       <a class="btn" href="../ESP32_Weather_Station_Dashboard.html">&#9664; Overview</a>
-      <a class="btn" href="perth.html">Perth TT</a>
-      <a class="btn" href="shangani.html">Shangani</a>
-      <a class="btn" href="funzi.html">Funzi</a>
-      <a class="btn" href="perth_wroom.html">WROOM</a>
+      <a class="btn" href="station.html?table=perth">Perth TT</a>
+      <a class="btn" href="station.html?table=shangani">Shangani</a>
+      <a class="btn" href="station.html?table=funzi">Funzi</a>
       <button class="btn-fetch" id="btnFetchAll" onclick="fetchLiveAll()" title="Pull latest data from ThingSpeak for all stations">&#128752; Fetch Live</button>
       <span class="fetch-status" id="fetchStatus"></span>
     </div>
@@ -178,12 +177,17 @@ function parseStationData(raw, station) {
     entry.t0Temp2 = parseFloat(f2[2]); if (isNaN(entry.t0Temp2)) entry.t0Temp2 = null;
     entry.t0Hum2  = parseFloat(f2[3]); if (isNaN(entry.t0Hum2))  entry.t0Hum2  = null;
 
-    // T0 status (field3: batV,rssi,boot,heap)
-    var f3 = (f.field3 || '').split(',');
+    // T0 status (field3: batV,rssi,boot,heap|fwVersion,buildDate)
+    var f3Str = (f.field3 || '');
+    var f3p = f3Str.split('|');
+    var f3 = (f3p[0] || '').split(',');
     entry.t0BatV = parseFloat(f3[0]); if (isNaN(entry.t0BatV)) entry.t0BatV = null;
     entry.t0Rssi = parseInt(f3[1]);   if (isNaN(entry.t0Rssi)) entry.t0Rssi = null;
     entry.t0Boot = parseInt(f3[2]);   if (isNaN(entry.t0Boot)) entry.t0Boot = null;
     entry.t0Heap = parseInt(f3[3]);   if (isNaN(entry.t0Heap)) entry.t0Heap = null;
+    var f3fw = (f3p[1] || '').split(',');
+    entry.t0FwVersion = f3fw[0] ? f3fw[0].trim() : null;
+    entry.t0BuildDate = f3fw[1] ? f3fw[1].trim() : null;
 
     // SatA status (field4: batV,batPct,rssi,sampleId,[syncDrift],[fwVer])
     var f4 = (f.field4 || '').split(',');
@@ -192,6 +196,7 @@ function parseStationData(raw, station) {
     entry.satARssi     = parseInt(f4[2]);   if (isNaN(entry.satARssi))     entry.satARssi     = null;
     entry.satASampleId = parseInt(f4[3]);   if (isNaN(entry.satASampleId)) entry.satASampleId = null;
     entry.satASyncDrift= parseFloat(f4[4]); if (isNaN(entry.satASyncDrift))entry.satASyncDrift= null;
+    entry.satAFwVersion = f4[5] ? f4[5].trim() : null;
 
     // SatA sensors (field5: temp1,hum1,temp2,hum2)
     var f5 = (f.field5 || '').split(',');
@@ -207,6 +212,7 @@ function parseStationData(raw, station) {
     entry.satBRssi     = parseInt(f6[2]);   if (isNaN(entry.satBRssi))     entry.satBRssi     = null;
     entry.satBSampleId = parseInt(f6[3]);   if (isNaN(entry.satBSampleId)) entry.satBSampleId = null;
     entry.satBSyncDrift= parseFloat(f6[4]); if (isNaN(entry.satBSyncDrift))entry.satBSyncDrift= null;
+    entry.satBFwVersion = f6[5] ? f6[5].trim() : null;
 
     // SatB sensors (field7: temp1,hum1,temp2,hum2)
     var f7 = (f.field7 || '').split(',');
@@ -325,30 +331,73 @@ function renderSummaryCards(container, entries, stationId) {
 
   var row = document.createElement('div');
   row.className = 'summary-row';
+
+  // Firmware strings
+  var t0Fw  = (t0  && t0.t0FwVersion)   ? 'v' + t0.t0FwVersion + (t0.t0BuildDate ? ' (' + t0.t0BuildDate + ')' : '') : '--';
+  var satAFw = (satA && satA.satAFwVersion) ? 'v' + satA.satAFwVersion : '--';
+  var satBFw = (satB && satB.satBFwVersion) ? 'v' + satB.satBFwVersion : '--';
+
+  // Sync rates (24h)
+  var cutoff24h = new Date(latest.timestamp.getTime() - 24*3600000);
+  var last24 = e.filter(function(x) { return x.timestamp >= cutoff24h; });
+  var total24 = last24.length || 1;
+  var satACount24 = last24.filter(function(x) { return x.satABatV !== null; }).length;
+  var satBCount24 = last24.filter(function(x) { return x.satBBatV !== null; }).length;
+  function syncPctStr(n, total) {
+    var p = (n / total * 100);
+    var color = p > 90 ? 'var(--success)' : p > 70 ? 'var(--warning)' : 'var(--danger)';
+    return '<span style="color:' + color + '">' + p.toFixed(0) + '%</span> (' + n + '/' + total + ')';
+  }
+
+  // Latest sync drift
+  var lastDriftA = null, lastDriftB = null;
+  for (var i = e.length-1; i >= 0; i--) {
+    if (lastDriftA === null && e[i].satASyncDrift !== null) lastDriftA = e[i].satASyncDrift;
+    if (lastDriftB === null && e[i].satBSyncDrift !== null) lastDriftB = e[i].satBSyncDrift;
+    if (lastDriftA !== null && lastDriftB !== null) break;
+  }
+  function driftStr(v) {
+    if (v === null) return '--';
+    var color = Math.abs(v) <= 5 ? 'var(--success)' : Math.abs(v) <= 20 ? 'var(--warning)' : 'var(--danger)';
+    return '<span style="color:' + color + '">' + (v >= 0 ? '+' : '') + v + 's</span>';
+  }
+
   row.innerHTML =
     '<div class="sum-card">' +
       '<h4>T0 Gateway</h4>' +
       '<div class="sum-val" style="color:' + batColor(t0 ? t0.t0BatPct : null) + '">' + (t0 ? t0.t0BatPct.toFixed(0) + '%' : '--') + '</div>' +
       '<div class="sum-sub">Voltage: ' + (t0 ? t0.t0BatV.toFixed(2) + 'V' : '--') + '</div>' +
       '<div class="sum-sub">24h \u0394: ' + drain24('t0BatPct') + '</div>' +
+      '<div class="sum-sub">RSSI: ' + (t0 && t0.t0Rssi ? t0.t0Rssi + ' dBm' : '--') + '</div>' +
+      '<div class="sum-sub">Boot: ' + (t0 && t0.t0Boot !== null ? '#' + t0.t0Boot : '--') +
+        ' &nbsp; Heap: ' + (t0 && t0.t0Heap !== null ? (t0.t0Heap/1024).toFixed(0) + ' KB' : '--') + '</div>' +
+      '<div class="sum-sub" style="margin-top:4px;color:var(--accent)">FW: ' + t0Fw + '</div>' +
     '</div>' +
     '<div class="sum-card">' +
       '<h4>Satellite A</h4>' +
       '<div class="sum-val" style="color:' + batColor(satA ? satA.satABatPct : null) + '">' + (satA ? satA.satABatPct.toFixed(0) + '%' : '--') + '</div>' +
       '<div class="sum-sub">Voltage: ' + (satA ? satA.satABatV.toFixed(2) + 'V' : '--') + ' &nbsp; RSSI: ' + (satA ? satA.satARssi : '--') + '</div>' +
       '<div class="sum-sub">24h \u0394: ' + drain24('satABatPct') + '</div>' +
+      '<div class="sum-sub">Sync (24h): ' + syncPctStr(satACount24, total24) + '</div>' +
+      '<div class="sum-sub">Drift: ' + driftStr(lastDriftA) + '</div>' +
+      '<div class="sum-sub" style="margin-top:4px;color:var(--accent)">FW: ' + satAFw + '</div>' +
     '</div>' +
     '<div class="sum-card">' +
       '<h4>Satellite B</h4>' +
       '<div class="sum-val" style="color:' + batColor(satB ? satB.satBBatPct : null) + '">' + (satB ? satB.satBBatPct.toFixed(0) + '%' : '--') + '</div>' +
       '<div class="sum-sub">Voltage: ' + (satB ? satB.satBBatV.toFixed(2) + 'V' : '--') + ' &nbsp; RSSI: ' + (satB ? satB.satBRssi : '--') + '</div>' +
       '<div class="sum-sub">24h \u0394: ' + drain24('satBBatPct') + '</div>' +
+      '<div class="sum-sub">Sync (24h): ' + syncPctStr(satBCount24, total24) + '</div>' +
+      '<div class="sum-sub">Drift: ' + driftStr(lastDriftB) + '</div>' +
+      '<div class="sum-sub" style="margin-top:4px;color:var(--accent)">FW: ' + satBFw + '</div>' +
     '</div>' +
     '<div class="sum-card">' +
       '<h4>System</h4>' +
       '<div class="sum-val">' + (latest.sdFreeKB !== null ? formatKB(latest.sdFreeKB) : '--') + '</div>' +
-      '<div class="sum-sub">SD Free &nbsp; | &nbsp; CSQ: ' + (latest.csq !== null ? latest.csq : '--') + '</div>' +
+      '<div class="sum-sub">SD Free &nbsp;|&nbsp; CSQ: ' + (latest.csq !== null ? latest.csq : '--') + '</div>' +
       '<div class="sum-sub">Upload OK: ' + (latest.uploadOk !== null ? (latest.uploadOk ? '\u2705' : '\u274C') : '--') + '</div>' +
+      '<div class="sum-sub">Entries: ' + e.length.toLocaleString() + '</div>' +
+      '<div class="sum-sub">Last upload: ' + timeAgo(latest.timestamp) + ' ago</div>' +
     '</div>';
 
   container.appendChild(row);
@@ -374,14 +423,19 @@ function renderBatteryCharts(container, entries, stationId) {
   var row = document.createElement('div');
   row.className = 'chart-row';
 
+  // Create canvas elements directly so we hold references (not via getElementById)
+  var batCanvas = document.createElement('canvas');
   var batBox = document.createElement('div');
   batBox.className = 'chart-box';
-  batBox.innerHTML = '<h4>Battery % (last 7 days)</h4><canvas id="bat_' + stationId + '"></canvas>';
+  batBox.innerHTML = '<h4>Battery % (last 7 days)</h4>';
+  batBox.appendChild(batCanvas);
   row.appendChild(batBox);
 
+  var voltCanvas = document.createElement('canvas');
   var voltBox = document.createElement('div');
   voltBox.className = 'chart-box';
-  voltBox.innerHTML = '<h4>Battery Voltage (last 7 days)</h4><canvas id="volt_' + stationId + '"></canvas>';
+  voltBox.innerHTML = '<h4>Battery Voltage (last 7 days)</h4>';
+  voltBox.appendChild(voltCanvas);
   row.appendChild(voltBox);
 
   container.appendChild(row);
@@ -395,31 +449,25 @@ function renderBatteryCharts(container, entries, stationId) {
       borderColor: color, backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false };
   }
 
-  var batCtx = document.getElementById('bat_' + stationId);
-  if (batCtx) {
-    liveCharts.push(new Chart(batCtx, {
-      type: 'line',
-      data: { datasets: [
-        makeDS(recent, 't0BatPct', 'T0', '#3b82f6'),
-        makeDS(recent, 'satABatPct', 'Sat-A', '#10b981'),
-        makeDS(recent, 'satBBatPct', 'Sat-B', '#f59e0b'),
-      ]},
-      options: chartOpts('Battery (%)', 0, 100),
-    }));
-  }
+  liveCharts.push(new Chart(batCanvas, {
+    type: 'line',
+    data: { datasets: [
+      makeDS(recent, 't0BatPct', 'T0', '#3b82f6'),
+      makeDS(recent, 'satABatPct', 'Sat-A', '#10b981'),
+      makeDS(recent, 'satBBatPct', 'Sat-B', '#f59e0b'),
+    ]},
+    options: chartOpts('Battery (%)', 0, 100),
+  }));
 
-  var voltCtx = document.getElementById('volt_' + stationId);
-  if (voltCtx) {
-    liveCharts.push(new Chart(voltCtx, {
-      type: 'line',
-      data: { datasets: [
-        makeDS(recent, 't0BatV', 'T0', '#60a5fa'),
-        makeDS(recent, 'satABatV', 'Sat-A', '#34d399'),
-        makeDS(recent, 'satBBatV', 'Sat-B', '#fbbf24'),
-      ]},
-      options: chartOpts('Voltage (V)', 2.5, 4.5),
-    }));
-  }
+  liveCharts.push(new Chart(voltCanvas, {
+    type: 'line',
+    data: { datasets: [
+      makeDS(recent, 't0BatV', 'T0', '#60a5fa'),
+      makeDS(recent, 'satABatV', 'Sat-A', '#34d399'),
+      makeDS(recent, 'satBBatV', 'Sat-B', '#fbbf24'),
+    ]},
+    options: chartOpts('Voltage (V)', 2.5, 4.5),
+  }));
 }
 
 // ============================================================
@@ -434,17 +482,23 @@ function renderSyncCharts(container, entries, stationId) {
   var row = document.createElement('div');
   row.className = 'chart-row';
 
+  var driftCanvas = null, rssiCanvas = null;
+
   if (hasDrift) {
+    driftCanvas = document.createElement('canvas');
     var driftBox = document.createElement('div');
     driftBox.className = 'chart-box';
-    driftBox.innerHTML = '<h4>Satellite Sync Drift (last 7 days)</h4><canvas id="drift_' + stationId + '"></canvas>';
+    driftBox.innerHTML = '<h4>Satellite Sync Drift (last 7 days)</h4>';
+    driftBox.appendChild(driftCanvas);
     row.appendChild(driftBox);
   }
 
   if (hasRssi) {
+    rssiCanvas = document.createElement('canvas');
     var rssiBox = document.createElement('div');
     rssiBox.className = 'chart-box';
-    rssiBox.innerHTML = '<h4>RSSI (last 7 days)</h4><canvas id="rssi_' + stationId + '"></canvas>';
+    rssiBox.innerHTML = '<h4>RSSI (last 7 days)</h4>';
+    rssiBox.appendChild(rssiCanvas);
     row.appendChild(rssiBox);
   }
 
@@ -458,35 +512,29 @@ function renderSyncCharts(container, entries, stationId) {
       borderColor: color, backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 1.5, tension: 0.2, fill: false };
   }
 
-  if (hasDrift) {
-    var dCtx = document.getElementById('drift_' + stationId);
-    if (dCtx) {
-      var dOpts = chartOpts('Drift (s)');
-      dOpts.scales.y.ticks = { callback: function(v) { return (v>=0?'+':'')+v+'s'; }, color: '#94a3b8', font: { size: 10 } };
-      liveCharts.push(new Chart(dCtx, {
-        type: 'line',
-        data: { datasets: [
-          makeDS(recent, 'satASyncDrift', 'Sat-A Drift', '#22c55e'),
-          makeDS(recent, 'satBSyncDrift', 'Sat-B Drift', '#3b82f6'),
-          makeDS(recent, 'syncDrift', 'System Drift', '#f59e0b'),
-        ]},
-        options: dOpts,
-      }));
-    }
+  if (hasDrift && driftCanvas) {
+    var dOpts = chartOpts('Drift (s)');
+    dOpts.scales.y.ticks = { callback: function(v) { return (v>=0?'+':'')+v+'s'; }, color: '#94a3b8', font: { size: 10 } };
+    liveCharts.push(new Chart(driftCanvas, {
+      type: 'line',
+      data: { datasets: [
+        makeDS(recent, 'satASyncDrift', 'Sat-A Drift', '#22c55e'),
+        makeDS(recent, 'satBSyncDrift', 'Sat-B Drift', '#3b82f6'),
+        makeDS(recent, 'syncDrift', 'System Drift', '#f59e0b'),
+      ]},
+      options: dOpts,
+    }));
   }
 
-  if (hasRssi) {
-    var rCtx = document.getElementById('rssi_' + stationId);
-    if (rCtx) {
-      liveCharts.push(new Chart(rCtx, {
-        type: 'line',
-        data: { datasets: [
-          makeDS(recent, 'satARssi', 'Sat-A RSSI', '#22c55e'),
-          makeDS(recent, 'satBRssi', 'Sat-B RSSI', '#3b82f6'),
-        ]},
-        options: chartOpts('RSSI (dBm)', -100, 0),
-      }));
-    }
+  if (hasRssi && rssiCanvas) {
+    liveCharts.push(new Chart(rssiCanvas, {
+      type: 'line',
+      data: { datasets: [
+        makeDS(recent, 'satARssi', 'Sat-A RSSI', '#22c55e'),
+        makeDS(recent, 'satBRssi', 'Sat-B RSSI', '#3b82f6'),
+      ]},
+      options: chartOpts('RSSI (dBm)', -100, 0),
+    }));
   }
 
   // Sync reliability stats row
