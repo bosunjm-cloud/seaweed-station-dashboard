@@ -749,8 +749,15 @@ body {
   var _f='data_WROOM_PTT';
   try{var _s=JSON.parse(localStorage.getItem('seaweed_dashboard_config')||'{}');var _c=(_s.channels||[]).find(function(c){return c.id==='wroom';});if(_c&&_c.dataFolder)_f=_c.dataFolder;}catch(e){}
   var _cb='?v='+Date.now();
-  document.write('<scr'+'ipt src="../data/'+_f+'/merged_data.js'+_cb+'" onerror="console.log(\'[WROOM] No local merged_data.js\')"><\/scr'+'ipt>');
-  document.write('<scr'+'ipt src="../data/'+_f+'/weather_data.js'+_cb+'" onerror="console.log(\'[WROOM] No local weather_data.js\')"><\/scr'+'ipt>');
+  console.log('[WROOM] Loading data from folder: '+_f);
+  document.write('<scr'+'ipt src="../data/'+_f+'/merged_data.js'+_cb+'" onerror="console.warn(\'[WROOM] No merged_data.js in '+_f+'\')"><\/scr'+'ipt>');
+  document.write('<scr'+'ipt src="../data/'+_f+'/weather_data.js'+_cb+'" onerror="console.warn(\'[WROOM] No weather_data.js in '+_f+'\')"><\/scr'+'ipt>');
+  // Fallback: if configured folder is NOT the default, also try loading from default folder
+  if (_f !== 'data_WROOM_PTT') {
+    document.write('<scr'+'ipt src="../data/data_WROOM_PTT/merged_data.js'+_cb+'" onerror=""><\/scr'+'ipt>');
+    document.write('<scr'+'ipt src="../data/data_WROOM_PTT/weather_data.js'+_cb+'" onerror=""><\/scr'+'ipt>');
+    console.log('[WROOM] Also loading fallback from data_WROOM_PTT');
+  }
 })();</script>
 
 <!-- Tide prediction engine (shared) -->
@@ -882,13 +889,15 @@ function parseCSV(text) {
 function parseThingSpeakMerge(tempFeeds, humFeeds) {
   // Build a map keyed by timestamp rounded to the nearest minute
   var entries = {};
+  // Reject entries older than 2025 (garbage ThingSpeak timestamps)
+  var MIN_VALID = new Date('2025-01-01T00:00:00Z').getTime();
 
   function roundMin(ts) { return Math.round(ts.getTime() / 60000); }
 
   if (tempFeeds && tempFeeds.length) {
     tempFeeds.forEach(function(f) {
       var ts = new Date(f.created_at);
-      if (isNaN(ts.getTime())) return;
+      if (isNaN(ts.getTime()) || ts.getTime() < MIN_VALID) return;
       var key = roundMin(ts);
       if (!entries[key]) entries[key] = { timestamp: ts };
       var e = entries[key];
@@ -919,7 +928,7 @@ function parseThingSpeakMerge(tempFeeds, humFeeds) {
   if (humFeeds && humFeeds.length) {
     humFeeds.forEach(function(f) {
       var ts = new Date(f.created_at);
-      if (isNaN(ts.getTime())) return;
+      if (isNaN(ts.getTime()) || ts.getTime() < MIN_VALID) return;
       var key = roundMin(ts);
       if (!entries[key]) entries[key] = { timestamp: ts };
       var e = entries[key];
@@ -1769,6 +1778,9 @@ function createOrUpdateCharts() {
   for (var s = 1; s <= SENSOR_COUNT; s++) {
     tempDS.push(makeDataset(e, 't' + s, SENSOR_LABELS[s-1], SENSOR_COLORS[s-1], false));
   }
+  // Diagnostic: log chart data point counts
+  var _chartDiag = tempDS.map(function(ds) { return ds.label + ':' + ds.data.length; }).join(', ');
+  console.log('[Chart] Temp datasets — ' + _chartDiag + ' from ' + e.length + ' filtered entries');
   var hasTempData = tempDS.some(function(ds) { return ds.data.length > 0; });
   document.getElementById('tempEmpty').style.display = hasTempData ? 'none' : 'flex';
   // Weather overlay on temp chart
@@ -1918,18 +1930,24 @@ var weatherState = {
 
 async function fetchWeatherData() {
   if (weatherState.fetching) return;
-  // Always use allEntries so weather covers the full dataset regardless of the
-  // sensor chart's Day/Week/Month/All filter
-  var src = state.allEntries.length ? state.allEntries : state.filteredEntries;
-  if (!src.length) return;
+  // Use filteredEntries for the date range (matches visible sensor chart)
+  var hasEntries = state.filteredEntries.length > 0;
+  var src = hasEntries ? state.filteredEntries : state.allEntries;
 
-  var first = src[0].timestamp;
-  var last  = src[src.length - 1].timestamp;
-
-  var startDate = new Date(first.getTime() - 86400000);
-  var endDate   = new Date(Math.min(last.getTime() + 86400000, Date.now()));
-  var startStr = startDate.toISOString().slice(0, 10);
-  var endStr   = endDate.toISOString().slice(0, 10);
+  var startStr, endStr;
+  if (src.length) {
+    var first = src[0].timestamp;
+    var last  = src[src.length - 1].timestamp;
+    var startDate = new Date(first.getTime() - 86400000);
+    var endDate   = new Date(Math.min(last.getTime() + 86400000, Date.now()));
+    startStr = startDate.toISOString().slice(0, 10);
+    endStr   = endDate.toISOString().slice(0, 10);
+  } else {
+    // No sensor data — use a 7-day lookback (like shangani/funzi)
+    var now = new Date();
+    endStr   = now.toISOString().slice(0, 10);
+    startStr = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10);
+  }
 
   // Skip re-fetch if we already have data covering this range
   if (weatherState._fetchedStart && weatherState._fetchedEnd &&
@@ -1940,8 +1958,29 @@ async function fetchWeatherData() {
     return;
   }
 
-  // --- Fallback: use pre-loaded weather_data.js (WEATHER_CACHE) if available ---
-  // This ensures weather works locally / offline even if the API fetch fails
+  // --- Try pre-loaded WEATHER_CACHE first (like working pages) ---
+  // This avoids unnecessary API calls and ensures offline / local works
+  if (window.WEATHER_CACHE && window.WEATHER_CACHE.hourly && window.WEATHER_CACHE.hourly.time) {
+    var wc = window.WEATHER_CACHE;
+    var ct = wc.hourly.time;
+    var cacheStart = ct[0] ? ct[0].slice(0, 10) : '';
+    var cacheEnd   = ct[ct.length - 1] ? ct[ct.length - 1].slice(0, 10) : '';
+    // If cache covers the needed range, use it directly
+    if (cacheStart <= startStr && cacheEnd >= endStr) {
+      weatherState.data = wc.hourly;
+      weatherState.data._timezone = wc.timezone || '';
+      weatherState.data._location = WEATHER_LOCATION.name;
+      if (wc.daily) weatherState.daily = wc.daily;
+      weatherState._fetchedStart = cacheStart;
+      weatherState._fetchedEnd   = cacheEnd;
+      console.log('[Weather] Using WEATHER_CACHE: ' + ct.length + ' hourly points (' + cacheStart + ' – ' + cacheEnd + ')');
+      renderWeatherCharts();
+      createOrUpdateCharts();
+      return;
+    }
+  }
+
+  // --- Fallback helper: apply cache regardless of range coverage ---
   function _applyWeatherCache() {
     if (!window.WEATHER_CACHE || !window.WEATHER_CACHE.hourly || !window.WEATHER_CACHE.hourly.time) return false;
     var wc = window.WEATHER_CACHE;
@@ -1949,11 +1988,10 @@ async function fetchWeatherData() {
     weatherState.data._timezone = wc.timezone || '';
     weatherState.data._location = WEATHER_LOCATION.name;
     if (wc.daily) weatherState.daily = wc.daily;
-    // Mark cached range so the re-fetch guard works
     var ct = wc.hourly.time;
     weatherState._fetchedStart = ct[0] ? ct[0].slice(0, 10) : startStr;
     weatherState._fetchedEnd   = ct[ct.length - 1] ? ct[ct.length - 1].slice(0, 10) : endStr;
-    console.log('[Weather] Loaded ' + ct.length + ' hourly points from local weather_data.js cache');
+    console.log('[Weather] Fallback: loaded ' + ct.length + ' hourly points from weather_data.js');
     renderWeatherCharts();
     createOrUpdateCharts();
     return true;
@@ -1985,17 +2023,14 @@ async function fetchWeatherData() {
       weatherState.data._timezone = json.timezone || '';
       weatherState.data._location = WEATHER_LOCATION.name;
       if (json.daily) weatherState.daily = json.daily;
-      // Cache the fetched range for the skip-re-fetch guard above
       weatherState._fetchedStart = startStr;
       weatherState._fetchedEnd   = endStr;
       console.log('[Weather] Got ' + json.hourly.time.length + ' hourly points (' + startStr + ' – ' + endStr + ')');
       renderWeatherCharts();
-      // Re-render sensor charts so overlays and night shading update
       createOrUpdateCharts();
     }
   } catch (err) {
     console.warn('[Weather] API fetch failed:', err);
-    // Fall back to pre-loaded weather cache from weather_data.js
     if (!_applyWeatherCache()) {
       console.warn('[Weather] No local weather cache available either');
     }
@@ -2460,6 +2495,9 @@ document.addEventListener('DOMContentLoaded', function() {
   window._harvestOpts = { enabled: true, maxHeight: 0.50 };
   if (window.SeaweedTides) {
     SeaweedTides.init('perth');
+    console.log('[Tides] Initialized for Perth');
+  } else {
+    console.warn('[Tides] SeaweedTides not available — tides.js may not have loaded');
   }
 
   // Restore saved date range / time range preference
@@ -2476,9 +2514,29 @@ document.addEventListener('DOMContentLoaded', function() {
       var ct = wc.hourly.time;
       weatherState._fetchedStart = ct[0] ? ct[0].slice(0, 10) : '';
       weatherState._fetchedEnd = ct[ct.length - 1] ? ct[ct.length - 1].slice(0, 10) : '';
-      console.log('[Weather] Pre-seeded ' + ct.length + ' hourly points from weather_data.js');
+      console.log('[Weather] Pre-seeded ' + ct.length + ' hourly points from weather_data.js (' +
+                  weatherState._fetchedStart + ' – ' + weatherState._fetchedEnd + ')');
+      // Render weather immediately so it's visible even before sensor data loads
+      renderWeatherCharts();
     } catch (e) { console.warn('[Weather] weather_data.js seed failed:', e); }
+  } else {
+    console.warn('[Weather] No WEATHER_CACHE found — weather_data.js may not have loaded');
   }
+
+  // Invalidate stale localStorage cache — force fresh data from merged_data.js
+  // (prevents old corrupt cached data from interfering)
+  try {
+    var _cache = localStorage.getItem('seaweed_cache_wroom');
+    if (_cache) {
+      var _cacheObj = JSON.parse(_cache);
+      var _cacheAge = Date.now() - (_cacheObj.savedAt || 0);
+      // Clear cache if older than 2 hours (ensures fresh merged_data.js is used)
+      if (_cacheAge > 7200000) {
+        localStorage.removeItem('seaweed_cache_wroom');
+        console.log('[WROOM] Cleared stale localStorage cache (' + Math.round(_cacheAge / 3600000) + 'h old)');
+      }
+    }
+  } catch (e) { /* ignore */ }
 
   // Auto-load from merged_data.js on disk
   // Detects format automatically:
@@ -2502,9 +2560,18 @@ document.addEventListener('DOMContentLoaded', function() {
         parsed = [];
       }
       if (parsed.length) {
+        // Diagnostic: count data points per sensor
+        var _diag = {};
+        for (var _ds = 1; _ds <= SENSOR_COUNT; _ds++) {
+          _diag['t' + _ds] = parsed.filter(function(e) { return e['t' + _ds] !== null; }).length;
+        }
+        console.log('[WROOM] Sensor data point counts:', JSON.stringify(_diag));
+
         mergeEntries(parsed, 'Local file (merged_data.js)');
       }
     } catch (e) { console.warn('[WROOM] merged_data.js parse failed:', e); }
+  } else {
+    console.warn('[WROOM] No THINGSPEAK_DATA found — merged_data.js may not have loaded');
   }
 
   // Fall back to localStorage cache if no disk data loaded
@@ -2528,6 +2595,9 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } catch (e) { console.warn('[Cache] restore failed:', e); }
   }
+
+  // Always attempt to fetch/render weather (even without sensor data, like working pages)
+  fetchWeatherData();
 });
 </script>
 </body>

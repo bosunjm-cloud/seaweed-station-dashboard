@@ -1084,13 +1084,14 @@ function parseFeeds(rawFeeds) {
       timestamp: ts,
       entryId:   f.entry_id,
       _rawField8: f8raw,   // preserved for battery_model.js config parsing
-      // T0
-      t0BatPct:  numParse(f.field1),
+      // T0 — detect USB sentinel: field1 == -1 means USB-powered (no battery)
+      t0OnUSB:   numParse(f.field1) === -1,
+      t0BatPct:  numParse(f.field1) === -1 ? null : numParse(f.field1),
       t0Temp1:   t0Sensors[0] != null ? t0Sensors[0] : null,
       t0Hum1:    t0Sensors[1] != null ? t0Sensors[1] : null,
       t0Temp2:   t0Sensors[2] != null ? t0Sensors[2] : null,
       t0Hum2:    t0Sensors[3] != null ? t0Sensors[3] : null,
-      t0BatV:    t0Status[0]  != null ? t0Status[0]  : null,
+      t0BatV:    (t0Status[0] != null && t0Status[0] >= 0) ? t0Status[0] : null,
       t0Rssi:    t0Status[1]  != null ? t0Status[1]  : null,
       t0Boot:    t0Status[2]  != null ? t0Status[2]  : null,
       t0Heap:    t0Status[3]  != null ? t0Status[3]  : null,
@@ -1532,7 +1533,10 @@ function updateNetworkBar() {
   var sensorText  = hasSensors ? 'Data flowing' : 'All NC';
 
   // Helper for battery display
-  function batStr(pct) { return pct != null ? pct.toFixed(0) + '%' : '--'; }
+  function batStr(pct, onUSB) {
+    if (onUSB) return '\u26A1 USB';
+    return pct != null ? pct.toFixed(0) + '%' : '--';
+  }
 
   document.getElementById('networkBar').innerHTML =
     '<div class="net-chip">' +
@@ -1540,7 +1544,7 @@ function updateNetworkBar() {
       '<div>' +
         '<div class="chip-label">T0 Gateway</div>' +
         '<div class="chip-value">' + t0Text + '</div>' +
-        '<div class="chip-detail">Bat: ' + batStr(latest.t0BatPct) + ' | ' + timeAgo(latest.timestamp) + '</div>' +
+        '<div class="chip-detail">Bat: ' + batStr(latest.t0BatPct, latest.t0OnUSB) + ' | ' + timeAgo(latest.timestamp) + '</div>' +
       '</div>' +
     '</div>' +
     '<div class="net-chip">' +
@@ -1579,8 +1583,13 @@ function updateStatusCards() {
 
   // -- T0 --
   var t0Pct = latest.t0BatPct;
-  document.getElementById('t0BatPct').textContent = t0Pct !== null ? t0Pct.toFixed(1) + '%' : '--';
-  document.getElementById('t0BatV').textContent   = latest.t0BatV !== null ? latest.t0BatV.toFixed(2) + 'V' : '--';
+  if (latest.t0OnUSB) {
+    document.getElementById('t0BatPct').textContent = '\u26A1 USB';
+    document.getElementById('t0BatV').textContent   = 'USB powered';
+  } else {
+    document.getElementById('t0BatPct').textContent = t0Pct !== null ? t0Pct.toFixed(1) + '%' : '--';
+    document.getElementById('t0BatV').textContent   = latest.t0BatV !== null ? latest.t0BatV.toFixed(2) + 'V' : '--';
+  }
   document.getElementById('t0Rssi').textContent   = (latest.t0Rssi !== null && latest.t0Rssi !== 0) ? latest.t0Rssi + ' dBm' : 'N/A';
   document.getElementById('t0Boot').textContent   = latest.t0Boot !== null ? latest.t0Boot.toLocaleString() : '--';
   document.getElementById('t0Heap').textContent   = latest.t0Heap !== null ? (latest.t0Heap / 1024).toFixed(0) + ' KB' : '--';
@@ -1599,7 +1608,7 @@ function updateStatusCards() {
     document.getElementById('t0Uptime').textContent = days + ' days of data';
   }
 
-  setCardStatus('cardT0', 't0Badge', 't0Dot', t0Pct, t0HasSensors, true);
+  setCardStatus('cardT0', 't0Badge', 't0Dot', t0Pct, t0HasSensors, true, latest.t0OnUSB);
 
   // -- Sat-A (use ACTUAL last entry with satellite data, NOT latest ThingSpeak entry) --
   var lastSatA = findLastEntryWith(e, 'satABatV');
@@ -1629,7 +1638,7 @@ function updateStatusCards() {
   // Sat-A "last synced" is the timestamp of the ACTUAL last entry with satellite data
   document.getElementById('satALastSeen').textContent = lastSatA ? timeAgo(lastSatA.timestamp) : 'Never';
 
-  setCardStatus('cardSatA', 'satABadge', 'satADot', satAPct, satAHasSensors, lastSatA !== null);
+  setCardStatus('cardSatA', 'satABadge', 'satADot', satAPct, satAHasSensors, lastSatA !== null, false);
 
   // -- Sat-B --
   var lastSatB = findLastEntryWith(e, 'satBBatV');
@@ -1657,7 +1666,7 @@ function updateStatusCards() {
 
   document.getElementById('satBLastSeen').textContent = lastSatB ? timeAgo(lastSatB.timestamp) : 'Never';
 
-  setCardStatus('cardSatB', 'satBBadge', 'satBDot', satBPct, satBHasSensors, lastSatB !== null);
+  setCardStatus('cardSatB', 'satBBadge', 'satBDot', satBPct, satBHasSensors, lastSatB !== null, false);
 
   // -- System --
   document.getElementById('sysSDFree').textContent      = fmtBytes(latest.sdFreeKB);
@@ -1712,16 +1721,25 @@ function updateStatusCards() {
   }
 }
 
-function setCardStatus(cardId, badgeId, dotId, batPct, hasSensors, isPresent) {
+function setCardStatus(cardId, badgeId, dotId, batPct, hasSensors, isPresent, onUSB) {
   var card  = document.getElementById(cardId);
   var badge = document.getElementById(badgeId);
   var dot   = document.getElementById(dotId);
 
-  if (!isPresent || batPct === null) {
+  if (!isPresent || (batPct === null && !onUSB)) {
     card.className  = 'status-card nc';
     badge.className = 'card-badge badge-nc';
     badge.textContent = 'No Data';
     dot.className = 'dot dot-grey';
+    return;
+  }
+
+  // USB-powered: no battery to worry about — show as OK
+  if (onUSB) {
+    card.className  = 'status-card ok';
+    badge.className = 'card-badge badge-ok';
+    badge.textContent = '\u26A1 USB Powered';
+    dot.className = 'dot dot-green';
     return;
   }
 
