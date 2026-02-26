@@ -744,10 +744,13 @@ body {
 </footer>
 
 <!-- Auto-load merged data from disk (dual-channel: tempFeeds + humFeeds) -->
+<!-- Cache-bust: append timestamp so browsers always fetch the latest version -->
 <script>(function(){
   var _f='data_WROOM_PTT';
   try{var _s=JSON.parse(localStorage.getItem('seaweed_dashboard_config')||'{}');var _c=(_s.channels||[]).find(function(c){return c.id==='wroom';});if(_c&&_c.dataFolder)_f=_c.dataFolder;}catch(e){}
-  document.write('<scr'+'ipt src="../data/'+_f+'/merged_data.js" onerror="console.log(\'[WROOM] No local merged_data.js\')"><\/scr'+'ipt>');
+  var _cb='?v='+Date.now();
+  document.write('<scr'+'ipt src="../data/'+_f+'/merged_data.js'+_cb+'" onerror="console.log(\'[WROOM] No local merged_data.js\')"><\/scr'+'ipt>');
+  document.write('<scr'+'ipt src="../data/'+_f+'/weather_data.js'+_cb+'" onerror="console.log(\'[WROOM] No local weather_data.js\')"><\/scr'+'ipt>');
 })();</script>
 
 <!-- Tide prediction engine (shared) -->
@@ -1937,6 +1940,25 @@ async function fetchWeatherData() {
     return;
   }
 
+  // --- Fallback: use pre-loaded weather_data.js (WEATHER_CACHE) if available ---
+  // This ensures weather works locally / offline even if the API fetch fails
+  function _applyWeatherCache() {
+    if (!window.WEATHER_CACHE || !window.WEATHER_CACHE.hourly || !window.WEATHER_CACHE.hourly.time) return false;
+    var wc = window.WEATHER_CACHE;
+    weatherState.data = wc.hourly;
+    weatherState.data._timezone = wc.timezone || '';
+    weatherState.data._location = WEATHER_LOCATION.name;
+    if (wc.daily) weatherState.daily = wc.daily;
+    // Mark cached range so the re-fetch guard works
+    var ct = wc.hourly.time;
+    weatherState._fetchedStart = ct[0] ? ct[0].slice(0, 10) : startStr;
+    weatherState._fetchedEnd   = ct[ct.length - 1] ? ct[ct.length - 1].slice(0, 10) : endStr;
+    console.log('[Weather] Loaded ' + ct.length + ' hourly points from local weather_data.js cache');
+    renderWeatherCharts();
+    createOrUpdateCharts();
+    return true;
+  }
+
   var today = new Date().toISOString().slice(0, 10);
   var apiBase = (endStr >= today)
     ? 'https://api.open-meteo.com/v1/forecast'
@@ -1972,7 +1994,11 @@ async function fetchWeatherData() {
       createOrUpdateCharts();
     }
   } catch (err) {
-    console.warn('[Weather] Failed to fetch:', err);
+    console.warn('[Weather] API fetch failed:', err);
+    // Fall back to pre-loaded weather cache from weather_data.js
+    if (!_applyWeatherCache()) {
+      console.warn('[Weather] No local weather cache available either');
+    }
   } finally {
     weatherState.fetching = false;
   }
@@ -2438,6 +2464,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Restore saved date range / time range preference
   restoreViewPrefs();
+
+  // Pre-seed weather from local weather_data.js (so weather is available even offline)
+  if (window.WEATHER_CACHE && window.WEATHER_CACHE.hourly && window.WEATHER_CACHE.hourly.time) {
+    try {
+      var wc = window.WEATHER_CACHE;
+      weatherState.data = wc.hourly;
+      weatherState.data._timezone = wc.timezone || '';
+      weatherState.data._location = (typeof WEATHER_LOCATION !== 'undefined' ? WEATHER_LOCATION.name : 'Perth');
+      if (wc.daily) weatherState.daily = wc.daily;
+      var ct = wc.hourly.time;
+      weatherState._fetchedStart = ct[0] ? ct[0].slice(0, 10) : '';
+      weatherState._fetchedEnd = ct[ct.length - 1] ? ct[ct.length - 1].slice(0, 10) : '';
+      console.log('[Weather] Pre-seeded ' + ct.length + ' hourly points from weather_data.js');
+    } catch (e) { console.warn('[Weather] weather_data.js seed failed:', e); }
+  }
 
   // Auto-load from merged_data.js on disk
   // Detects format automatically:
