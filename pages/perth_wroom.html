@@ -1004,18 +1004,29 @@ function parseThingSpeakSingleChannel(feeds) {
     if (isNaN(ts.getTime())) return;
     var e = { timestamp: ts };
 
-    // Parse CSV temps from field2
-    var tempParts = (f.field2 || '').split(',');
-    for (var s = 0; s < SENSOR_COUNT; s++) {
-      var tv = (s < tempParts.length) ? tempParts[s].trim() : '';
-      e['t' + (s + 1)] = (tv === '' || tv === 'NC') ? null : parseFloat(tv);
-    }
-
-    // Parse CSV humidity from field3
-    var humParts = (f.field3 || '').split(',');
-    for (var s = 0; s < SENSOR_COUNT; s++) {
-      var hv = (s < humParts.length) ? humParts[s].trim() : '';
-      e['rh' + (s + 1)] = (hv === '' || hv === 'NC') ? null : parseFloat(hv);
+    // Detect format: new PTT format has commas in field2 ("t1,t2,...,t5")
+    // Old temp-only format has individual values across field1..field5
+    if (f.field2 && f.field2.indexOf(',') !== -1) {
+      // New PTT packed-CSV format
+      // Parse CSV temps from field2
+      var tempParts = f.field2.split(',');
+      for (var s = 0; s < SENSOR_COUNT; s++) {
+        var tv = (s < tempParts.length) ? tempParts[s].trim() : '';
+        e['t' + (s + 1)] = (tv === '' || tv === 'NC') ? null : parseFloat(tv);
+      }
+      // Parse CSV humidity from field3
+      var humParts = (f.field3 || '').split(',');
+      for (var s = 0; s < SENSOR_COUNT; s++) {
+        var hv = (s < humParts.length) ? humParts[s].trim() : '';
+        e['rh' + (s + 1)] = (hv === '' || hv === 'NC') ? null : parseFloat(hv);
+      }
+    } else {
+      // Old individual-field format: field1=S1 temp, field2=S2 temp, ..., field5=S5 temp
+      for (var s = 1; s <= SENSOR_COUNT; s++) {
+        var val = numParse(f['field' + s]);
+        e['t' + s]  = val;
+        e['rh' + s] = null;
+      }
     }
 
     // Set ok flags
