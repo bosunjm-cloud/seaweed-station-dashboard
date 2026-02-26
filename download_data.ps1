@@ -379,8 +379,9 @@ foreach ($channel in $channels) {
             if ($parsed.channel -and $null -ne $parsed.channel) { $channelBlock = $parsed.channel }
             if ($parsed.feeds -and $parsed.feeds.Count -gt 0) {
                 foreach ($f in $parsed.feeds) {
-                    $eid = [string]$f.entry_id
-                    $allFeeds[$eid] = $f
+                    # Use created_at as key (not entry_id) so data survives channel resets where IDs restart from 1
+                    $key = [string]$f.created_at
+                    if ($key -and -not $allFeeds.ContainsKey($key)) { $allFeeds[$key] = $f }
                 }
             }
         }
@@ -392,8 +393,8 @@ foreach ($channel in $channels) {
     $totalEntries = $allFeeds.Count
     Write-Host "          Total unique entries: $totalEntries"
 
-    # Sort feeds by entry_id
-    $sortedFeeds = $allFeeds.Values | Sort-Object { [int]$_.entry_id }
+    # Sort feeds by timestamp
+    $sortedFeeds = $allFeeds.Values | Sort-Object created_at
     $allSortedFeeds[$channel.id] = $sortedFeeds
 
     # Build merged object
