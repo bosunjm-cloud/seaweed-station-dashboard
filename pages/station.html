@@ -1536,12 +1536,12 @@ function updateSensorCards() {
   var latest = e[e.length - 1];
 
   var sensors = [
-    { label: 'T0 &mdash; S1',    tempKey: 't0Temp1',   humKey: 't0Hum1',   color: COLORS.t0s1   },
-    { label: 'T0 &mdash; S2',    tempKey: 't0Temp2',   humKey: 't0Hum2',   color: COLORS.t0s2   },
-    { label: 'Sat-A &mdash; S1', tempKey: 'satATemp1', humKey: 'satAHum1', color: COLORS.satAs1 },
-    { label: 'Sat-A &mdash; S2', tempKey: 'satATemp2', humKey: 'satAHum2', color: COLORS.satAs2 },
-    { label: 'Sat-B &mdash; S1', tempKey: 'satBTemp1', humKey: 'satBHum1', color: COLORS.satBs1 },
-    { label: 'Sat-B &mdash; S2', tempKey: 'satBTemp2', humKey: 'satBHum2', color: COLORS.satBs2 },
+    { label: 'T0 - S1',   tempKey: 't0Temp1',   humKey: 't0Hum1',   color: COLORS.t0s1   },
+    { label: 'T0 - S2',   tempKey: 't0Temp2',   humKey: 't0Hum2',   color: COLORS.t0s2   },
+    { label: 'S.A - S1',  tempKey: 'satATemp1', humKey: 'satAHum1', color: COLORS.satAs1 },
+    { label: 'S.A - S2',  tempKey: 'satATemp2', humKey: 'satAHum2', color: COLORS.satAs2 },
+    { label: 'S.B - S1',  tempKey: 'satBTemp1', humKey: 'satBHum1', color: COLORS.satBs1 },
+    { label: 'S.B - S2',  tempKey: 'satBTemp2', humKey: 'satBHum2', color: COLORS.satBs2 },
   ];
 
   // Override labels from sensor map legend if available
