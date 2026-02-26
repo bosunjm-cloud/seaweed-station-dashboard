@@ -361,6 +361,14 @@ window.BatteryForecast = (function () {
 
     var cfg = extractLatestConfig(entries);
     var changes = detectConfigChanges(entries);
+    // First config detected in entries (used for config change log initial row)
+    var _firstCfgEntry = null;
+    for (var _fci = 0; _fci < entries.length; _fci++) {
+      if (entries[_fci]._rawField8) {
+        var _fc0 = BatteryModel.parseField8Config(entries[_fci]._rawField8);
+        if (_fc0) { _firstCfgEntry = { cfg: _fc0, ts: entries[_fci].timestamp }; break; }
+      }
+    }
     lastConfig = cfg;
     configChanges = changes;
 
@@ -385,6 +393,8 @@ window.BatteryForecast = (function () {
       configAvailable: !!cfg,
       configSummary: BatteryModel.configSummary(cfg),
       configChanges: changes,
+      firstConfig:     _firstCfgEntry ? _firstCfgEntry.cfg : null,
+      firstConfigTime: _firstCfgEntry ? _firstCfgEntry.ts  : null,
       _trendConfidence:   [],   // { label, windowLabel, r2, color }
       _trendInsufficient: [],   // { label, reason, color }
     };
@@ -790,6 +800,64 @@ window.BatteryForecast = (function () {
   // ========================================================================
   // RENDER INFO CARDS
   // ========================================================================
+  function renderConfigChangeLog(info) {
+    var el = document.getElementById('fcConfigChangeLog');
+    if (!el) return;
+
+    var changes   = info.configChanges  || [];
+    var firstCfg  = info.firstConfig;
+    var firstTs   = info.firstConfigTime;
+
+    if (!firstCfg && !changes.length) {
+      el.innerHTML = '<div style="color:var(--text-muted);font-size:.75rem;padding:8px 0">No configuration data in field8 yet.</div>';
+      return;
+    }
+
+    function fmtSec(s) {
+      return s >= 3600 ? (s / 3600).toFixed(1) + 'h' : Math.round(s / 60) + 'm';
+    }
+
+    function fmtDate(d) {
+      var mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return d.getDate() + ' ' + mo[d.getMonth()] + ' '
+           + String(d.getHours()).padStart(2,'0') + ':'
+           + String(d.getMinutes()).padStart(2,'0');
+    }
+
+    function diffLabel(oldC, newC) {
+      var d = [];
+      if (oldC.deployMode       !== newC.deployMode)       d.push(newC.deployMode === 0 ? 'WiFi' : 'Cell');
+      if (oldC.sleepEnable      !== newC.sleepEnable)      d.push(newC.sleepEnable ? 'Sleep ON' : 'Sleep OFF');
+      if (oldC.samplePeriod_s   !== newC.samplePeriod_s)   d.push('Sample ' + fmtSec(newC.samplePeriod_s));
+      if (oldC.tsBulkFreqHours  !== newC.tsBulkFreqHours)  d.push('Web ' + fmtSec(newC.tsBulkFreqHours * 3600));
+      if (oldC.espnowSyncPeriod_s !== newC.espnowSyncPeriod_s) d.push('Sat sync ' + fmtSec(newC.espnowSyncPeriod_s));
+      var oldSats = (oldC.satAInstalled ? 1 : 0) + (oldC.satBInstalled ? 1 : 0);
+      var newSats = (newC.satAInstalled ? 1 : 0) + (newC.satBInstalled ? 1 : 0);
+      if (oldSats !== newSats) d.push(newSats + ' sat');
+      return d.join(', ') || '?';
+    }
+
+    // Build rows: initial config row + each detected change
+    var rows = [];
+    if (firstCfg) rows.push({ ts: firstTs, cfg: firstCfg, diff: 'Initial', isInitial: true });
+    changes.forEach(function (ch) {
+      rows.push({ ts: ch.timestamp, cfg: ch.newCfg, diff: diffLabel(ch.oldCfg, ch.newCfg) });
+    });
+
+    var html = '<div class="fc-config-table-wrap"><table class="fc-config-table">'
+      + '<thead><tr><th>When</th><th>Configuration</th><th>Changed</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      var diffColor = r.isInitial ? '#64748b' : '#ef4444';
+      html += '<tr>'
+        + '<td style="color:#64748b;white-space:nowrap">' + fmtDate(r.ts) + '</td>'
+        + '<td style="color:#e2e8f0">' + BatteryModel.configSummary(r.cfg) + '</td>'
+        + '<td style="color:' + diffColor + ';white-space:nowrap">' + r.diff + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table></div>';
+    el.innerHTML = html;
+  }
+
   function renderInfoCards(info) {
     var html = '';
 
@@ -852,6 +920,9 @@ window.BatteryForecast = (function () {
         statusEl.style.display = '';
       }
     }
+
+    // ── Config change log ────────────────────────────────────────────────────
+    renderConfigChangeLog(info);
   }
 
   // ========================================================================

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -89,7 +89,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .chart-box-full{background:var(--bg-card-alt);border-radius:8px;padding:10px 12px;margin-bottom:14px;position:relative}
 .chart-box-full canvas{width:100%!important;height:220px!important}
 
-/* ======================== FORECAST CONFIG LOG ======================== */
+/* ======================== CONFIG CHANGE LOG ======================== */
 .fc-config-section{margin-top:16px}
 .fc-config-section h4{font-size:.85rem;font-weight:600;color:var(--text-sec);margin-bottom:8px}
 .fc-config-table-wrap{overflow-x:auto}
@@ -97,10 +97,6 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .fc-config-table th{background:var(--bg-card);color:var(--text-muted);padding:5px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
 .fc-config-table td{padding:4px 8px;border-bottom:1px solid #1e293b;white-space:nowrap}
 .fc-config-table tr:hover{background:var(--bg-hover)}
-.fc-cfg-form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:10px;padding:10px;background:var(--bg-card-alt);border-radius:8px}
-.fc-cfg-form label{display:flex;flex-direction:column;gap:3px;font-size:.72rem;color:var(--text-muted)}
-.fc-cfg-form input,.fc-cfg-form select,.fc-cfg-form textarea{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 7px;font-size:.75rem}
-.fc-cfg-form textarea{resize:vertical;min-height:40px;width:220px}
 
 
 /* ======================== FOOTER ======================== */
@@ -205,60 +201,8 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
 
     <!-- ===== FORECAST CONFIG LOG ===== -->
     <div class="fc-config-section" id="fcConfigLogSection">
-      <h4>&#128221; Configuration Log</h4>
-      <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:10px">
-        Record configuration changes (panels, battery age, etc.) so the forecast chart can show when conditions changed.
-        Entries are stored in your browser and exported as CSV. Red dashed lines on the chart mark these dates.
-      </p>
-
-      <!-- Add-entry form -->
-      <form class="fc-cfg-form" id="fcCfgForm" onsubmit="fcCfgAdd(event)">
-        <label>Date of change
-          <input type="date" id="fcCfgDate" required style="width:130px">
-        </label>
-        <label>Station
-          <select id="fcCfgStation">
-            <option value="perth">Perth TT</option>
-            <option value="shangani">Shangani</option>
-            <option value="funzi">Funzi</option>
-          </select>
-        </label>
-        <label>Panel (front) W
-          <input type="number" id="fcCfgPanelF" placeholder="e.g. 20" step="0.1" min="0" style="width:80px">
-        </label>
-        <label>Panel (rear) W
-          <input type="number" id="fcCfgPanelR" placeholder="e.g. 10" step="0.1" min="0" style="width:80px">
-        </label>
-        <label>Battery cap. Ah
-          <input type="number" id="fcCfgBatAh" placeholder="e.g. 100" step="1" min="0" style="width:80px">
-        </label>
-        <label>Battery age yrs
-          <input type="number" id="fcCfgBatAge" placeholder="e.g. 1.5" step="0.1" min="0" style="width:80px">
-        </label>
-        <label>Notes
-          <textarea id="fcCfgNotes" placeholder="e.g. replaced rear panel"></textarea>
-        </label>
-        <button type="submit" class="btn-fetch" style="align-self:flex-end">&#43; Add</button>
-      </form>
-
-      <!-- Log table -->
-      <div class="fc-config-table-wrap">
-        <table class="fc-config-table" id="fcCfgTable">
-          <thead>
-            <tr>
-              <th>Date</th><th>Station</th><th>Panel F (W)</th><th>Panel R (W)</th>
-              <th>Bat. Ah</th><th>Bat. Age (yr)</th><th>Notes</th><th>Added</th><th></th>
-            </tr>
-          </thead>
-          <tbody id="fcCfgTbody"></tbody>
-        </table>
-      </div>
-      <div style="margin-top:8px;display:flex;gap:8px">
-        <button class="btn btn-sm" onclick="fcCfgExportCSV()">&#128190; Export CSV</button>
-        <label class="btn btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px">
-          &#128194; Import CSV <input type="file" accept=".csv" style="display:none" onchange="fcCfgImportCSV(event)">
-        </label>
-      </div>
+      <h4>Config Change Log</h4>
+      <div id="fcConfigChangeLog"><div style="color:var(--text-muted);font-size:.75rem;padding:8px 0">Loading…</div></div>
     </div>
   </section>
 </main>
@@ -447,31 +391,15 @@ function onAllLoaded() {
       BatteryForecast.init({ allEntries: stationData[firstId].entries });
     }
   } else {
-    // Show forecast panel even if BatteryForecast not available, so config log is visible
+    // Show forecast panel even if BatteryForecast not available
     document.getElementById('forecastPanel').style.display = '';
   }
-
-  // Default the config-log date input to today
-  var dateInput = document.getElementById('fcCfgDate');
-  if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().slice(0,10);
-
-  // Sync station select to first loaded station
-  var cfgSel = document.getElementById('fcCfgStation');
-  if (cfgSel && window.BatteryForecast) {
-    var fcSel = document.getElementById('fcStationSelect');
-    if (fcSel) cfgSel.value = fcSel.value;
-  }
-
-  fcCfgRender();
 }
 
 function switchForecastStation(id) {
   if (!window.BatteryForecast || !stationData[id] || !stationData[id].entries.length) return;
   BatteryForecast.reset();
   BatteryForecast.init({ allEntries: stationData[id].entries });
-  // Sync config log station selector
-  var cfgSel = document.getElementById('fcCfgStation');
-  if (cfgSel) cfgSel.value = id;
 }
 
 function renderStationSection(station, data) {
@@ -1238,155 +1166,7 @@ async function fetchLiveAll() {
   }
 }
 
-// ============================================================
-// FORECAST CONFIG LOG
-// ============================================================
-var FC_CFG_KEY = 'seaweed_fc_config_log';
-
-function fcCfgLoad() {
-  try { return JSON.parse(localStorage.getItem(FC_CFG_KEY) || '[]'); } catch(e) { return []; }
-}
-function fcCfgSave(entries) {
-  localStorage.setItem(FC_CFG_KEY, JSON.stringify(entries));
-}
-
-function fcCfgRender() {
-  var entries = fcCfgLoad();
-  var tbody = document.getElementById('fcCfgTbody');
-  if (!tbody) return;
-  if (!entries.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:12px">No configuration entries yet</td></tr>';
-    return;
-  }
-  // Sort by date
-  entries = entries.slice().sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
-  tbody.innerHTML = entries.map(function(r) {
-    return '<tr>' +
-      '<td>' + r.date + '</td>' +
-      '<td>' + (r.station || '--') + '</td>' +
-      '<td>' + (r.panelF !== '' && r.panelF !== null && r.panelF !== undefined ? r.panelF : '--') + '</td>' +
-      '<td>' + (r.panelR !== '' && r.panelR !== null && r.panelR !== undefined ? r.panelR : '--') + '</td>' +
-      '<td>' + (r.batAh  !== '' && r.batAh  !== null && r.batAh  !== undefined ? r.batAh  : '--') + '</td>' +
-      '<td>' + (r.batAge !== '' && r.batAge !== null && r.batAge !== undefined ? r.batAge : '--') + '</td>' +
-      '<td style="max-width:200px;white-space:normal">' + (r.notes || '') + '</td>' +
-      '<td style="color:var(--text-muted)">' + (r.addedAt ? r.addedAt.slice(0,10) : '') + '</td>' +
-      '<td><button class="btn btn-sm" onclick="fcCfgDelete(\'' + r.id + '\')" title="Delete" style="padding:1px 7px">&#10005;</button></td>' +
-      '</tr>';
-  }).join('');
-}
-
-function fcCfgAdd(evt) {
-  evt.preventDefault();
-  var date    = document.getElementById('fcCfgDate').value;
-  var station = document.getElementById('fcCfgStation').value;
-  var panelF  = document.getElementById('fcCfgPanelF').value;
-  var panelR  = document.getElementById('fcCfgPanelR').value;
-  var batAh   = document.getElementById('fcCfgBatAh').value;
-  var batAge  = document.getElementById('fcCfgBatAge').value;
-  var notes   = document.getElementById('fcCfgNotes').value.trim();
-  if (!date) return;
-  var entries = fcCfgLoad();
-  entries.push({
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2,5),
-    date: date,
-    station: station,
-    panelF:  panelF  !== '' ? parseFloat(panelF)  : null,
-    panelR:  panelR  !== '' ? parseFloat(panelR)  : null,
-    batAh:   batAh   !== '' ? parseFloat(batAh)   : null,
-    batAge:  batAge  !== '' ? parseFloat(batAge)  : null,
-    notes:   notes,
-    addedAt: new Date().toISOString()
-  });
-  fcCfgSave(entries);
-  fcCfgRender();
-  // Reset form except station
-  document.getElementById('fcCfgDate').value    = '';
-  document.getElementById('fcCfgPanelF').value  = '';
-  document.getElementById('fcCfgPanelR').value  = '';
-  document.getElementById('fcCfgBatAh').value   = '';
-  document.getElementById('fcCfgBatAge').value  = '';
-  document.getElementById('fcCfgNotes').value   = '';
-}
-
-function fcCfgDelete(id) {
-  var entries = fcCfgLoad().filter(function(r){ return r.id !== id; });
-  fcCfgSave(entries);
-  fcCfgRender();
-}
-
-function fcCfgExportCSV() {
-  var entries = fcCfgLoad().slice().sort(function(a,b){ return a.date < b.date ? -1 : 1; });
-  var hdr = ['id','date','station','panelF_W','panelR_W','batAh','batAge_yr','notes','addedAt'];
-  var rows = [hdr.join(',')].concat(entries.map(function(r) {
-    return [r.id, r.date, r.station,
-            r.panelF !== null && r.panelF !== undefined ? r.panelF : '',
-            r.panelR !== null && r.panelR !== undefined ? r.panelR : '',
-            r.batAh  !== null && r.batAh  !== undefined ? r.batAh  : '',
-            r.batAge !== null && r.batAge !== undefined ? r.batAge : '',
-            '"' + (r.notes || '').replace(/"/g,'""') + '"',
-            r.addedAt || ''].join(',');
-  }));
-  var blob = new Blob([rows.join('\n')], {type:'text/csv'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'forecast_config_log.csv';
-  a.click();
-}
-
-function fcCfgImportCSV(event) {
-  var file = event.target.files[0];
-  if (!file) return;
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      var lines = e.target.result.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
-      if (!lines.length) return;
-      var hdr = lines[0].split(',');
-      var imported = [];
-      for (var i = 1; i < lines.length; i++) {
-        var cols = lines[i].match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || lines[i].split(',');
-        // Simple CSV parse (handles quoted notes field)
-        var raw = lines[i];
-        var parts = [];
-        var inQ = false, cur = '';
-        for (var ci = 0; ci < raw.length; ci++) {
-          var ch = raw[ci];
-          if (ch === '"') { inQ = !inQ; }
-          else if (ch === ',' && !inQ) { parts.push(cur); cur = ''; }
-          else { cur += ch; }
-        }
-        parts.push(cur);
-        var o = {};
-        hdr.forEach(function(h, idx) { o[h.trim()] = (parts[idx] || '').trim(); });
-        if (!o.date) continue;
-        imported.push({
-          id:      o.id || Date.now().toString(36) + i,
-          date:    o.date,
-          station: o.station || 'perth',
-          panelF:  o['panelF_W'] !== '' ? parseFloat(o['panelF_W']) : null,
-          panelR:  o['panelR_W'] !== '' ? parseFloat(o['panelR_W']) : null,
-          batAh:   o['batAh']    !== '' ? parseFloat(o['batAh'])    : null,
-          batAge:  o['batAge_yr']!== '' ? parseFloat(o['batAge_yr']): null,
-          notes:   o.notes || '',
-          addedAt: o.addedAt || new Date().toISOString()
-        });
-      }
-      // Merge with existing (skip duplicate ids)
-      var existing = fcCfgLoad();
-      var existIds = {};
-      existing.forEach(function(r){ existIds[r.id] = true; });
-      imported.forEach(function(r){ if (!existIds[r.id]) existing.push(r); });
-      fcCfgSave(existing);
-      fcCfgRender();
-      alert('Imported ' + imported.length + ' entries.');
-    } catch(err) { alert('CSV parse error: ' + err.message); }
-  };
-  reader.readAsText(file);
-  event.target.value = '';
-}
-
-// ============================================================
-// BOOT: Load all stations sequentially from local data
+// ==========================================================// BOOT: Load all stations sequentially from local data
 // ============================================================
 (function() {
   var idx = 0;
