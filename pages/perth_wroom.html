@@ -585,13 +585,13 @@ body {
       <div class="chart-header">
         <h3>Humidity (%RH)</h3>
         <div class="time-btns">
-          <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
-          <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
-          <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
-          <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
+          <button class="btn btn-sm active" data-humrange="day" onclick="setHumTimeRange('day')">Day</button>
+          <button class="btn btn-sm" data-humrange="week" onclick="setHumTimeRange('week')">Week</button>
+          <button class="btn btn-sm" data-humrange="month" onclick="setHumTimeRange('month')">Month</button>
+          <button class="btn btn-sm" data-humrange="all" onclick="setHumTimeRange('all')">All</button>
         </div>
       </div>
-      <div class="chart-subhead" id="humSubhead">Showing: All data</div>
+      <div class="chart-subhead" id="humSubhead">Last 24 hours</div>
       <div class="chart-wrap">
         <canvas id="humChart"></canvas>
         <div class="chart-empty" id="humEmpty">No humidity data yet</div>
@@ -831,6 +831,7 @@ var state = {
   allEntries:       [],   // [{timestamp, t1, rh1, ok1, t2, rh2, ok2, ... t5, rh5, ok5}]
   filteredEntries:  [],
   timeRange:        'week',
+  humTimeRange:     'day',
   dateStart:        null,
   dateEnd:          null,
   dataSource:       '',
@@ -1187,6 +1188,20 @@ function setTimeRange(range) {
   saveViewPrefs();
 }
 
+function setHumTimeRange(range) {
+  state.humTimeRange = range;
+  updateHumChart();
+  updateHumTimeButtons();
+  updateHumSubhead();
+  saveViewPrefs();
+}
+
+function updateHumChart() {
+  if (!state.charts.hum && !state.allEntries.length) return;
+  // re-run createOrUpdateCharts which now uses state.humTimeRange for hum
+  if (state.charts.temp) createOrUpdateCharts();
+}
+
 function setWeatherTimeRange(r) {
   state.weatherTimeRange = r;
   document.querySelectorAll('[data-wxrange]').forEach(function(b) {
@@ -1248,7 +1263,8 @@ var VIEW_PREFS_KEY = 'seaweed_view_wroom';
 function saveViewPrefs() {
   try {
     var prefs = {
-      timeRange: state.timeRange,
+      timeRange:    state.timeRange,
+      humTimeRange: state.humTimeRange,
       dateStart: document.getElementById('dateStart').value || '',
       dateEnd:   document.getElementById('dateEnd').value   || '',
     };
@@ -1270,6 +1286,9 @@ function restoreViewPrefs() {
     }
     if (p.timeRange && p.timeRange !== 'custom') {
       state.timeRange = p.timeRange;
+    }
+    if (p.humTimeRange) {
+      state.humTimeRange = p.humTimeRange;
     }
     updateDateRangeIndicator();
   } catch (e) { /* ignore */ }
@@ -1320,17 +1339,44 @@ function getTimeAxisConfig() {
 }
 
 function updateTimeButtons() {
-  document.querySelectorAll('.time-btns .btn-sm').forEach(function(btn) {
+  document.querySelectorAll('[data-range]').forEach(function(btn) {
     btn.classList.toggle('active', btn.dataset.range === state.timeRange);
   });
+}
+
+function updateHumTimeButtons() {
+  document.querySelectorAll('[data-humrange]').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.humrange === state.humTimeRange);
+  });
+}
+
+function humTimeRangeLabel() {
+  var range = state.humTimeRange;
+  var e = state.allEntries;
+  if (!e.length) return 'No data';
+  var latest = e[e.length - 1].timestamp;
+  switch (range) {
+    case 'day':   return 'Last 24 hours';
+    case 'week':  return 'Last 7 days';
+    case 'month': return 'Last 30 days';
+    default: {
+      var oldest = e[0].timestamp;
+      var spanDays = Math.round((latest - oldest) / 86400000);
+      return 'All data (' + spanDays + ' days)';
+    }
+  }
+}
+
+function updateHumSubhead() {
+  var el = document.getElementById('humSubhead');
+  if (el) el.textContent = humTimeRangeLabel();
 }
 
 function updateChartSubheads() {
   var label = timeRangeLabel();
   var el = document.getElementById('tempSubhead');
   if (el) el.textContent = label;
-  var humSub = document.getElementById('humSubhead');
-  if (humSub) humSub.textContent = label;
+  updateHumSubhead();
 }
 
 // =====================================================================
@@ -1350,6 +1396,7 @@ function renderDashboard() {
   updateChartSubheads();
   updatePeaksTable();
   updateTimeButtons();
+  updateHumTimeButtons();
   fetchWeatherData();
 }
 
@@ -1866,10 +1913,41 @@ function createOrUpdateCharts() {
     });
   }
 
-  // -- Humidity --
+  // -- Humidity (independent time range) --
+  var humE = (function() {
+    var base = state.allEntries;
+    if (state.dateStart || state.dateEnd) {
+      var rs = state.dateStart || new Date(0);
+      var re = state.dateEnd   || new Date(9999, 0);
+      base = base.filter(function(x) { return x.timestamp >= rs && x.timestamp <= re; });
+    }
+    if (!base.length) return [];
+    var latest = base[base.length - 1].timestamp;
+    var start;
+    switch (state.humTimeRange) {
+      case 'day':   start = new Date(latest.getTime() - 24 * 3600000); break;
+      case 'week':  start = new Date(latest.getTime() - 7 * 24 * 3600000); break;
+      case 'month': start = new Date(latest.getTime() - 30 * 24 * 3600000); break;
+      default:      start = new Date(0);
+    }
+    return base.filter(function(x) { return x.timestamp >= start; });
+  })();
+  var humTimeCfg = (function() {
+    var r = state.humTimeRange;
+    if (r === 'all' && humE.length >= 2) {
+      var sd = (humE[humE.length-1].timestamp - humE[0].timestamp) / 86400000;
+      if (sd <= 1.5) r = 'day'; else if (sd <= 10) r = 'week'; else if (sd <= 45) r = 'month';
+    }
+    switch (r) {
+      case 'day':   return { unit: 'hour', displayFormats: { hour: 'HH:mm' }, tooltipFormat: 'ccc d LLL HH:mm' };
+      case 'week':  return { unit: 'day',  displayFormats: { day: 'ccc' },    tooltipFormat: 'ccc d LLL HH:mm' };
+      case 'month': return { unit: 'day',  displayFormats: { day: 'd' },      tooltipFormat: 'ccc d LLL HH:mm' };
+      default:      return { unit: undefined, displayFormats: {},              tooltipFormat: 'DDD HH:mm' };
+    }
+  })();
   var humDS = [];
   for (var s = 1; s <= SENSOR_COUNT; s++) {
-    humDS.push(makeDataset(e, 'rh' + s, SENSOR_LABELS[s-1], SENSOR_COLORS[s-1], false));
+    humDS.push(makeDataset(humE, 'rh' + s, SENSOR_LABELS[s-1], SENSOR_COLORS[s-1], false));
   }
   var hasHumData = humDS.some(function(ds) { return ds.data.length > 0; });
   document.getElementById('humEmpty').style.display = hasHumData ? 'none' : 'flex';
@@ -1882,7 +1960,7 @@ function createOrUpdateCharts() {
 
   if (state.charts.hum) {
     state.charts.hum.data.datasets = humDS;
-    state.charts.hum.options.scales.x.time = timeCfg;
+    state.charts.hum.options.scales.x.time = humTimeCfg;
     state.charts.hum.update();
   } else {
     state.charts.hum = new Chart(document.getElementById('humChart'), {
