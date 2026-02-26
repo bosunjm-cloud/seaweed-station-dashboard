@@ -36,8 +36,8 @@ $ErrorActionPreference = "Stop"
 $defaultChannels = @(
     @{ id = "perth";    name = "Perth Test Table";    channelId = "3262071"; apiKey = "VVHUX39KINYPLCVI"; dataFolder = "data_3262071_TT" }
     @{ id = "wroom";    name = "Perth WROOM PTT";     channelId = "3246116"; apiKey = "7K00B1Y8DNOTEIM0"; dataFolder = "data_WROOM_PTT" }
-    @{ id = "shangani"; name = "Shangani Aramani";    channelId = "";        apiKey = "";                 dataFolder = "data_Shangani" }
-    @{ id = "funzi";    name = "Funzi Island";        channelId = "";        apiKey = "";                 dataFolder = "data_Funzi" }
+    @{ id = "shangani"; name = "Shangani Aramani";    channelId = "3262074";  apiKey = "X7ZETMYRRQCAFE8S";  dataFolder = "data_Shangani" }
+    @{ id = "funzi";    name = "Funzi Island";        channelId = "3256756";  apiKey = "D8TXB5B33KPWRIHO";  dataFolder = "data_Funzi" }
 )
 
 $cfgDefaults = @{
@@ -487,6 +487,12 @@ foreach ($wloc in $weatherLocations) {
     if ($weatherStartStr -eq "" -or $weatherEndStr -eq "") {
         $weatherStartStr = (Get-Date).AddDays(-7).ToString("yyyy-MM-dd")
         $weatherEndStr   = $todayStr
+    }
+
+    # Clamp start_date to no earlier than 90 days ago (Open-Meteo archive limit)
+    $minAllowed = (Get-Date).AddDays(-90).ToString("yyyy-MM-dd")
+    if ($weatherStartStr -lt $minAllowed) {
+        $weatherStartStr = $minAllowed
     }
 
     if ($weatherEndStr -ge $todayStr) {
