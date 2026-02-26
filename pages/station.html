@@ -592,9 +592,9 @@ body {
     <div class="collapsible-section" id="tidesCollapsible" style="display:none">
     <button class="collapsible-toggle" onclick="toggleCollapsible('tidesCollapsible')">
       &#127754; Tides &amp; Moon Phase
-      <span class="collapsible-chevron" style="transform:rotate(180deg)">&#9660;</span>
+      <span class="collapsible-chevron">&#9660;</span>
     </button>
-    <div class="collapsible-body" id="tidesCollapsibleBody"><!-- default open so charts render correctly -->
+    <div class="collapsible-body" id="tidesCollapsibleBody" style="display:none">
     <section class="chart-panel" id="tidesSection" style="display:block">
       <div class="chart-header">
         <h3>&#127754; Tides &amp; Moon Phase</h3>
@@ -1104,6 +1104,17 @@ function toggleCollapsible(id) {
   var open = body.style.display === 'none';
   body.style.display = open ? 'block' : 'none';
   if (chevron) chevron.style.transform = open ? 'rotate(180deg)' : '';
+  // Resize charts inside the section after expand so Chart.js paints at correct size
+  if (open) {
+    requestAnimationFrame(function () {
+      ['tideChartDetail', 'tideChartOverview',
+       'weatherTempChart', 'weatherHumChart', 'weatherPrecipChart', 'weatherUVChart'
+      ].forEach(function (cid) {
+        var c = typeof Chart !== 'undefined' && Chart.getChart ? Chart.getChart(cid) : null;
+        if (c) c.resize();
+      });
+    });
+  }
 }
 
 function findLastEntryWith(entries, key) {
