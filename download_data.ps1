@@ -416,6 +416,24 @@ foreach ($channel in $channels) {
     $jsSize = [math]::Round($jsContent.Length / 1024, 1)
     Write-Host "          Written: merged_data.js ($jsSize KB, $totalEntries entries)"
 
+    # ── Legacy humidity injection ──────────────────────────────────────────────
+    # If a legacy humidity CSV backup exists for this channel, inject it as
+    # humFeeds so old humidity data (before channel repurposing) is preserved.
+    $legacyHumCsv = Join-Path $PSScriptRoot "data\WROOM - Humidity Data.csv"
+    if ($channel.id -eq "wroom" -and (Test-Path $legacyHumCsv)) {
+        $pyScript = Join-Path $PSScriptRoot "inject_old_humidity.py"
+        if (Test-Path $pyScript) {
+            Write-Host "          Injecting legacy humidity data from WROOM - Humidity Data.csv ..."
+            $pyResult = & python $pyScript 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                $jsSize2 = [math]::Round((Get-Item $jsFile).Length / 1024, 1)
+                Write-Host "          Humidity injected. New file size: $jsSize2 KB"
+            } else {
+                Write-Host "          [!] inject_old_humidity.py failed: $pyResult" -ForegroundColor Yellow
+            }
+        }
+    }
+
     # Sync to project-local pages data folder
     if ($pagesDataRoot -ne "") {
         $pagesChFolder = Join-Path $pagesDataRoot $channel.dataFolder
