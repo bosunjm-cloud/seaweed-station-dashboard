@@ -592,9 +592,9 @@ body {
     <div class="collapsible-section" id="tidesCollapsible" style="display:none">
     <button class="collapsible-toggle" onclick="toggleCollapsible('tidesCollapsible')">
       &#127754; Tides &amp; Moon Phase
-      <span class="collapsible-chevron">&#9660;</span>
+      <span class="collapsible-chevron" style="transform:rotate(180deg)">&#9660;</span>
     </button>
-    <div class="collapsible-body" style="display:none">
+    <div class="collapsible-body" id="tidesCollapsibleBody"><!-- default open so charts render correctly -->
     <section class="chart-panel" id="tidesSection" style="display:block">
       <div class="chart-header">
         <h3>&#127754; Tides &amp; Moon Phase</h3>

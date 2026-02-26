@@ -837,6 +837,9 @@ function initTides(locationKey) {
   // Show collapsible wrapper if present (station pages use collapsible tides)
   var tidesCollapsible = document.getElementById('tidesCollapsible');
   if (tidesCollapsible) tidesCollapsible.style.display = '';
+  // Ensure collapsible body is open so Chart.js renders on a visible canvas
+  var tidesBody = document.getElementById('tidesCollapsibleBody');
+  if (tidesBody) tidesBody.style.display = 'block';
 
   var stationEl = document.getElementById('tideStation');
   if (stationEl) {
