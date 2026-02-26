@@ -7,6 +7,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2/dist/chartjs-plugin-zoom.min.js"></script>
 <script src="battery_model.js"></script>
 <script src="battery_forecast_widget.js"></script>
 <style>
@@ -49,9 +51,24 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 /* ======================== CHARTS ======================== */
 .chart-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
 @media(max-width:900px){.chart-row{grid-template-columns:1fr}}
-.chart-box{background:var(--bg-card-alt);border-radius:8px;padding:10px 12px}
+.chart-box{background:var(--bg-card-alt);border-radius:8px;padding:10px 12px;position:relative}
 .chart-box h4{font-size:.78rem;color:var(--text-sec);margin-bottom:6px}
 .chart-box canvas{width:100%!important;height:180px!important}
+/* ======================== CHART EXPAND BUTTON ======================== */
+.chart-expand-btn{position:absolute;top:6px;right:6px;background:rgba(15,23,42,.8);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;opacity:0;transition:opacity .15s,color .15s;z-index:2;line-height:1;padding:0}
+.chart-box:hover .chart-expand-btn,.chart-box-full:hover .chart-expand-btn{opacity:1}
+.chart-expand-btn:hover{color:var(--accent)!important;border-color:var(--accent)}
+/* ======================== CHART EXPAND MODAL ======================== */
+.chart-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;transition:opacity .2s;pointer-events:none}
+.chart-modal-overlay.open{opacity:1;pointer-events:all}
+.chart-modal{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;width:calc(100vw - 40px);max-width:1400px;display:flex;flex-direction:column;gap:10px;box-shadow:0 24px 64px rgba(0,0,0,.7)}
+.chart-modal-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.chart-modal-header h3{font-size:1rem;font-weight:600}
+.chart-modal-actions{display:flex;gap:6px;align-items:center}
+.chart-modal-close{background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:3px 12px;cursor:pointer;font-size:.8rem;transition:background .15s}
+.chart-modal-close:hover{background:var(--bg-hover);color:var(--text)}
+.chart-modal-hint{font-size:.7rem;color:var(--text-muted)}
+.chart-modal-wrap{position:relative;height:calc(100vh - 200px);max-height:580px;min-height:300px}
 
 /* ======================== DAILY HEALTH TABLE ======================== */
 .health-table-wrap{overflow-x:auto;margin-bottom:14px}
@@ -69,7 +86,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .trange-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
 
 /* ======================== SYNC BAR CHART ======================== */
-.chart-box-full{background:var(--bg-card-alt);border-radius:8px;padding:10px 12px;margin-bottom:14px}
+.chart-box-full{background:var(--bg-card-alt);border-radius:8px;padding:10px 12px;margin-bottom:14px;position:relative}
 .chart-box-full canvas{width:100%!important;height:220px!important}
 
 /* ======================== FORECAST CONFIG LOG ======================== */
@@ -688,7 +705,7 @@ function renderBatteryCharts(container, entries, stationId, range) {
       borderColor: color, backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false };
   }
 
-  liveCharts.push(new Chart(batCanvas, {
+  makeLiveChart(batBox, batCanvas, 'Battery % \u2013 ' + rangeLabel(range), {
     type: 'line',
     data: { datasets: [
       makeDS(entries, 't0BatPct', 'T0', '#3b82f6'),
@@ -696,9 +713,9 @@ function renderBatteryCharts(container, entries, stationId, range) {
       makeDS(entries, 'satBBatPct', 'Sat-B', '#f59e0b'),
     ]},
     options: chartOpts('Battery (%)', 0, 100),
-  }));
+  });
 
-  liveCharts.push(new Chart(voltCanvas, {
+  makeLiveChart(voltBox, voltCanvas, 'Battery Voltage \u2013 ' + rangeLabel(range), {
     type: 'line',
     data: { datasets: [
       makeDS(entries, 't0BatV', 'T0', '#60a5fa'),
@@ -706,7 +723,7 @@ function renderBatteryCharts(container, entries, stationId, range) {
       makeDS(entries, 'satBBatV', 'Sat-B', '#fbbf24'),
     ]},
     options: chartOpts('Voltage (V)', 2.5, 4.5),
-  }));
+  });
 }
 
 function renderSensorCharts(container, entries, stationId, range) {
@@ -827,7 +844,7 @@ function renderSyncCharts(container, entries, stationId, range) {
       });
     }
 
-    liveCharts.push(new Chart(syncCanvas, {
+    makeLiveChart(syncBoxWrap, syncCanvas, 'Satellite Sync Reliability \u2013 ' + rangeLabel(range), {
       type: 'bar',
       data: {
         labels: labels,
@@ -850,7 +867,7 @@ function renderSyncCharts(container, entries, stationId, range) {
           y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, title: { display: true, text: 'Uploads', color: '#64748b' } }
         }
       }
-    }));
+    });
   }
 
   var row = document.createElement('div');
@@ -888,7 +905,7 @@ function renderSyncCharts(container, entries, stationId, range) {
   if (hasDrift && driftCanvas) {
     var dOpts = chartOpts('Drift (s)');
     dOpts.scales.y.ticks = { callback: function(v) { return (v>=0?'+':'')+v+'s'; }, color: '#94a3b8', font: { size: 10 } };
-    liveCharts.push(new Chart(driftCanvas, {
+    makeLiveChart(driftBox, driftCanvas, 'Satellite Sync Drift \u2013 ' + rangeLabel(range), {
       type: 'line',
       data: { datasets: [
         makeDS(recent, 'satASyncDrift', 'Sat-A Drift', '#22c55e'),
@@ -896,18 +913,18 @@ function renderSyncCharts(container, entries, stationId, range) {
         makeDS(recent, 'syncDrift', 'System Drift', '#f59e0b'),
       ]},
       options: dOpts,
-    }));
+    });
   }
 
   if (hasRssi && rssiCanvas) {
-    liveCharts.push(new Chart(rssiCanvas, {
+    makeLiveChart(rssiBox, rssiCanvas, 'RSSI \u2013 ' + rangeLabel(range), {
       type: 'line',
       data: { datasets: [
         makeDS(recent, 'satARssi', 'Sat-A RSSI', '#22c55e'),
         makeDS(recent, 'satBRssi', 'Sat-B RSSI', '#3b82f6'),
       ]},
       options: chartOpts('RSSI (dBm)', -100, 0),
-    }));
+    });
   }
 
   // Sync reliability stats row
@@ -931,6 +948,102 @@ function rangeLabel(range) {
   if (range === 'month') return 'Month';
   return 'All';
 }
+
+// ============================================================
+// CHART EXPAND MODAL
+// ============================================================
+var _modalChart = null;
+
+// Wraps new Chart() -- stores title on canvas and attaches an expand button
+function makeLiveChart(box, canvas, title, cfg) {
+  canvas._expandTitle = title;
+  var btn = document.createElement('button');
+  btn.className = 'chart-expand-btn';
+  btn.title = 'Expand \u2022 Scroll=zoom \u2022 Drag=pan \u2022 Dbl-click=reset';
+  btn.innerHTML = '\u2922';
+  btn.onclick = function(e) { e.stopPropagation(); openChartModal(canvas._expandTitle, canvas); };
+  box.appendChild(btn);
+  var inst = new Chart(canvas, cfg);
+  liveCharts.push(inst);
+  return inst;
+}
+
+function openChartModal(title, srcCanvas) {
+  var srcChart = Chart.getChart(srcCanvas);
+  if (!srcChart) return;
+  document.getElementById('chartModalTitle').textContent = title;
+  var overlay = document.getElementById('chartModalOverlay');
+  overlay.classList.add('open');
+  if (_modalChart) { _modalChart.destroy(); _modalChart = null; }
+
+  var modalCanvas = document.getElementById('chartModalCanvas');
+  modalCanvas.removeAttribute('width');
+  modalCanvas.removeAttribute('height');
+
+  var isBar = srcChart.config.type === 'bar';
+  var srcScaleY = (srcChart.options.scales || {}).y || {};
+  var yTitle = (srcScaleY.title || {}).text || '';
+  var yMin   = srcScaleY.min;
+  var yMax   = srcScaleY.max;
+  var yTickCb = srcScaleY.ticks && typeof srcScaleY.ticks.callback === 'function' ? srcScaleY.ticks.callback : null;
+
+  var modalOpts;
+  if (isBar) {
+    modalOpts = {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { position: 'top', labels: { color: '#94a3b8', font: { size: 11 } } },
+        zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
+                pan:  { enabled: true, mode: 'xy' } }
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+        y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e293b' },
+             title: { display: !!yTitle, text: yTitle, color: '#64748b' } }
+      }
+    };
+  } else {
+    var yTicks = { color: '#94a3b8', font: { size: 11 } };
+    if (yTickCb) yTicks.callback = yTickCb;
+    modalOpts = {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      plugins: {
+        legend: { display: true, position: 'top', labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 14, padding: 10 } },
+        tooltip: { backgroundColor: '#1e293b', titleColor: '#f1f5f9', bodyColor: '#94a3b8', borderColor: '#334155', borderWidth: 1 },
+        zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+                pan:  { enabled: true, mode: 'x' } }
+      },
+      scales: {
+        x: { type: 'time', time: { tooltipFormat: 'dd MMM HH:mm', displayFormats: { hour: 'HH:mm', day: 'dd MMM' } },
+             ticks: { color: '#64748b', font: { size: 11 }, maxTicksLimit: 12 }, grid: { color: '#1e293b' } },
+        y: { title: { display: !!yTitle, text: yTitle, color: '#64748b', font: { size: 11 } },
+             min: (yMin !== undefined && yMin !== null) ? yMin : undefined,
+             max: (yMax !== undefined && yMax !== null) ? yMax : undefined,
+             ticks: yTicks, grid: { color: '#1e293b' } }
+      }
+    };
+  }
+
+  _modalChart = new Chart(modalCanvas, {
+    type: srcChart.config.type,
+    data: { labels: srcChart.data.labels, datasets: srcChart.data.datasets },
+    options: modalOpts
+  });
+}
+
+function closeChartModal(evt) {
+  if (evt && evt.target.id !== 'chartModalOverlay' && !evt.target.classList.contains('chart-modal-close')) return;
+  document.getElementById('chartModalOverlay').classList.remove('open');
+  if (_modalChart) { _modalChart.destroy(); _modalChart = null; }
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    document.getElementById('chartModalOverlay').classList.remove('open');
+    if (_modalChart) { _modalChart.destroy(); _modalChart = null; }
+  }
+});
 
 function pctColor(v) {
   if (v > 90) return 'var(--success)';
@@ -1359,6 +1472,24 @@ function fcCfgImportCSV(event) {
   loadNext();
 })();
 </script>
+
+<!-- ============================================================ -->
+<!-- CHART EXPAND MODAL                                          -->
+<!-- ============================================================ -->
+<div class="chart-modal-overlay" id="chartModalOverlay" onclick="closeChartModal(event)">
+  <div class="chart-modal" onclick="event.stopPropagation()">
+    <div class="chart-modal-header">
+      <h3 id="chartModalTitle"></h3>
+      <div class="chart-modal-actions">
+        <span class="chart-modal-hint">Scroll = zoom &nbsp;&bull;&nbsp; Drag = pan &nbsp;&bull;&nbsp; Dbl-click = reset</span>
+        <button class="chart-modal-close" onclick="closeChartModal({target:this})">&#10005; Close</button>
+      </div>
+    </div>
+    <div class="chart-modal-wrap">
+      <canvas id="chartModalCanvas"></canvas>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
