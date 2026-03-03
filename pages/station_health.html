@@ -1214,7 +1214,13 @@ function renderSyncCharts(container, entries, stationId, range) {
 
   // Sync reliability stats row (24h expected windows) — use cached results from renderSummaryCards
   var cacheKey24 = stationId + '_24h';
-  if (!_syncWindowCache[cacheKey24]) {\n    var cutoff24 = entries[entries.length - 1].timestamp.getTime() - 24 * 3600000;\n    _syncWindowCache[cacheKey24] = {\n      satA: evaluateSyncWindows(entries, 'satASampleId', 'satABatV', cutoff24, entries[entries.length - 1].timestamp.getTime(), 3 * 3600000, 'satAInstalled'),\n      satB: evaluateSyncWindows(entries, 'satBSampleId', 'satBBatV', cutoff24, entries[entries.length - 1].timestamp.getTime(), 3 * 3600000, 'satBInstalled')\n    };\n  }
+  if (!_syncWindowCache[cacheKey24]) {
+    var cutoff24 = entries[entries.length - 1].timestamp.getTime() - 24 * 3600000;
+    _syncWindowCache[cacheKey24] = {
+      satA: evaluateSyncWindows(entries, 'satASampleId', 'satABatV', cutoff24, entries[entries.length - 1].timestamp.getTime(), 3 * 3600000, 'satAInstalled'),
+      satB: evaluateSyncWindows(entries, 'satBSampleId', 'satBBatV', cutoff24, entries[entries.length - 1].timestamp.getTime(), 3 * 3600000, 'satBInstalled')
+    };
+  }
   var satA24 = _syncWindowCache[cacheKey24].satA;
   var satB24 = _syncWindowCache[cacheKey24].satB;
   var satAPct = satA24.total > 0 ? satA24.synced / satA24.total * 100 : 0;
