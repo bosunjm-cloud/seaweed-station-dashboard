@@ -41,6 +41,15 @@ jobs:
           else
             TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M UTC')
             git commit -m "data: auto-update ThingSpeak data ${TIMESTAMP}"
+
+            # Pull any remote changes (e.g. manual pushes) before pushing
+            # Use rebase to keep data commits on top and avoid merge conflicts
+            for i in 1 2 3; do
+              git pull --rebase origin main && break
+              echo "Pull attempt $i failed, retrying..."
+              sleep 5
+            done
+
             git push
             echo "Data committed and pushed."
           fi
