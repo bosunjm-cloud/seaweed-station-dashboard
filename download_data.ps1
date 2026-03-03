@@ -424,12 +424,17 @@ foreach ($channel in $channels) {
         $pyScript = Join-Path $PSScriptRoot "inject_old_humidity.py"
         if (Test-Path $pyScript) {
             Write-Host "          Injecting legacy humidity data from WROOM - Humidity Data.csv ..."
-            $pyResult = & python $pyScript 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                $jsSize2 = [math]::Round((Get-Item $jsFile).Length / 1024, 1)
-                Write-Host "          Humidity injected. New file size: $jsSize2 KB"
-            } else {
-                Write-Host "          [!] inject_old_humidity.py failed: $pyResult" -ForegroundColor Yellow
+            try {
+                $pyResult = & python $pyScript 2>&1
+                $pyExit = $LASTEXITCODE
+                if ($pyExit -eq 0) {
+                    $jsSize2 = [math]::Round((Get-Item $jsFile).Length / 1024, 1)
+                    Write-Host "          Humidity injected. New file size: $jsSize2 KB"
+                } else {
+                    Write-Host "          [!] inject_old_humidity.py failed (exit $pyExit): $pyResult" -ForegroundColor Yellow
+                }
+            } catch {
+                Write-Host "          [!] inject_old_humidity.py threw an exception: $_" -ForegroundColor Yellow
             }
         }
     }

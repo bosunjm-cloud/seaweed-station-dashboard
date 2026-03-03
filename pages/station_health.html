@@ -886,7 +886,7 @@ function renderBatteryCharts(container, entries, stationId, range) {
       makeDS(entries, 'satABatPct', 'Sat-A', '#10b981'),
       makeDS(entries, 'satBBatPct', 'Sat-B', '#f59e0b'),
     ]},
-    options: chartOpts('Battery (%)', 0, 100),
+    options: chartOpts('Battery (%)', 0, 100, range),
   }, { stationId: stationId, chartKey: 'battery_pct' });
 
   makeLiveChart(voltBox, voltCanvas, 'Battery Voltage \u2013 ' + rangeLabel(range), {
@@ -896,7 +896,7 @@ function renderBatteryCharts(container, entries, stationId, range) {
       makeDS(entries, 'satABatV', 'Sat-A', '#34d399'),
       makeDS(entries, 'satBBatV', 'Sat-B', '#fbbf24'),
     ]},
-    options: chartOpts('Voltage (V)', 2.5, 4.5),
+    options: chartOpts('Voltage (V)', 2.5, 4.5, range),
   }, { stationId: stationId, chartKey: 'battery_voltage' });
 }
 
@@ -908,9 +908,10 @@ function renderSyncCharts(container, entries, stationId, range) {
   if (!entries || !entries.length) return;
   // Check if any sync/RSSI data exists
   var hasDrift = entries.some(function(e) { return e.satASyncDrift !== null || e.satBSyncDrift !== null; });
+  var hasSystemDrift = entries.some(function(e) { return e.syncDrift !== null; });
   var hasRssi  = entries.some(function(e) { return (e.satARssi !== null && e.satARssi !== 0) || (e.satBRssi !== null && e.satBRssi !== 0); });
   var hasSyncData = entries.some(function(e) { return e.satABatV !== null || e.satBBatV !== null; });
-  if (!hasDrift && !hasRssi && !hasSyncData) return;
+  if (!hasDrift && !hasSystemDrift && !hasRssi && !hasSyncData) return;
 
   if (hasSyncData) {
     var syncBoxWrap = document.createElement('div');
@@ -1021,11 +1022,11 @@ function renderSyncCharts(container, entries, stationId, range) {
   var row = document.createElement('div');
   row.className = 'chart-row';
 
-  var driftCanvas = null, rssiCanvas = null;
+  var driftCanvas = null, driftBox = null, rssiCanvas = null;
 
-  if (hasDrift) {
+  if (hasDrift || hasSystemDrift) {
     driftCanvas = document.createElement('canvas');
-    var driftBox = document.createElement('div');
+    driftBox = document.createElement('div');
     driftBox.className = 'chart-box';
     driftBox.innerHTML = '<h4>Satellite Sync Drift (' + rangeLabel(range) + ')</h4>';
     driftBox.appendChild(driftCanvas);
@@ -1054,6 +1055,13 @@ function renderSyncCharts(container, entries, stationId, range) {
   var satALastDriftTs = null, satBLastDriftTs = null;
   var satALastRssiTs = null, satBLastRssiTs = null;
 
+  // Session config is read per-entry (re-parse only on field8 change) so that
+  // interval changes during testing are correctly reflected in the deduplication threshold.
+  var _uploadCfg = null;
+  var _prevRawField8 = null;
+  var _expectedSessionMs = 0;
+  var _lastSysDriftTs = null;
+
   recent.forEach(function(e) {
     var tsMs = e.timestamp.getTime();
     var satAHasSampleId = e.satASampleId !== null;
@@ -1063,6 +1071,13 @@ function renderSyncCharts(container, entries, stationId, range) {
 
     if (satAHasSampleId) lastSatASampleId = e.satASampleId;
     if (satBHasSampleId) lastSatBSampleId = e.satBSampleId;
+
+    // Re-parse session config only when field8 changes (tracks testing interval changes).
+    if (e._rawField8 && e._rawField8 !== _prevRawField8) {
+      _uploadCfg = parseField8ConfigUnified(e._rawField8);
+      _expectedSessionMs = _uploadCfg ? _uploadCfg.tsBulkFreqDays * 3600 * 1000 : 0;
+      _prevRawField8 = e._rawField8;
+    }
 
     if (e.satASyncDrift !== null) {
       var emitSatADrift = satANewSync || satALastDrift === null || e.satASyncDrift !== satALastDrift || satALastDriftTs === null || (tsMs - satALastDriftTs >= MAX_POINT_GAP_MS);
@@ -1080,14 +1095,21 @@ function renderSyncCharts(container, entries, stationId, range) {
         satBLastDriftTs = tsMs;
       }
     }
-    // syncDrift is g_maxSyncDrift_s: a running max reset to 0 after each cellular upload.
-    // Only emit one point per upload cycle — the last value before the reset to 0.
+    // syncDrift is g_maxSyncDrift_s from field8: the worst-case wake-timer
+    // jitter (T0 deep-sleep vs NTP wall clock) for the upload window.
+    // The firmware resets g_maxSyncDrift_s to 0 after each successful cellular
+    // upload, so all ThingSpeak entries within a session share the same drift
+    // value. Emit one point per session: on value change, OR if silence > 70%
+    // of session interval (catches same-value consecutive sessions).
     if (e.syncDrift !== null) {
-      if (sysDriftSeries._prev !== undefined && e.syncDrift === 0 && sysDriftSeries._prev.y !== 0) {
-        sysDriftSeries.push(sysDriftSeries._prev);  // commit the peak from the completed cycle
+      var _lastSysDrift = sysDriftSeries.length ? sysDriftSeries[sysDriftSeries.length - 1].y : undefined;
+      var _sysDriftGapOk = _expectedSessionMs > 0 && _lastSysDriftTs !== null && (tsMs - _lastSysDriftTs) >= _expectedSessionMs * 0.7;
+      if (sysDriftSeries.length === 0 || e.syncDrift !== _lastSysDrift || _sysDriftGapOk) {
+        sysDriftSeries.push({ x: e.timestamp, y: e.syncDrift });
+        _lastSysDriftTs = tsMs;
       }
-      sysDriftSeries._prev = { x: e.timestamp, y: e.syncDrift };
     }
+
     if (e.satARssi !== null && e.satARssi !== 0) {
       var emitSatARssi = satANewSync || satALastRssi === null || e.satARssi !== satALastRssi || satALastRssiTs === null || (tsMs - satALastRssiTs >= MAX_POINT_GAP_MS);
       if (emitSatARssi) {
@@ -1106,35 +1128,29 @@ function renderSyncCharts(container, entries, stationId, range) {
     }
   });
 
-  // Flush the last in-progress system drift cycle (not yet reset to 0)
-  if (sysDriftSeries._prev !== undefined && sysDriftSeries._prev.y !== 0) {
-    sysDriftSeries.push(sysDriftSeries._prev);
-  }
-  delete sysDriftSeries._prev;
-
-  function makeSeriesDS(series, label, color) {
+  function makeSeriesDS(series, label, color, pointRadiusOverride) {
     return {
       label: label,
       data: series,
       borderColor: color,
       backgroundColor: 'transparent',
       borderWidth: 1.5,
-      pointRadius: 1.5,
+      pointRadius: (pointRadiusOverride !== undefined) ? pointRadiusOverride : 1.5,
       tension: 0.2,
       fill: false
     };
   }
 
-  if (hasDrift && driftCanvas) {
-    var dOpts = chartOpts('Drift (s)');
+  if ((hasDrift || hasSystemDrift) && driftCanvas) {
+    var dOpts = chartOpts('Drift (s)', undefined, undefined, range);
     dOpts.scales.y.ticks = { callback: function(v) { return (v>=0?'+':'')+v+'s'; }, color: '#94a3b8', font: { size: 10 } };
+    var driftDatasets = [];
+    if (satADriftSeries.length) driftDatasets.push(makeSeriesDS(satADriftSeries, 'Sat-A Drift', '#22c55e'));
+    if (satBDriftSeries.length) driftDatasets.push(makeSeriesDS(satBDriftSeries, 'Sat-B Drift', '#3b82f6'));
+    if (sysDriftSeries.length) { var _sdDS = makeSeriesDS(sysDriftSeries, 'Cell Clock Correction', '#f59e0b'); _sdDS.stepped = 'before'; _sdDS.tension = 0; driftDatasets.push(_sdDS); }
     makeLiveChart(driftBox, driftCanvas, 'Satellite Sync Drift \u2013 ' + rangeLabel(range), {
       type: 'line',
-      data: { datasets: [
-        makeSeriesDS(satADriftSeries, 'Sat-A Drift', '#22c55e'),
-        makeSeriesDS(satBDriftSeries, 'Sat-B Drift', '#3b82f6'),
-        makeSeriesDS(sysDriftSeries, 'System Drift', '#f59e0b'),
-      ]},
+      data: { datasets: driftDatasets },
       options: dOpts,
     }, { stationId: stationId, chartKey: 'sync_drift' });
   }
@@ -1146,7 +1162,7 @@ function renderSyncCharts(container, entries, stationId, range) {
         makeSeriesDS(satARssiSeries, 'Sat-A RSSI', '#22c55e'),
         makeSeriesDS(satBRssiSeries, 'Sat-B RSSI', '#3b82f6'),
       ]},
-      options: chartOpts('RSSI (dBm)', -100, 0),
+      options: chartOpts('RSSI (dBm)', -100, 0, range),
     }, { stationId: stationId, chartKey: 'rssi' });
   }
 
@@ -1245,14 +1261,25 @@ function openChartModal(title, srcCanvas) {
         zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
                 pan:  { enabled: true, mode: 'x' } }
       },
-      scales: {
-        x: { type: 'time', time: { tooltipFormat: 'dd MMM HH:mm', displayFormats: { hour: 'HH:mm', day: 'dd MMM' } },
-             ticks: { color: '#64748b', font: { size: 11 }, maxTicksLimit: 12 }, grid: { color: '#1e293b' } },
-        y: { title: { display: !!yTitle, text: yTitle, color: '#64748b', font: { size: 11 } },
-             min: (yMin !== undefined && yMin !== null) ? yMin : undefined,
-             max: (yMax !== undefined && yMax !== null) ? yMax : undefined,
-             ticks: yTicks, grid: { color: '#1e293b' } }
-      }
+      scales: (function() {
+        var mRange = (_modalSource && _modalSource.stationId) ? (stationRanges[_modalSource.stationId] || 'week') : 'week';
+        var mxTime;
+        if (mRange === 'day') {
+          mxTime = { tooltipFormat: 'dd MMM HH:mm', displayFormats: { hour: 'HH:mm', minute: 'HH:mm' } };
+        } else if (mRange === 'week') {
+          mxTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
+        } else {
+          mxTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
+        }
+        return {
+          x: { type: 'time', time: mxTime,
+               ticks: { color: '#64748b', font: { size: 11 }, maxTicksLimit: 12 }, grid: { color: '#1e293b' } },
+          y: { title: { display: !!yTitle, text: yTitle, color: '#64748b', font: { size: 11 } },
+               min: (yMin !== undefined && yMin !== null) ? yMin : undefined,
+               max: (yMax !== undefined && yMax !== null) ? yMax : undefined,
+               ticks: yTicks, grid: { color: '#1e293b' } }
+        };
+      })()
     };
   }
 
@@ -1448,7 +1475,26 @@ function renderDailyHealth(container, entries) {
 // ============================================================
 // CHART HELPERS
 // ============================================================
-function chartOpts(yLabel, yMin, yMax) {
+function chartOpts(yLabel, yMin, yMax, range) {
+  // X-axis time configuration depends on view range:
+  //   day   → hour ticks showing HH:mm
+  //   week  → day ticks showing dd MMM (one per day, 7 labels)
+  //   month → day ticks showing dd MMM
+  //   all   → day ticks showing dd MMM
+  var xTime, xMaxTicks;
+  if (range === 'day') {
+    xTime = { tooltipFormat: 'dd MMM HH:mm', displayFormats: { hour: 'HH:mm', minute: 'HH:mm' } };
+    xMaxTicks = 8;
+  } else if (range === 'week') {
+    xTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
+    xMaxTicks = 8;
+  } else if (range === 'month') {
+    xTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
+    xMaxTicks = 10;
+  } else {
+    xTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
+    xMaxTicks = 12;
+  }
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -1459,8 +1505,8 @@ function chartOpts(yLabel, yMin, yMax) {
       tooltip: { backgroundColor: '#1e293b', titleColor: '#f1f5f9', bodyColor: '#94a3b8', borderColor: '#334155', borderWidth: 1 },
     },
     scales: {
-      x: { type: 'time', time: { tooltipFormat: 'dd MMM HH:mm', displayFormats: { hour: 'HH:mm', day: 'dd MMM' } },
-        ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 8 }, grid: { color: '#1e293b' } },
+      x: { type: 'time', time: xTime,
+        ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: xMaxTicks }, grid: { color: '#1e293b' } },
       y: { title: { display: true, text: yLabel, color: '#64748b', font: { size: 10 } },
         min: yMin, max: yMax,
         ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e293b' } },
