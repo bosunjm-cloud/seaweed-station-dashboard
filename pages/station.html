@@ -2710,10 +2710,13 @@ function createOrUpdateDriftChart() {
   var satADrift = [], satBDrift = [], sysDrift = [];
   var satARssiArr = [], satBRssiArr = [];
   var lastSatASampleId = null, lastSatBSampleId = null;
-  var satALastDrift = null, satBLastDrift = null;
+  var satALastDrift = null, satBLastDrift = null, sysLastDrift = null;
   var satALastRssi = null, satBLastRssi = null;
-  var satALastDriftTs = null, satBLastDriftTs = null;
+  var satALastDriftTs = null, satBLastDriftTs = null, sysLastDriftTs = null;
   var satALastRssiTs = null, satBLastRssiTs = null;
+  var _sysCfg = null;
+  var _sysPrevRawField8 = null;
+  var _sysSessionMs = 0;
   e.forEach(function(entry) {
     var t = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
     var tsMs = t.getTime();
@@ -2724,6 +2727,13 @@ function createOrUpdateDriftChart() {
 
     if (satAHasSampleId) lastSatASampleId = entry.satASampleId;
     if (satBHasSampleId) lastSatBSampleId = entry.satBSampleId;
+
+    // Re-parse session config only when field8 changes (tracks testing config changes).
+    if (entry._rawField8 && entry._rawField8 !== _sysPrevRawField8) {
+      _sysCfg = parseField8ConfigUnified(entry._rawField8);
+      _sysSessionMs = _sysCfg ? _sysCfg.tsBulkFreqHours * 3600 * 1000 : 0;
+      _sysPrevRawField8 = entry._rawField8;
+    }
 
     if (entry.satASyncDrift != null) {
       var emitSatADrift = satANewSync || satALastDrift === null || entry.satASyncDrift !== satALastDrift || satALastDriftTs === null || (tsMs - satALastDriftTs >= MAX_POINT_GAP_MS);
@@ -2741,7 +2751,7 @@ function createOrUpdateDriftChart() {
         satBLastDriftTs = tsMs;
       }
     }
-    if (entry.syncDrift != null)     sysDrift.push({ x: t, y: entry.syncDrift });
+    if (entry.syncDrift != null && (entry.syncDrift !== sysLastDrift || (_sysSessionMs > 0 && sysLastDriftTs !== null && (tsMs - sysLastDriftTs) >= _sysSessionMs * 0.7))) { sysDrift.push({ x: t, y: entry.syncDrift }); sysLastDrift = entry.syncDrift; sysLastDriftTs = tsMs; }
     if (entry.satARssi != null && entry.satARssi !== 0) {
       var emitSatARssi = satANewSync || satALastRssi === null || entry.satARssi !== satALastRssi || satALastRssiTs === null || (tsMs - satALastRssiTs >= MAX_POINT_GAP_MS);
       if (emitSatARssi) {
@@ -2781,7 +2791,7 @@ function createOrUpdateDriftChart() {
       type: 'line', data: { datasets: [
         { label: 'Sat-A Drift', data: satADrift, borderColor: '#22c55e', backgroundColor: '#22c55e22', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
         { label: 'Sat-B Drift', data: satBDrift, borderColor: '#3b82f6', backgroundColor: '#3b82f622', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
-        { label: 'System Drift', data: sysDrift, borderColor: '#f59e0b', backgroundColor: '#f59e0b22', borderWidth: 1.5, pointRadius: 1, pointHoverRadius: 4, tension: 0.2, fill: false, borderDash: [4,3] },
+        { label: 'Cell Clock Correction', data: sysDrift, borderColor: '#f59e0b', backgroundColor: '#f59e0b22', borderWidth: 1.5, pointRadius: 1, pointHoverRadius: 4, tension: 0, stepped: 'before', fill: false, borderDash: [4,3] },
       ] }, options: dOpts,
     });
   }
