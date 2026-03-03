@@ -227,6 +227,41 @@ var STATIONS = [
 
 var liveCharts = [];  // track Chart.js instances for cleanup on refresh
 var stationRanges = {}; // { stationId: 'day'|'week'|'month'|'all' }
+var _syncWindowCache = {}; // cache evaluateSyncWindows per station+range
+
+// Largest-Triangle-Three-Buckets downsampling for {x,y} arrays.
+// Keeps first & last point, picks the most visually significant point per bucket.
+var MAX_CHART_POINTS = 350;
+function lttbDownsample(data, maxPts) {
+  maxPts = maxPts || MAX_CHART_POINTS;
+  if (!data || data.length <= maxPts) return data;
+  var len = data.length;
+  var sampled = [data[0]];
+  var bucketSize = (len - 2) / (maxPts - 2);
+  var a = 0;
+  for (var i = 0; i < maxPts - 2; i++) {
+    var bStart = Math.floor((i + 1) * bucketSize) + 1;
+    var bEnd   = Math.min(Math.floor((i + 2) * bucketSize) + 1, len - 1);
+    // Average of next bucket for reference
+    var avgX = 0, avgY = 0, bNextStart = bEnd, bNextEnd = Math.min(Math.floor((i + 3) * bucketSize) + 1, len - 1);
+    if (i < maxPts - 3) {
+      for (var n = bNextStart; n < bNextEnd; n++) { avgX += (data[n].x instanceof Date ? data[n].x.getTime() : data[n].x); avgY += data[n].y; }
+      avgX /= (bNextEnd - bNextStart) || 1; avgY /= (bNextEnd - bNextStart) || 1;
+    } else { avgX = (data[len-1].x instanceof Date ? data[len-1].x.getTime() : data[len-1].x); avgY = data[len-1].y; }
+    // Pick point with largest triangle area
+    var maxArea = -1, maxIdx = bStart;
+    var ax = data[a].x instanceof Date ? data[a].x.getTime() : data[a].x, ay = data[a].y;
+    for (var j = bStart; j < bEnd; j++) {
+      var jx = data[j].x instanceof Date ? data[j].x.getTime() : data[j].x;
+      var area = Math.abs((ax - avgX) * (data[j].y - ay) - (ax - jx) * (avgY - ay));
+      if (area > maxArea) { maxArea = area; maxIdx = j; }
+    }
+    sampled.push(data[maxIdx]);
+    a = maxIdx;
+  }
+  sampled.push(data[len - 1]);
+  return sampled;
+}
 
 var stationData = {}; // { stationId: { entries: [], raw: {} } }
 var loadedCount = 0;
@@ -510,6 +545,8 @@ function filterByRange(entries, range) {
 
 function setStationRange(stationId, range) {
   stationRanges[stationId] = range;
+  // Invalidate cached sync windows for this station
+  Object.keys(_syncWindowCache).forEach(function(k) { if (k.indexOf(stationId) === 0) delete _syncWindowCache[k]; });
   var data = stationData[stationId];
   if (!data || !data.entries || !data.entries.length) return;
   var body = document.getElementById('body_' + stationId);
@@ -743,8 +780,16 @@ function renderSummaryCards(container, entries, stationId) {
 
   // Sync rates (24h) based on expected sync windows (default 3h cadence)
   var cutoff24h = latest.timestamp.getTime() - 24 * 3600000;
-  var satA24 = evaluateSyncWindows(e, 'satASampleId', 'satABatV', cutoff24h, latest.timestamp.getTime(), 3 * 3600000, 'satAInstalled');
-  var satB24 = evaluateSyncWindows(e, 'satBSampleId', 'satBBatV', cutoff24h, latest.timestamp.getTime(), 3 * 3600000, 'satBInstalled');
+  // Cache sync window evaluations per station (reused by renderSyncCharts)
+  var cacheKey = stationId + '_24h';
+  if (!_syncWindowCache[cacheKey]) {
+    _syncWindowCache[cacheKey] = {
+      satA: evaluateSyncWindows(e, 'satASampleId', 'satABatV', cutoff24h, latest.timestamp.getTime(), 3 * 3600000, 'satAInstalled'),
+      satB: evaluateSyncWindows(e, 'satBSampleId', 'satBBatV', cutoff24h, latest.timestamp.getTime(), 3 * 3600000, 'satBInstalled')
+    };
+  }
+  var satA24 = _syncWindowCache[cacheKey].satA;
+  var satB24 = _syncWindowCache[cacheKey].satB;
   function syncPctStr(stats) {
     var total = stats.total || 1;
     var n = stats.synced;
@@ -875,7 +920,8 @@ function renderBatteryCharts(container, entries, stationId, range) {
   container.appendChild(row);
 
   function makeDS(data, key, label, color) {
-    return { label: label, data: data.filter(function(e){return e[key]!==null;}).map(function(e){return {x:e.timestamp,y:e[key]};}),
+    var pts = data.filter(function(e){return e[key]!==null;}).map(function(e){return {x:e.timestamp,y:e[key]};});
+    return { label: label, data: lttbDownsample(pts),
       borderColor: color, backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false };
   }
 
@@ -1145,9 +1191,9 @@ function renderSyncCharts(container, entries, stationId, range) {
     var dOpts = chartOpts('Drift (s)', undefined, undefined, range);
     dOpts.scales.y.ticks = { callback: function(v) { return (v>=0?'+':'')+v+'s'; }, color: '#94a3b8', font: { size: 10 } };
     var driftDatasets = [];
-    if (satADriftSeries.length) driftDatasets.push(makeSeriesDS(satADriftSeries, 'Sat-A Drift', '#22c55e'));
-    if (satBDriftSeries.length) driftDatasets.push(makeSeriesDS(satBDriftSeries, 'Sat-B Drift', '#3b82f6'));
-    if (sysDriftSeries.length) { var _sdDS = makeSeriesDS(sysDriftSeries, 'Cell Clock Correction', '#f59e0b'); _sdDS.stepped = 'before'; _sdDS.tension = 0; driftDatasets.push(_sdDS); }
+    if (satADriftSeries.length) driftDatasets.push(makeSeriesDS(lttbDownsample(satADriftSeries), 'Sat-A Drift', '#22c55e'));
+    if (satBDriftSeries.length) driftDatasets.push(makeSeriesDS(lttbDownsample(satBDriftSeries), 'Sat-B Drift', '#3b82f6'));
+    if (sysDriftSeries.length) { var _sdDS = makeSeriesDS(lttbDownsample(sysDriftSeries), 'Cell Clock Correction', '#f59e0b'); _sdDS.stepped = 'before'; _sdDS.tension = 0; driftDatasets.push(_sdDS); }
     makeLiveChart(driftBox, driftCanvas, 'Satellite Sync Drift \u2013 ' + rangeLabel(range), {
       type: 'line',
       data: { datasets: driftDatasets },
@@ -1159,17 +1205,18 @@ function renderSyncCharts(container, entries, stationId, range) {
     makeLiveChart(rssiBox, rssiCanvas, 'RSSI \u2013 ' + rangeLabel(range), {
       type: 'line',
       data: { datasets: [
-        makeSeriesDS(satARssiSeries, 'Sat-A RSSI', '#22c55e'),
-        makeSeriesDS(satBRssiSeries, 'Sat-B RSSI', '#3b82f6'),
+        makeSeriesDS(lttbDownsample(satARssiSeries), 'Sat-A RSSI', '#22c55e'),
+        makeSeriesDS(lttbDownsample(satBRssiSeries), 'Sat-B RSSI', '#3b82f6'),
       ]},
       options: chartOpts('RSSI (dBm)', -100, 0, range),
     }, { stationId: stationId, chartKey: 'rssi' });
   }
 
-  // Sync reliability stats row (24h expected windows)
-  var cutoff24 = entries[entries.length - 1].timestamp.getTime() - 24 * 3600000;
-  var satA24 = evaluateSyncWindows(entries, 'satASampleId', 'satABatV', cutoff24, entries[entries.length - 1].timestamp.getTime(), 3 * 3600000, 'satAInstalled');
-  var satB24 = evaluateSyncWindows(entries, 'satBSampleId', 'satBBatV', cutoff24, entries[entries.length - 1].timestamp.getTime(), 3 * 3600000, 'satBInstalled');
+  // Sync reliability stats row (24h expected windows) — use cached results from renderSummaryCards
+  var cacheKey24 = stationId + '_24h';
+  if (!_syncWindowCache[cacheKey24]) {\n    var cutoff24 = entries[entries.length - 1].timestamp.getTime() - 24 * 3600000;\n    _syncWindowCache[cacheKey24] = {\n      satA: evaluateSyncWindows(entries, 'satASampleId', 'satABatV', cutoff24, entries[entries.length - 1].timestamp.getTime(), 3 * 3600000, 'satAInstalled'),\n      satB: evaluateSyncWindows(entries, 'satBSampleId', 'satBBatV', cutoff24, entries[entries.length - 1].timestamp.getTime(), 3 * 3600000, 'satBInstalled')\n    };\n  }
+  var satA24 = _syncWindowCache[cacheKey24].satA;
+  var satB24 = _syncWindowCache[cacheKey24].satB;
   var satAPct = satA24.total > 0 ? satA24.synced / satA24.total * 100 : 0;
   var satBPct = satB24.total > 0 ? satB24.synced / satB24.total * 100 : 0;
 
@@ -1577,7 +1624,7 @@ async function fetchLiveAll() {
     try {
       // Small delay between ThingSpeak requests to avoid rate-limiting
       if (i > 0) await new Promise(function(r) { setTimeout(r, 500); });
-      var url = 'https://api.thingspeak.com/channels/' + cfg.channelId + '/feeds.json?api_key=' + cfg.apiKey + '&results=8000';
+      var url = 'https://api.thingspeak.com/channels/' + cfg.channelId + '/feeds.json?api_key=' + cfg.apiKey + '&results=2000';
       var res = await fetchWithTimeout(url, 30000);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       var data = await res.json();
@@ -1596,6 +1643,7 @@ async function fetchLiveAll() {
   // Destroy existing charts and rebuild
   liveCharts.forEach(function(c) { try { c.destroy(); } catch(e){} });
   liveCharts = [];
+  _syncWindowCache = {};  // clear cached sync evaluations
   var container = document.getElementById('stationsContainer');
   container.innerHTML = '';
   container.style.display = '';
