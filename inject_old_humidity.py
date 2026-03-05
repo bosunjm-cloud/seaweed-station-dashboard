@@ -3,7 +3,7 @@ inject_old_humidity.py
 Injects old WROOM humidity CSV data into merged_data.js.
 
 The parser in perth_wroom.html already supports a dual-channel format:
-  window.THINGSPEAK_DATA = { channel: {...}, tempFeeds: [...], humFeeds: [...] }
+  window.STATION_DATA = { channel: {...}, tempFeeds: [...], humFeeds: [...] }
 handled by parseThingSpeakMerge() which merges them by timestamp.
 
 This script converts merged_data.js from:
@@ -68,9 +68,9 @@ for line in content.splitlines():
 header = '\n'.join(header_lines)
 
 # Extract the JSON object
-m = re.search(r'window\.THINGSPEAK_DATA\s*=\s*(\{.*\})\s*;?\s*$', content, re.DOTALL)
+m = re.search(r'window\.STATION_DATA\s*=\s*(\{.*\})\s*;?\s*$', content, re.DOTALL)
 if not m:
-    raise ValueError("Could not find window.THINGSPEAK_DATA in merged_data.js")
+    raise ValueError("Could not find window.STATION_DATA in merged_data.js")
 
 ts_data = json.loads(m.group(1))
 
@@ -98,7 +98,7 @@ print(f"Backed up original to {backup}")
 # Write new merged_data.js
 json_str = json.dumps(ts_data, separators=(',', ':'))
 out = (header + '\n' if header else '') + \
-      f'window.THINGSPEAK_DATA = {json_str};'
+      f'window.STATION_DATA = {json_str};'
 
 with open(MERGED_JS, 'w', encoding='utf-8', newline='\n') as f:
     f.write(out)

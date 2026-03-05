@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -155,7 +155,7 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
       <a class="btn" href="perth_wroom.html">Perth WROOM</a>
       <a class="btn" href="station.html?table=shangani">Shangani</a>
       <a class="btn" href="station.html?table=funzi">Funzi</a>
-      <button class="btn-fetch" id="btnFetchAll" onclick="fetchLiveAll()" title="Pull latest data from ThingSpeak for all stations">&#128752; Fetch Live</button>
+      <button class="btn-fetch" id="btnFetchAll" onclick="fetchLiveAll()" title="Pull latest data from Supabase for all stations">&#128752; Fetch Live</button>
       <button class="btn" id="btnTriggerDL" onclick="triggerCIDownload()" title="Trigger GitHub Actions to download fresh data">&#9889; Download</button>
       <span class="fetch-status" id="fetchStatus"></span>
     </div>
@@ -227,9 +227,9 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
 
 // Station configurations
 var STATIONS = [
-  { id: 'perth',    name: 'Perth Test Table',          defaultFolder: 'data_3262071_TT', configKey: 'perth',    type: 'gateway', defaultChannelId: '3262071', defaultApiKey: 'VVHUX39KINYPLCVI', tz: 'Australia/Perth' },
-  { id: 'shangani', name: 'Shangani Aramani, Kenya',   defaultFolder: 'data_Shangani',   configKey: 'shangani', type: 'gateway', defaultChannelId: '3262074', defaultApiKey: 'X7ZETMYRRQCAFE8S', tz: 'Africa/Nairobi' },
-  { id: 'funzi',    name: 'Funzi Island, Kenya',       defaultFolder: 'data_Funzi',      configKey: 'funzi',    type: 'gateway', defaultChannelId: '3256756', defaultApiKey: 'D8TXB5B33KPWRIHO', tz: 'Africa/Nairobi' },
+  { id: 'perth',    name: 'Perth Test Table',          defaultFolder: 'data_3262071_TT', configKey: 'perth',    type: 'gateway', tz: 'Australia/Perth' },
+  { id: 'shangani', name: 'Shangani Aramani, Kenya',   defaultFolder: 'data_Shangani',   configKey: 'shangani', type: 'gateway', tz: 'Africa/Nairobi' },
+  { id: 'funzi',    name: 'Funzi Island, Kenya',       defaultFolder: 'data_Funzi',      configKey: 'funzi',    type: 'gateway', tz: 'Africa/Nairobi' },
 ];
 
 // Timezone helpers
@@ -493,10 +493,11 @@ function renderStationSection(station, data) {
   // Freshness
   var freshnessClass = 'fresh-old', freshnessText = 'No data';
   if (hasData) {
-    var ageHrs = (Date.now() - e[e.length-1].timestamp.getTime()) / 3600000;
-    if (ageHrs < 2) { freshnessClass = 'fresh-ok'; freshnessText = 'Fresh (' + timeAgo(e[e.length-1].timestamp) + ')'; }
-    else if (ageHrs < 24) { freshnessClass = 'fresh-stale'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old'; }
-    else { freshnessClass = 'fresh-old'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old'; }
+    var ageHrs = Math.abs(Date.now() - e[e.length-1].timestamp.getTime()) / 3600000;
+    var latestStr = e[e.length-1].timestamp.toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+    if (ageHrs < 2) { freshnessClass = 'fresh-ok'; freshnessText = 'Fresh (' + timeAgo(e[e.length-1].timestamp) + ', ' + latestStr + ')'; }
+    else if (ageHrs < 24) { freshnessClass = 'fresh-stale'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old (' + latestStr + ')'; }
+    else { freshnessClass = 'fresh-old'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old (' + latestStr + ')'; }
   }
 
   // Data source badge
@@ -1058,7 +1059,7 @@ function renderSyncCharts(container, entries, stationId, range) {
     // syncDrift is g_maxSyncDrift_s from field8: the worst-case wake-timer
     // jitter (T0 deep-sleep vs NTP wall clock) for the upload window.
     // The firmware resets g_maxSyncDrift_s to 0 after each successful cellular
-    // upload, so all ThingSpeak entries within a session share the same drift
+    // upload, so all Supabase entries within a session share the same drift
     // value. Emit one point per session: on value change, OR if silence > 70%
     // of session interval (catches same-value consecutive sessions).
     if (e.syncDrift !== null) {
@@ -1466,23 +1467,80 @@ function chartOpts(yLabel, yMin, yMax, range, stationId) {
 // timeAgo → provided by seaweed_common.js  (call with suffix=false, the default)
 
 // ============================================================
-// FETCH LIVE FROM THINGSPEAK
+// PARSE SUPABASE DATA (direct column access — no CSV field parsing)
 // ============================================================
-function getStationConfig(station) {
-  var channelId = station.defaultChannelId;
-  var apiKey    = station.defaultApiKey;
-  try {
-    var s = JSON.parse(localStorage.getItem('seaweed_dashboard_config') || '{}');
-    var c = (s.channels || []).find(function(ch) { return ch.id === station.configKey; });
-    if (c) {
-      if (c.channelId) channelId = c.channelId;
-      if (c.apiKey)    apiKey    = c.apiKey;
-    }
-  } catch(e) {}
-  return { channelId: channelId, apiKey: apiKey };
+function parseSupabaseData(rows, station) {
+  var entries = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var ts = new Date(ensureUTC(r.recorded_at));
+    if (isNaN(ts.getTime())) continue;
+
+    var entry = { timestamp: ts, entryId: r.id || i };
+
+    // T0 battery %
+    entry.t0BatPct = (r.battery_pct !== null && r.battery_pct !== undefined) ? r.battery_pct : null;
+
+    // T0 sensors
+    entry.t0Temp1 = r.temp_1 !== null ? r.temp_1 : null;
+    entry.t0Hum1  = r.humidity_1 !== null ? r.humidity_1 : null;
+    entry.t0Temp2 = r.temp_2 !== null ? r.temp_2 : null;
+    entry.t0Hum2  = r.humidity_2 !== null ? r.humidity_2 : null;
+
+    // T0 status
+    entry.t0BatV = r.battery_v !== null ? r.battery_v : null;
+    entry.t0Rssi = r.rssi !== null ? r.rssi : null;
+    entry.t0Boot = r.boot_count !== null ? r.boot_count : null;
+    entry.t0Heap = r.free_heap !== null ? r.free_heap : null;
+    entry.t0FwVersion = r.fw_version || null;
+    entry.t0BuildDate = r.fw_date || null;
+
+    // SatA status
+    entry.satABatV      = r.sat_a_battery_v !== null ? r.sat_a_battery_v : null;
+    entry.satABatPct     = r.sat_a_battery_pct !== null ? r.sat_a_battery_pct : null;
+    entry.satARssi       = r.sat_a_rssi !== null ? r.sat_a_rssi : null;
+    entry.satASampleId   = r.sat_a_sample_id !== null ? r.sat_a_sample_id : null;
+    entry.satASyncDrift  = r.sat_a_sync_drift !== null ? r.sat_a_sync_drift : null;
+    entry.satAFwVersion  = r.sat_a_fw_ver || null;
+
+    // SatA sensors
+    entry.satATemp1 = r.sat_a_temp_1 !== null ? r.sat_a_temp_1 : null;
+    entry.satAHum1  = r.sat_a_humidity_1 !== null ? r.sat_a_humidity_1 : null;
+    entry.satATemp2 = r.sat_a_temp_2 !== null ? r.sat_a_temp_2 : null;
+    entry.satAHum2  = r.sat_a_humidity_2 !== null ? r.sat_a_humidity_2 : null;
+
+    // SatB status
+    entry.satBBatV      = r.sat_b_battery_v !== null ? r.sat_b_battery_v : null;
+    entry.satBBatPct     = r.sat_b_battery_pct !== null ? r.sat_b_battery_pct : null;
+    entry.satBRssi       = r.sat_b_rssi !== null ? r.sat_b_rssi : null;
+    entry.satBSampleId   = r.sat_b_sample_id !== null ? r.sat_b_sample_id : null;
+    entry.satBSyncDrift  = r.sat_b_sync_drift !== null ? r.sat_b_sync_drift : null;
+    entry.satBFwVersion  = r.sat_b_fw_ver || null;
+
+    // SatB sensors
+    entry.satBTemp1 = r.sat_b_temp_1 !== null ? r.sat_b_temp_1 : null;
+    entry.satBHum1  = r.sat_b_humidity_1 !== null ? r.sat_b_humidity_1 : null;
+    entry.satBTemp2 = r.sat_b_temp_2 !== null ? r.sat_b_temp_2 : null;
+    entry.satBHum2  = r.sat_b_humidity_2 !== null ? r.sat_b_humidity_2 : null;
+
+    // System (field8 equivalent)
+    entry._rawField8 = null;  // Not applicable for Supabase data
+    entry.sdFreeKB   = null;  // Not in Supabase schema
+    entry.csq        = null;
+    entry.uploadOk   = null;
+    entry.syncDrift   = r.sat_a_sync_drift !== null ? r.sat_a_sync_drift : null;
+
+    entries.push(entry);
+  }
+
+  entries.sort(function(a, b) { return a.timestamp - b.timestamp; });
+  return { entries: entries, raw: { feeds: rows } };
 }
 
-// fetchWithTimeout, yieldToBrowser → provided by seaweed_common.js
+// ============================================================
+// FETCH LIVE FROM SUPABASE
+// ============================================================
+// fetchWithTimeout, yieldToBrowser, getSupabaseConfig, supabaseHeaders → provided by seaweed_common.js
 
 async function fetchLiveAll() {
   var btn    = document.getElementById('btnFetchAll');
@@ -1491,30 +1549,33 @@ async function fetchLiveAll() {
   btn.disabled  = true;
   status.textContent = '';
 
-  var fetched = 0;
-  var errors  = [];
+  var supaCfg = getSupabaseConfig();
+  if (!supaCfg.url || !supaCfg.key) {
+    status.innerHTML = '<span style="color:var(--danger)">Supabase not configured — set URL + key in Settings</span>';
+    btn.innerHTML = '&#128752; Fetch Live';
+    btn.disabled = false;
+    return;
+  }
+
+  var fetched  = 0;
+  var errors   = [];
   var totalNew = 0;
+  var hdrs     = supabaseHeaders(supaCfg.key);
 
   for (var i = 0; i < STATIONS.length; i++) {
     var station = STATIONS[i];
-    var cfg     = getStationConfig(station);
-    if (!cfg.channelId || !cfg.apiKey) {
-      errors.push(station.name + ': no API config');
-      continue;
-    }
     status.textContent = 'Fetching ' + station.name + ' (' + (i+1) + '/' + STATIONS.length + ')...';
-    await yieldToBrowser();  // let status text repaint
+    await yieldToBrowser();
     try {
-      // Small delay between ThingSpeak requests to avoid rate-limiting
-      if (i > 0) await new Promise(function(r) { setTimeout(r, 500); });
+      var url = supaCfg.url + '/rest/v1/sensor_readings' +
+                '?device_id=eq.' + station.id +
+                '&order=recorded_at.asc' +
+                '&limit=8000';
 
-      // Full fetch (same approach as station.html — always pull everything)
-      var url = 'https://api.thingspeak.com/channels/' + cfg.channelId + '/feeds.json?api_key=' + cfg.apiKey + '&results=8000';
-
-      var res = await fetchWithTimeout(url, 30000);
+      var res = await fetchWithTimeout(url, 30000, { headers: hdrs });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      var data = await res.json();
-      var newParsed = parseStationData(data, station);
+      var rows = await res.json();
+      var newParsed = parseSupabaseData(rows, station);
       var newCount = newParsed.entries.length;
 
       if (newCount > 0) {
@@ -1523,7 +1584,6 @@ async function fetchLiveAll() {
         totalNew += Math.max(0, newCount - prevCount);
       }
 
-      // Persist to shared localStorage cache (same key as station.html)
       if (stationData[station.id] && stationData[station.id].entries.length) {
         saveCacheData(station.id, stationData[station.id].entries);
       }
@@ -1612,10 +1672,10 @@ async function fetchLiveAll() {
       var script = document.createElement('script');
       script.src = '../data/' + folder + '/merged_data.js';
       script.onload = function() {
-        if (window.THINGSPEAK_DATA) {
+        if (window.STATION_DATA) {
           try {
-            stationData[station.id] = parseStationData(window.THINGSPEAK_DATA, station);
-            window.THINGSPEAK_DATA = null;
+            stationData[station.id] = parseStationData(window.STATION_DATA, station);
+            window.STATION_DATA = null;
             _stationDataSource[station.id] = { source: 'ci', savedAt: null };
             return doneWithStation(stationData[station.id]);
           } catch (err) {

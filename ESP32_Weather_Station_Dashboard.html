@@ -249,7 +249,7 @@ TABLES.forEach(function(t) {
 });
 
 // =====================================================================
-// UTILITY: Parse ThingSpeak feed entry into usable values
+// UTILITY: Parse feed entry into usable values
 // =====================================================================
 function csvParse(val) {
   if (!val || typeof val !== 'string') return [];
@@ -857,9 +857,9 @@ function loadTableData(table) {
         script.src = table.dataFile;
         script.onload = function() {
           script.remove();
-          if (window.THINGSPEAK_DATA) {
-            var tsData = window.THINGSPEAK_DATA;
-            delete window.THINGSPEAK_DATA;
+          if (window.STATION_DATA) {
+            var tsData = window.STATION_DATA;
+            delete window.STATION_DATA;
             var tf = tsData.tempFeeds || tsData.feeds || [];
             var hf = tsData.humFeeds || [];
             if (tf.length || hf.length) {
@@ -921,9 +921,9 @@ function loadTableData(table) {
     var script = document.createElement('script');
     script.src = jsUrl;
     script.onload = function() {
-      if (window.THINGSPEAK_DATA) {
-        var data = window.THINGSPEAK_DATA;
-        delete window.THINGSPEAK_DATA;
+      if (window.STATION_DATA) {
+        var data = window.STATION_DATA;
+        delete window.STATION_DATA;
         var entries = (data.feeds || []).map(parseEntry).filter(function(e) { return !isNaN(e.timestamp.getTime()); });
         if (entries.length) { resolve(entries); } else { resolveFromCache(); }
       } else {

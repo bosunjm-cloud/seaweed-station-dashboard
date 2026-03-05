@@ -457,7 +457,7 @@ body {
     <span><span class="label">Source:</span> <span id="dataSourceLabel">No data loaded</span></span>
     <span><span class="label">Entries:</span> <span id="entryCountLabel">0</span></span>
     <span><span class="label">Range:</span> <span id="dateRangeLabel">--</span></span>
-    <span><span class="label">Channel:</span> <span id="channelLabel">--</span></span>
+    <span><span class="label">Station:</span> <span id="channelLabel">--</span></span>
     <span><span class="label">Times shown in:</span> <span id="tzLabel">--</span></span>
   </div>
 </header>
@@ -477,9 +477,9 @@ body {
   <!-- Empty state (shown when no data loaded) -->
   <div class="empty-state" id="emptyState">
     <h2>No Data Loaded</h2>
-    <p>Click <strong>Fetch Live</strong> to download directly from ThingSpeak,
+    <p>Click <strong>Fetch Live</strong> to download directly from Supabase,
        <strong>Load JSON</strong> to load a downloaded file, or run
-       <code>download_data.ps1</code> to set up automatic data loading.</p>
+       <code>download_data_supabase.ps1</code> to set up automatic data loading.</p>
     <button class="btn btn-primary" onclick="fetchLiveData()" style="margin-top:10px">Fetch Live Now</button>
   </div>
 
@@ -695,7 +695,7 @@ body {
 </main>
 
 <footer class="footer">
-  <span id="footerName">Station</span> &mdash; ThingSpeak Channel
+  <span id="footerName">Station</span> &mdash; Seaweed Table T/H Monitoring
   <span id="footerChannel">--</span>
   &mdash; Seaweed Table T/H Monitoring
 </footer>
@@ -716,8 +716,6 @@ body {
       id: 'perth',
       title: 'Perth Test Table',
       subtitle: 'Noranda, WA -- Seaweed Table T/H Monitoring',
-      channelId: '3262071',
-      apiKey: 'VVHUX39KINYPLCVI',
       dataFolder: 'data_3262071_TT',
       weather: { name: 'Perth / Noranda', lat: -31.87, lon: 115.90 },
       tideStation: 'perth',
@@ -728,8 +726,6 @@ body {
       id: 'shangani',
       title: 'Shangani Aramani',
       subtitle: 'Kwale County, Kenya -- Seaweed Table T/H Monitoring',
-      channelId: '',
-      apiKey: '',
       dataFolder: 'data_Shangani',
       weather: { name: 'Shangani Aramani, Kenya', lat: -4.55, lon: 39.50 },
       tideStation: 'kenya',
@@ -740,8 +736,6 @@ body {
       id: 'funzi',
       title: 'Funzi Island',
       subtitle: 'Funzi Island, Kenya -- Seaweed Table T/H Monitoring',
-      channelId: '',
-      apiKey: '',
       dataFolder: 'data_Funzi',
       weather: { name: 'Funzi Island, Kenya', lat: -4.55, lon: 39.45 },
       tideStation: 'kenya',
@@ -754,16 +748,12 @@ body {
   if (!cfg) { cfg = STATIONS.perth; window.__TABLE_ID = 'perth'; }
   window.__STATION = cfg;
 
-  // Override from localStorage settings if available
+  // Override dataFolder from localStorage settings if available
   try {
     var s = JSON.parse(localStorage.getItem('seaweed_dashboard_config') || '{}');
     if (s.channels) {
       var ch = s.channels.find(function(c) { return c.id === tableId; });
-      if (ch) {
-        if (ch.channelId) cfg.channelId = ch.channelId;
-        if (ch.apiKey)    cfg.apiKey = ch.apiKey;
-        if (ch.dataFolder) cfg.dataFolder = ch.dataFolder;
-      }
+      if (ch && ch.dataFolder) cfg.dataFolder = ch.dataFolder;
     }
   } catch(e) {}
 
@@ -805,15 +795,13 @@ body {
 // =====================================================================
 var TABLE_ID = window.__TABLE_ID || 'perth';
 var STATION  = window.__STATION || {
-  id: TABLE_ID, title: TABLE_ID, subtitle: '', channelId: '', apiKey: '',
+  id: TABLE_ID, title: TABLE_ID, subtitle: '',
   dataFolder: 'data_' + TABLE_ID, weather: { name: '', lat: 0, lon: 0 },
   tideStation: '', satellites: 0, sensorMap: ''
 };
 if (!window.__STATION) console.warn('[Config] STATION not set by boot loader — using fallback for table=' + TABLE_ID);
 
 var DEFAULTS = {
-  channelId:      STATION.channelId || '',
-  apiKey:         STATION.apiKey    || '',
   autoRefreshMin: 15,
 };
 
@@ -1015,7 +1003,7 @@ function getConfig() {
     if (s.channels && s.channels.length) {
       var ch = s.channels.find(function(c) { return c.id === TABLE_ID; });
       if (ch) {
-        return { channelId: ch.channelId, apiKey: ch.apiKey, autoRefreshMin: s.autoRefreshMin, dataFolder: ch.dataFolder };
+        return { autoRefreshMin: s.autoRefreshMin, dataFolder: ch.dataFolder };
       }
     }
     return s;
@@ -1182,7 +1170,7 @@ function countRecentMissing(entries, key, hoursBack, sampleIdKey, defaultPeriodH
 "use strict";
 
 // =====================================================================
-// DATA PARSING (ThingSpeak field mapping)
+// DATA PARSING (field mapping)
 // =====================================================================
 // field1: T0 Battery % (numeric)
 // field2: T0 Sensors "t1,rh1,t2,rh2"
@@ -1305,11 +1293,9 @@ function handleNewData(data, sourceLabel) {
 }
 
 async function fetchLiveData(silent) {
-  var _cfg = getConfig();
-  var ch  = (_cfg.channelId || DEFAULTS.channelId).trim();
-  var key = (_cfg.apiKey    || DEFAULTS.apiKey).trim();
-  if (!ch || !key) {
-    if (!silent) { alert('Configure Channel ID and Read API Key in settings.html.'); }
+  var supaCfg = getSupabaseConfig();   // from seaweed_common.js
+  if (!supaCfg.url || !supaCfg.key) {
+    if (!silent) { alert('Configure Supabase URL and Anon Key in Settings.'); }
     return;
   }
 
@@ -1318,15 +1304,21 @@ async function fetchLiveData(silent) {
   btn.disabled  = true;
 
   try {
-    var url = 'https://api.thingspeak.com/channels/' + ch + '/feeds.json?api_key=' + key + '&results=8000';
-    var res = await fetch(url);
+    var url = supaCfg.url + '/rest/v1/sensor_readings?device_id=eq.' + TABLE_ID
+            + '&order=recorded_at.asc&limit=8000';
+    var res = await fetchWithTimeout(url, 30000, { headers: supabaseHeaders(supaCfg.key) });
     if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + res.statusText);
-    var data = await res.json();
-    handleNewData(data, 'Live fetch (' + new Date().toLocaleTimeString('en-GB') + ')');
+    var rows = await res.json();
+    // Convert Supabase rows to legacy feed objects
+    var feeds = rows.map(supabaseRowToFeed);
+    handleNewData(
+      { channel: { id: TABLE_ID, name: STATION.title }, feeds: feeds },
+      'Live fetch (' + new Date().toLocaleTimeString('en-GB') + ')'
+    );
   } catch (err) {
     console.error('[Dashboard] Fetch failed:', err);
     if (!silent) {
-      alert('Fetch failed: ' + err.message + '\n\nCheck your Channel ID/API Key and internet access.\nIf using file:// protocol, try "Load JSON" instead.');
+      alert('Fetch failed: ' + err.message + '\n\nCheck Supabase URL/Key and internet access.\nIf using file:// protocol, try "Load JSON" instead.');
     }
   } finally {
     btn.innerHTML = 'Fetch Live';
@@ -1665,7 +1657,8 @@ function updateFreshnessBanner() {
   if (!state.allEntries.length) { banner.classList.remove('show'); return; }
 
   var latest = state.allEntries[state.allEntries.length - 1].timestamp;
-  var ageHrs = (Date.now() - latest.getTime()) / 3600000;
+  var ageMs  = Date.now() - latest.getTime();
+  var ageHrs = ageMs / 3600000;
 
   banner.classList.add('show');
   banner.classList.remove('fresh', 'stale', 'old');
@@ -1673,18 +1666,22 @@ function updateFreshnessBanner() {
   var icon = document.getElementById('freshnessIcon');
   var text = document.getElementById('freshnessText');
 
+  // Guard: if the latest timestamp is in the future (timezone-parse bug), show stale/old, not fresh
+  if (ageHrs < 0) ageHrs = Math.abs(ageHrs);
+
+  var latestStr = latest.toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
   if (ageHrs < 2) {
     banner.classList.add('fresh');
     icon.textContent = '\u2705';
-    text.textContent = 'Data is fresh -- latest entry ' + timeAgo(latest, true);
+    text.textContent = 'Data is fresh \u2014 latest entry ' + timeAgo(latest, true) + ' (' + latestStr + ')';
   } else if (ageHrs < 24) {
     banner.classList.add('stale');
     icon.textContent = '\u26A0\uFE0F';
-    text.textContent = 'Data is ' + timeAgo(latest) + ' old -- consider fetching latest';
+    text.textContent = 'Data is ' + timeAgo(latest) + ' old (' + latestStr + ') \u2014 consider fetching latest';
   } else {
     banner.classList.add('old');
     icon.textContent = '\uD83D\uDD34';
-    text.textContent = 'Data is ' + timeAgo(latest) + ' old -- fetch or run download_data.ps1';
+    text.textContent = 'Data is ' + timeAgo(latest) + ' old (' + latestStr + ') \u2014 fetch or run download_data.ps1';
   }
 }
 
@@ -1699,16 +1696,16 @@ function updateNetworkBar() {
   var lastSatA = findLastEntryWith(e, 'satABatV');
   var lastSatB = findLastEntryWith(e, 'satBBatV');
 
-  var ageHrs = (Date.now() - latest.timestamp.getTime()) / 3600000;
+  var ageHrs = Math.abs(Date.now() - latest.timestamp.getTime()) / 3600000;
 
   var t0Color = ageHrs < 2 ? '#22c55e' : ageHrs < 24 ? '#f59e0b' : '#ef4444';
   var t0Text  = ageHrs < 2 ? 'Online' : ageHrs < 24 ? 'Stale' : 'Offline';
 
-  var satAAge   = lastSatA ? (Date.now() - lastSatA.timestamp.getTime()) / 3600000 : Infinity;
+  var satAAge   = lastSatA ? Math.abs(Date.now() - lastSatA.timestamp.getTime()) / 3600000 : Infinity;
   var satAColor = satAAge < 2 ? '#22c55e' : satAAge < 24 ? '#f59e0b' : satAAge < Infinity ? '#ef4444' : '#64748b';
   var satAText  = satAAge < 2 ? 'Syncing' : satAAge < 24 ? 'Stale' : (lastSatA ? 'Lost' : 'Never seen');
 
-  var satBAge   = lastSatB ? (Date.now() - lastSatB.timestamp.getTime()) / 3600000 : Infinity;
+  var satBAge   = lastSatB ? Math.abs(Date.now() - lastSatB.timestamp.getTime()) / 3600000 : Infinity;
   var satBColor = satBAge < 2 ? '#22c55e' : satBAge < 24 ? '#f59e0b' : satBAge < Infinity ? '#ef4444' : '#64748b';
   var satBText  = satBAge < 2 ? 'Syncing' : satBAge < 24 ? 'Stale' : (lastSatB ? 'Lost' : 'Never seen');
 
@@ -2892,7 +2889,7 @@ function setupPage() {
   document.getElementById('stationTitle').textContent = STATION.title;
   document.getElementById('stationSubtitle').textContent = STATION.subtitle;
   document.getElementById('footerName').textContent  = STATION.title;
-  document.getElementById('channelLabel').textContent = STATION.channelId || '--';
+  document.getElementById('channelLabel').textContent = STATION.id || '--';
 }
 
 // =====================================================================
@@ -2907,9 +2904,9 @@ function safeInitStep(label, fn) {
 }
 
 function tryAutoLoadMergedData(sourceLabel) {
-  if (window.THINGSPEAK_DATA && window.THINGSPEAK_DATA.feeds && window.THINGSPEAK_DATA.feeds.length) {
+  if (window.STATION_DATA && window.STATION_DATA.feeds && window.STATION_DATA.feeds.length) {
     console.log('[Dashboard] Auto-loaded merged_data.js');
-    handleNewData(window.THINGSPEAK_DATA, sourceLabel || ('Local file (' + ((STATION && STATION.dataFolder) || TABLE_ID) + '/merged_data.js)'));
+    handleNewData(window.STATION_DATA, sourceLabel || ('Local file (' + ((STATION && STATION.dataFolder) || TABLE_ID) + '/merged_data.js)'));
     return true;
   }
   return false;
@@ -2957,10 +2954,10 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // -- Sensor data loading (merged_data.js injected synchronously by boot loader)
-  if (window.THINGSPEAK_DATA && window.THINGSPEAK_DATA.feeds && window.THINGSPEAK_DATA.feeds.length) {
+  if (window.STATION_DATA && window.STATION_DATA.feeds && window.STATION_DATA.feeds.length) {
     try {
       var _dataFolder = (STATION && STATION.dataFolder) ? STATION.dataFolder : 'unknown';
-      handleNewData(window.THINGSPEAK_DATA, 'Local file (' + _dataFolder + '/merged_data.js)');
+      handleNewData(window.STATION_DATA, 'Local file (' + _dataFolder + '/merged_data.js)');
     } catch (e) {
       console.error('[Dashboard] Error rendering merged_data.js:', e);
     }
