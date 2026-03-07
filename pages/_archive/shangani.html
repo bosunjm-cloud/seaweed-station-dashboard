@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2857,9 +2857,9 @@ document.addEventListener('DOMContentLoaded', function () {
   restoreViewPrefs();
 
   // Auto-load merged_data.js if present (set by data/merged_data.js script tag)
-  if (window.THINGSPEAK_DATA) {
+  if (window.STATION_DATA) {
     console.log('[Dashboard] Auto-loaded merged_data.js');
-    handleNewData(window.THINGSPEAK_DATA, 'Local file (data_shangani/merged_data.js)');
+    handleNewData(window.STATION_DATA, 'Local file (data_shangani/merged_data.js)');
   } else {
     // Restore from localStorage cache if no local file available
     try {

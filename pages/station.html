@@ -2,22 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <script>if(sessionStorage.getItem('sw_auth')!=='ok'){location.replace('../login.html?r='+encodeURIComponent(location.href));}</script>
-<script>
-// Early error capture — show JS errors on-page for file:// debugging
-window.__jsErrors = [];
-window.onerror = function(msg, src, line, col) {
-  window.__jsErrors.push({msg:msg, src:src, line:line});
-  var d = document.getElementById('emptyState');
-  if (d && window.__jsErrors.length <= 5) {
-    d.innerHTML += '<br><code style="color:#ef4444;font-size:11px;word-break:break-all">[JS] ' +
-      msg + ' (line ' + line + ')</code>';
-  }
-};
-</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title id="pageTitle">Seaweed T/H Monitoring</title>
 
@@ -444,14 +429,12 @@ body {
   <div class="header-actions">
     <a class="btn btn-sm" href="../ESP32_Weather_Station_Dashboard.html" title="All tables overview">&#9664; Overview</a>
     <button class="btn btn-primary" id="btnFetch" onclick="fetchLiveData()">Fetch Live</button>
-    <button class="btn" id="btnTriggerDL" onclick="triggerCIDownload()" title="Trigger CI to download fresh data">&#9889; Download</button>
     <button class="btn" id="btnLoadFile" onclick="document.getElementById('fileInput').click()">Load JSON</button>
     <input type="file" id="fileInput" multiple accept=".json" style="display:none"
            onchange="handleFileUpload(this.files)">
     <button class="btn" id="btnExportCSV" onclick="exportCSV()" title="Export processed data as CSV" style="display:none">Export CSV</button>
     <a class="btn btn-sm" href="settings.html">&#9881; Settings</a>
     <a class="btn btn-sm" href="station_health.html" title="Battery, Sync, Data Health">&#128267; Station Health</a>
-    <span id="triggerStatus" style="font-size:.8rem"></span>
   </div>
   <div class="header-meta">
     <span><span class="label">Source:</span> <span id="dataSourceLabel">No data loaded</span></span>
@@ -767,14 +750,13 @@ body {
     }
   } catch(e) {}
 
-  // Inject merged_data.js (cache-bust to avoid stale browser cache)
+  // Inject merged_data.js
   var df = cfg.dataFolder;
-  var _cb = '?v=' + Date.now();
-  document.write('<scr'+'ipt src="../data/'+df+'/merged_data.js'+_cb+'" onerror="console.log(\'[Dashboard] No local data\')"><\/scr'+'ipt>');
+  document.write('<scr'+'ipt src="../data/'+df+'/merged_data.js" onerror="console.log(\'[Dashboard] No local data\')"><\/scr'+'ipt>');
 })();
 </script>
 
-<!-- Shared dashboard utilities -->
+<!-- Shared utility libraries -->
 <script src="seaweed_common.js"></script>
 <script src="seaweed_sync.js"></script>
 
@@ -789,8 +771,7 @@ body {
 <script>
 (function(){
   var df = window.__STATION ? window.__STATION.dataFolder : 'data_3262071_TT';
-  var _cb = '?v=' + Date.now();
-  document.write('<scr'+'ipt src="../data/'+df+'/weather_data.js'+_cb+'" onerror="console.log(\'[Weather] No cached weather data\')"><\/scr'+'ipt>');
+  document.write('<scr'+'ipt src="../data/'+df+'/weather_data.js" onerror="console.log(\'[Weather] No cached weather data\')"><\/scr'+'ipt>');
 })();
 </script>
 
@@ -804,20 +785,15 @@ body {
 // STATION CONFIG (resolved from boot loader)
 // =====================================================================
 var TABLE_ID = window.__TABLE_ID || 'perth';
-var STATION  = window.__STATION || {
-  id: TABLE_ID, title: TABLE_ID, subtitle: '', channelId: '', apiKey: '',
-  dataFolder: 'data_' + TABLE_ID, weather: { name: '', lat: 0, lon: 0 },
-  tideStation: '', satellites: 0, sensorMap: ''
-};
-if (!window.__STATION) console.warn('[Config] STATION not set by boot loader — using fallback for table=' + TABLE_ID);
+var STATION  = window.__STATION;
 
 var DEFAULTS = {
-  channelId:      STATION.channelId || '',
-  apiKey:         STATION.apiKey    || '',
+  channelId:      STATION.channelId,
+  apiKey:         STATION.apiKey,
   autoRefreshMin: 15,
 };
 
-var WEATHER_LOCATION = STATION.weather || { name: '', lat: 0, lon: 0 };
+var WEATHER_LOCATION = STATION.weather;
 
 // =====================================================================
 // STATE
@@ -1045,9 +1021,8 @@ function setupAutoRefresh() {
 }
 
 // =====================================================================
-// UTILITIES
+// UTILITIES  (csvParse, numParse, timeAgo provided by seaweed_common.js)
 // =====================================================================
-// csvParse, numParse → provided by seaweed_common.js
 
 function fmtDate(d) {
   if (!d) return '--';
@@ -1055,10 +1030,12 @@ function fmtDate(d) {
        + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
-// fmtBytes / formatKB → provided by seaweed_common.js
-var fmtBytes = formatKB;
-
-// timeAgo → provided by seaweed_common.js (pass true for suffix to get ' ago')
+function fmtBytes(kb) {
+  if (kb === null || kb === undefined) return '--';
+  if (kb >= 1048576) return (kb / 1048576).toFixed(1) + ' GB';
+  if (kb >= 1024)    return (kb / 1024).toFixed(1) + ' MB';
+  return kb + ' KB';
+}
 
 function getTimezoneLabel() {
   try {
@@ -1121,57 +1098,17 @@ function findLastEntryWith(entries, key) {
   return null;
 }
 
-// collectSyncEventTimes, parseField8ConfigUnified, parseSyncConfigFromField8,
-// estimateSyncPeriodMs, buildSyncPeriodTimeline, syncCfgAt → provided by seaweed_sync.js
-
+// =====================================================================
+// SYNC HELPERS -- delegate to seaweed_sync.js (loaded above)
+// countRecentMissing wraps evaluateSyncWindows for backward compat
+// =====================================================================
 function countRecentMissing(entries, key, hoursBack, sampleIdKey, defaultPeriodHours, satInstallKey) {
+  if (!entries || !entries.length) return { total: 0, missing: 0, synced: 0 };
   var latestMs = entries[entries.length - 1].timestamp.getTime();
-  var startMs = latestMs - hoursBack * 3600000;
+  var startMs  = latestMs - hoursBack * 3600000;
   var defaultPeriodMs = (defaultPeriodHours || 3) * 3600000;
-  var eventTimes = collectSyncEventTimes(entries, sampleIdKey, key);
-  var periodTimeline = buildSyncPeriodTimeline(entries, sampleIdKey, key, defaultPeriodMs);
-
-  var slotTimes = [];
-  var t = latestMs;
-  var guard = 0;
-  while (t >= startMs && guard < 20000) {
-    slotTimes.push(t);
-    var stepMs = syncCfgAt(t, periodTimeline, defaultPeriodMs).periodMs;
-    if (!(stepMs > 0)) stepMs = defaultPeriodMs;
-    t -= stepMs;
-    guard++;
-  }
-  if (!slotTimes.length) slotTimes.push(latestMs);
-
-  var synced = 0;
-  for (var s = 0; s < slotTimes.length; s++) {
-    var slotTs = slotTimes[s];
-    var slotCfg = syncCfgAt(slotTs, periodTimeline, defaultPeriodMs);
-    if (satInstallKey && slotCfg[satInstallKey] === false) continue;
-    var slotPeriodMs = slotCfg.periodMs;
-    var graceMs = Math.min(30 * 60000, Math.max(10 * 60000, Math.round(slotPeriodMs * 0.2)));
-    var minTs = slotTs - graceMs;
-    var maxTs = slotTs + graceMs;
-    var hit = false;
-    for (var j = 0; j < eventTimes.length; j++) {
-      var evTs = eventTimes[j];
-      if (evTs < minTs) continue;
-      if (evTs > maxTs) break;
-      hit = true;
-      break;
-    }
-    if (hit) synced++;
-  }
-
-  var totalSlots = slotTimes.length;
-  if (satInstallKey) {
-    totalSlots = 0;
-    for (var q = 0; q < slotTimes.length; q++) {
-      if (syncCfgAt(slotTimes[q], periodTimeline, defaultPeriodMs)[satInstallKey] !== false) totalSlots++;
-    }
-  }
-
-  return { total: totalSlots, missing: totalSlots - synced, synced: synced };
+  var result = evaluateSyncWindows(entries, sampleIdKey, key, startMs, latestMs, defaultPeriodMs, satInstallKey);
+  return { total: result.total, missing: result.missed, synced: result.synced };
 }
 </script>
 
@@ -1551,16 +1488,16 @@ function renderDashboard() {
   document.getElementById('btnExportCSV').style.display     = hasData ? '' : 'none';
   if (!hasData) return;
 
-  try { updateHeaderInfo();     } catch (e) { console.warn('[Render] updateHeaderInfo:', e); }
-  try { updateFreshnessBanner();} catch (e) { console.warn('[Render] updateFreshnessBanner:', e); }
-  try { updateSensorCards();    } catch (e) { console.warn('[Render] updateSensorCards:', e); }
-  try { createOrUpdateCharts(); } catch (e) { console.warn('[Render] createOrUpdateCharts:', e); }
-  try { updateChartSubheads();  } catch (e) { console.warn('[Render] updateChartSubheads:', e); }
-  try { updatePeaksTable();     } catch (e) { console.warn('[Render] updatePeaksTable:', e); }
-  try { updateTimeButtons();    } catch (e) { console.warn('[Render] updateTimeButtons:', e); }
+  updateHeaderInfo();
+  updateFreshnessBanner();
+  updateSensorCards();
+  createOrUpdateCharts();
+  updateChartSubheads();
+  updatePeaksTable();
+  updateTimeButtons();
 
   // Fetch weather data
-  try { fetchWeatherData();     } catch (e) { console.warn('[Render] fetchWeatherData:', e); }
+  fetchWeatherData();
 }
 
 // =====================================================================
@@ -1676,7 +1613,7 @@ function updateFreshnessBanner() {
   if (ageHrs < 2) {
     banner.classList.add('fresh');
     icon.textContent = '\u2705';
-    text.textContent = 'Data is fresh -- latest entry ' + timeAgo(latest, true);
+    text.textContent = 'Data is fresh -- latest entry ' + timeAgo(latest);
   } else if (ageHrs < 24) {
     banner.classList.add('stale');
     icon.textContent = '\u26A0\uFE0F';
@@ -1726,7 +1663,7 @@ function updateNetworkBar() {
       '<div>' +
         '<div class="chip-label">T0 Gateway</div>' +
         '<div class="chip-value">' + t0Text + '</div>' +
-        '<div class="chip-detail">Bat: ' + batStr(latest.t0BatPct) + ' | ' + timeAgo(latest.timestamp, true) + '</div>' +
+        '<div class="chip-detail">Bat: ' + batStr(latest.t0BatPct) + ' | ' + timeAgo(latest.timestamp) + '</div>' +
       '</div>' +
     '</div>' +
     '<div class="net-chip">' +
@@ -1734,7 +1671,7 @@ function updateNetworkBar() {
       '<div>' +
         '<div class="chip-label">Satellite A</div>' +
         '<div class="chip-value">' + satAText + '</div>' +
-        '<div class="chip-detail">Bat: ' + batStr(lastSatA ? lastSatA.satABatPct : null) + ' | ' + (lastSatA ? timeAgo(lastSatA.timestamp, true) : 'never') + '</div>' +
+        '<div class="chip-detail">Bat: ' + batStr(lastSatA ? lastSatA.satABatPct : null) + ' | ' + (lastSatA ? timeAgo(lastSatA.timestamp) : 'never') + '</div>' +
       '</div>' +
     '</div>' +
     '<div class="net-chip">' +
@@ -1742,7 +1679,7 @@ function updateNetworkBar() {
       '<div>' +
         '<div class="chip-label">Satellite B</div>' +
         '<div class="chip-value">' + satBText + '</div>' +
-        '<div class="chip-detail">Bat: ' + batStr(lastSatB ? lastSatB.satBBatPct : null) + ' | ' + (lastSatB ? timeAgo(lastSatB.timestamp, true) : 'never') + '</div>' +
+        '<div class="chip-detail">Bat: ' + batStr(lastSatB ? lastSatB.satBBatPct : null) + ' | ' + (lastSatB ? timeAgo(lastSatB.timestamp) : 'never') + '</div>' +
       '</div>' +
     '</div>' +
     '<div class="net-chip">' +
@@ -1770,7 +1707,7 @@ function updateStatusCards() {
   document.getElementById('t0Rssi').textContent   = (latest.t0Rssi !== null && latest.t0Rssi !== 0) ? latest.t0Rssi + ' dBm' : 'N/A';
   document.getElementById('t0Boot').textContent   = latest.t0Boot !== null ? latest.t0Boot.toLocaleString() : '--';
   document.getElementById('t0Heap').textContent   = latest.t0Heap !== null ? (latest.t0Heap / 1024).toFixed(0) + ' KB' : '--';
-  document.getElementById('t0LastSeen').textContent = timeAgo(latest.timestamp, true);
+  document.getElementById('t0LastSeen').textContent = timeAgo(latest.timestamp);
 
   var t0HasSensors = latest.t0Temp1 !== null || latest.t0Temp2 !== null;
   document.getElementById('t0Sensors').textContent = t0HasSensors ? 'Connected' : 'NC';
@@ -1809,7 +1746,7 @@ function updateStatusCards() {
   document.getElementById('satASyncRate').className   = 'detail-value ' + (satASyncPct > 80 ? 'ok-text' : satASyncPct > 50 ? 'warn-text' : 'error-text');
   document.getElementById('satAMissed').textContent   = satAMissed24.total > 0 ? satAMissed24.missing + ' / ' + satAMissed24.total : '--';
   document.getElementById('satAMissed').className     = 'detail-value ' + (satAMissed24.missing === 0 ? 'ok-text' : satAMissed24.missing < 5 ? 'warn-text' : 'error-text');
-  document.getElementById('satALastSeen').textContent = lastSatA ? timeAgo(lastSatA.timestamp, true) : 'Never';
+  document.getElementById('satALastSeen').textContent = lastSatA ? timeAgo(lastSatA.timestamp) : 'Never';
   setCardStatus('cardSatA', 'satABadge', 'satADot', satAPct, satAHasSensors, lastSatA !== null);
 
   // -- Sat-B --
@@ -1835,7 +1772,7 @@ function updateStatusCards() {
   document.getElementById('satBSyncRate').className   = 'detail-value ' + (satBSyncPct > 80 ? 'ok-text' : satBSyncPct > 50 ? 'warn-text' : 'error-text');
   document.getElementById('satBMissed').textContent   = satBMissed24.total > 0 ? satBMissed24.missing + ' / ' + satBMissed24.total : '--';
   document.getElementById('satBMissed').className     = 'detail-value ' + (satBMissed24.missing === 0 ? 'ok-text' : satBMissed24.missing < 5 ? 'warn-text' : 'error-text');
-  document.getElementById('satBLastSeen').textContent = lastSatB ? timeAgo(lastSatB.timestamp, true) : 'Never';
+  document.getElementById('satBLastSeen').textContent = lastSatB ? timeAgo(lastSatB.timestamp) : 'Never';
   setCardStatus('cardSatB', 'satBBadge', 'satBDot', satBPct, satBHasSensors, lastSatB !== null);
 
   // -- System --
@@ -2572,21 +2509,12 @@ function createOrUpdateSyncChart() {
 function createOrUpdateDriftChart() {
   var e = state.filteredEntries;
   if (!e.length) return;
-  var MAX_POINT_GAP_MS = 60 * 60000;
 
   var satADrift = [], satBDrift = [], sysDrift = [];
   var satARssiArr = [], satBRssiArr = [];
   var lastSatASampleId = null, lastSatBSampleId = null;
-  var satALastDrift = null, satBLastDrift = null, sysLastDrift = null;
-  var satALastRssi = null, satBLastRssi = null;
-  var satALastDriftTs = null, satBLastDriftTs = null, sysLastDriftTs = null;
-  var satALastRssiTs = null, satBLastRssiTs = null;
-  var _sysCfg = null;
-  var _sysPrevRawField8 = null;
-  var _sysSessionMs = 0;
   e.forEach(function(entry) {
     var t = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
-    var tsMs = t.getTime();
     var satAHasSampleId = entry.satASampleId != null;
     var satBHasSampleId = entry.satBSampleId != null;
     var satANewSync = satAHasSampleId ? (entry.satASampleId !== lastSatASampleId) : true;
@@ -2595,52 +2523,17 @@ function createOrUpdateDriftChart() {
     if (satAHasSampleId) lastSatASampleId = entry.satASampleId;
     if (satBHasSampleId) lastSatBSampleId = entry.satBSampleId;
 
-    // Re-parse session config only when field8 changes (tracks testing config changes).
-    if (entry._rawField8 && entry._rawField8 !== _sysPrevRawField8) {
-      _sysCfg = parseField8ConfigUnified(entry._rawField8);
-      _sysSessionMs = _sysCfg ? _sysCfg.tsBulkFreqHours * 3600 * 1000 : 0;
-      _sysPrevRawField8 = entry._rawField8;
-    }
-
-    if (entry.satASyncDrift != null) {
-      var emitSatADrift = satANewSync || satALastDrift === null || entry.satASyncDrift !== satALastDrift || satALastDriftTs === null || (tsMs - satALastDriftTs >= MAX_POINT_GAP_MS);
-      if (emitSatADrift) {
-        satADrift.push({ x: t, y: entry.satASyncDrift });
-        satALastDrift = entry.satASyncDrift;
-        satALastDriftTs = tsMs;
-      }
-    }
-    if (entry.satBSyncDrift != null) {
-      var emitSatBDrift = satBNewSync || satBLastDrift === null || entry.satBSyncDrift !== satBLastDrift || satBLastDriftTs === null || (tsMs - satBLastDriftTs >= MAX_POINT_GAP_MS);
-      if (emitSatBDrift) {
-        satBDrift.push({ x: t, y: entry.satBSyncDrift });
-        satBLastDrift = entry.satBSyncDrift;
-        satBLastDriftTs = tsMs;
-      }
-    }
-    if (entry.syncDrift != null && (entry.syncDrift !== sysLastDrift || (_sysSessionMs > 0 && sysLastDriftTs !== null && (tsMs - sysLastDriftTs) >= _sysSessionMs * 0.7))) { sysDrift.push({ x: t, y: entry.syncDrift }); sysLastDrift = entry.syncDrift; sysLastDriftTs = tsMs; }
-    if (entry.satARssi != null && entry.satARssi !== 0) {
-      var emitSatARssi = satANewSync || satALastRssi === null || entry.satARssi !== satALastRssi || satALastRssiTs === null || (tsMs - satALastRssiTs >= MAX_POINT_GAP_MS);
-      if (emitSatARssi) {
-        satARssiArr.push({ x: t, y: entry.satARssi });
-        satALastRssi = entry.satARssi;
-        satALastRssiTs = tsMs;
-      }
-    }
-    if (entry.satBRssi != null && entry.satBRssi !== 0) {
-      var emitSatBRssi = satBNewSync || satBLastRssi === null || entry.satBRssi !== satBLastRssi || satBLastRssiTs === null || (tsMs - satBLastRssiTs >= MAX_POINT_GAP_MS);
-      if (emitSatBRssi) {
-        satBRssiArr.push({ x: t, y: entry.satBRssi });
-        satBLastRssi = entry.satBRssi;
-        satBLastRssiTs = tsMs;
-      }
-    }
+    if (satANewSync && entry.satASyncDrift != null) satADrift.push({ x: t, y: entry.satASyncDrift });
+    if (satBNewSync && entry.satBSyncDrift != null) satBDrift.push({ x: t, y: entry.satBSyncDrift });
+    if (entry.syncDrift != null)     sysDrift.push({ x: t, y: entry.syncDrift });
+    if (satANewSync && entry.satARssi != null && entry.satARssi !== 0) satARssiArr.push({ x: t, y: entry.satARssi });
+    if (satBNewSync && entry.satBRssi != null && entry.satBRssi !== 0) satBRssiArr.push({ x: t, y: entry.satBRssi });
   });
 
   var subEl = document.getElementById('driftSubhead');
   if (subEl) {
     var fmtS = function(d) { return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short' }) + ' ' + d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }); };
-    subEl.textContent = fmtS(e[0].timestamp) + ' \u2013 ' + fmtS(e[e.length-1].timestamp) + ' \u2014 Sync drift (s) & RSSI (dBm) on sync events, value changes, or periodic gap samples';
+    subEl.textContent = fmtS(e[0].timestamp) + ' \u2013 ' + fmtS(e[e.length-1].timestamp) + ' \u2014 Sync drift (s) & RSSI (dBm) on satellite sync events';
   }
 
   if (state.charts.drift) { state.charts.drift.destroy(); state.charts.drift = null; }
@@ -2658,7 +2551,7 @@ function createOrUpdateDriftChart() {
       type: 'line', data: { datasets: [
         { label: 'Sat-A Drift', data: satADrift, borderColor: '#22c55e', backgroundColor: '#22c55e22', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
         { label: 'Sat-B Drift', data: satBDrift, borderColor: '#3b82f6', backgroundColor: '#3b82f622', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
-        { label: 'Cell Clock Correction', data: sysDrift, borderColor: '#f59e0b', backgroundColor: '#f59e0b22', borderWidth: 1.5, pointRadius: 1, pointHoverRadius: 4, tension: 0, stepped: 'before', fill: false, borderDash: [4,3] },
+        { label: 'System Drift', data: sysDrift, borderColor: '#f59e0b', backgroundColor: '#f59e0b22', borderWidth: 1.5, pointRadius: 1, pointHoverRadius: 4, tension: 0.2, fill: false, borderDash: [4,3] },
       ] }, options: dOpts,
     });
   }
@@ -2898,79 +2791,37 @@ function setupPage() {
 // =====================================================================
 // INITIALIZATION
 // =====================================================================
-function safeInitStep(label, fn) {
-  try {
-    fn();
-  } catch (err) {
-    console.warn('[Init] ' + label + ' failed:', err);
-  }
-}
-
-function tryAutoLoadMergedData(sourceLabel) {
-  if (window.THINGSPEAK_DATA && window.THINGSPEAK_DATA.feeds && window.THINGSPEAK_DATA.feeds.length) {
-    console.log('[Dashboard] Auto-loaded merged_data.js');
-    handleNewData(window.THINGSPEAK_DATA, sourceLabel || ('Local file (' + ((STATION && STATION.dataFolder) || TABLE_ID) + '/merged_data.js)'));
-    return true;
-  }
-  return false;
-}
-
-function tryDeferredMergedDataLoad() {
-  var _df = (STATION && STATION.dataFolder) ? STATION.dataFolder : ('data_' + TABLE_ID);
-  var script = document.createElement('script');
-  script.src = '../data/' + _df + '/merged_data.js?v=' + Date.now();
-  script.onload = function () {
-    var _label = 'Local file (' + ((STATION && STATION.dataFolder) || _df) + '/merged_data.js)';
-    if (!tryAutoLoadMergedData(_label)) {
-      console.warn('[Dashboard] merged_data.js loaded but no feeds found');
-    }
-  };
-  script.onerror = function () {
-    console.warn('[Dashboard] Failed to load local merged_data.js from', script.src);
-  };
-  document.head.appendChild(script);
-}
-
 document.addEventListener('DOMContentLoaded', function () {
-  // -- Page chrome (title, sensor map, timezone) ------------------------
-  safeInitStep('setup page chrome', function () {
-    setupPage();
-    setupSensorMap();
-    document.getElementById('tzLabel').textContent = getTimezoneLabel();
-  });
+  // Setup page chrome
+  setupPage();
+  setupSensorMap();
 
-  // -- View preferences (date/time range) --------------------------------
-  safeInitStep('restore view prefs', function () {
-    restoreViewPrefs();
-  });
+  // Display timezone
+  document.getElementById('tzLabel').textContent = getTimezoneLabel();
 
-  // -- Tides & weather (don't require sensor data) ----------------------
-  safeInitStep('init tides', function () {
-    window._harvestOpts = { enabled: true, maxHeight: 0.50 };
-    if (window.SeaweedTides) {
-      SeaweedTides.init(STATION.tideStation);
-    }
-  });
+  // Tides (always available -- no sensor data needed)
+  window._harvestOpts = { enabled: true, maxHeight: 0.50 };
+  if (window.SeaweedTides) {
+    SeaweedTides.init(STATION.tideStation);
+  }
 
-  safeInitStep('prefetch weather', function () {
-    fetchWeatherData();
-  });
+  // Fetch weather early (Kenya pages do this regardless of sensor data)
+  fetchWeatherData();
 
-  // -- Sensor data loading (merged_data.js injected synchronously by boot loader)
-  if (window.THINGSPEAK_DATA && window.THINGSPEAK_DATA.feeds && window.THINGSPEAK_DATA.feeds.length) {
-    try {
-      var _dataFolder = (STATION && STATION.dataFolder) ? STATION.dataFolder : 'unknown';
-      handleNewData(window.THINGSPEAK_DATA, 'Local file (' + _dataFolder + '/merged_data.js)');
-    } catch (e) {
-      console.error('[Dashboard] Error rendering merged_data.js:', e);
-    }
+  // Restore saved date range preference
+  restoreViewPrefs();
+
+  // Auto-load merged_data.js if present
+  // Accept both legacy THINGSPEAK_DATA and current STATION_DATA variable names
+  var _autoData = window.STATION_DATA || window.THINGSPEAK_DATA;
+  if (_autoData) {
+    console.log('[Dashboard] Auto-loaded merged_data.js (' +
+      (window.STATION_DATA ? 'STATION_DATA' : 'THINGSPEAK_DATA') + ', ' +
+      (_autoData.feeds ? _autoData.feeds.length : 0) + ' feeds)');
+    handleNewData(_autoData, 'Local file (' + STATION.dataFolder + '/merged_data.js)');
   } else {
-    // Fallback 1: try dynamic script load (helps if document.write was blocked)
-    safeInitStep('deferred merged_data.js load', function () {
-      tryDeferredMergedDataLoad();
-    });
-
-    // Fallback 2: restore from localStorage cache while waiting
+    console.warn('[Dashboard] merged_data.js loaded but neither window.STATION_DATA nor window.THINGSPEAK_DATA found — check download_data.ps1 output');
+    // Restore from localStorage cache
     try {
       var _raw = localStorage.getItem('seaweed_cache_' + TABLE_ID);
       if (_raw) {
@@ -2992,10 +2843,8 @@ document.addEventListener('DOMContentLoaded', function () {
     } catch (e) { console.warn('[Cache] Restore failed:', e); }
   }
 
-  // -- Auto-refresh -----------------------------------------------------
-  safeInitStep('setup auto refresh', function () {
-    setupAutoRefresh();
-  });
+  // Setup auto-refresh
+  setupAutoRefresh();
 });
 </script>
 

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -135,6 +135,9 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 /* ======================== DATA SOURCE BADGE ======================== */
 .data-src{font-size:.68rem;padding:2px 8px;border-radius:10px;margin-left:6px;font-weight:500;letter-spacing:.02em}
 .src-live{background:#064e3b;color:#6ee7b7}.src-ci{background:#1e3a5f;color:#93c5fd}.src-cache{background:#78350f;color:#fcd34d}.src-none{background:#3f3f46;color:#a1a1aa}
+/* ======================== UTC CLOCK ======================== */
+.utc-clock-bar{font-size:.78rem;color:var(--text-muted);padding-top:7px;letter-spacing:.03em}
+.utc-clock-bar .utc-val{color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.06em}
 </style>
 </head>
 <body>
@@ -155,11 +158,12 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
       <a class="btn" href="perth_wroom.html">Perth WROOM</a>
       <a class="btn" href="station.html?table=shangani">Shangani</a>
       <a class="btn" href="station.html?table=funzi">Funzi</a>
-      <button class="btn-fetch" id="btnFetchAll" onclick="fetchLiveAll()" title="Pull latest data from ThingSpeak for all stations">&#128752; Fetch Live</button>
+      <button class="btn-fetch" id="btnFetchAll" onclick="fetchLiveAll()" title="Pull latest data from Supabase for all stations">&#128752; Fetch Live</button>
       <button class="btn" id="btnTriggerDL" onclick="triggerCIDownload()" title="Trigger GitHub Actions to download fresh data">&#9889; Download</button>
       <span class="fetch-status" id="fetchStatus"></span>
     </div>
   </div>
+  <div class="utc-clock-bar">&#128336; Current UTC time: <span class="utc-val" id="utcClock">--</span></div>
 </header>
 
 <main class="main">
@@ -227,40 +231,33 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
 
 // Station configurations
 var STATIONS = [
-  { id: 'perth',    name: 'Perth Test Table',          defaultFolder: 'data_3262071_TT', configKey: 'perth',    type: 'gateway', defaultChannelId: '3262071', defaultApiKey: 'VVHUX39KINYPLCVI', tz: 'Australia/Perth' },
-  { id: 'shangani', name: 'Shangani Aramani, Kenya',   defaultFolder: 'data_Shangani',   configKey: 'shangani', type: 'gateway', defaultChannelId: '3262074', defaultApiKey: 'X7ZETMYRRQCAFE8S', tz: 'Africa/Nairobi' },
-  { id: 'funzi',    name: 'Funzi Island, Kenya',       defaultFolder: 'data_Funzi',      configKey: 'funzi',    type: 'gateway', defaultChannelId: '3256756', defaultApiKey: 'D8TXB5B33KPWRIHO', tz: 'Africa/Nairobi' },
+  { id: 'perth',    name: 'Perth Test Table',          defaultFolder: 'data_3262071_TT', configKey: 'perth',    type: 'gateway', tz: 'Australia/Perth' },
+  { id: 'shangani', name: 'Shangani Aramani, Kenya',   defaultFolder: 'data_Shangani',   configKey: 'shangani', type: 'gateway', tz: 'Africa/Nairobi' },
+  { id: 'funzi',    name: 'Funzi Island, Kenya',       defaultFolder: 'data_Funzi',      configKey: 'funzi',    type: 'gateway', tz: 'Africa/Nairobi' },
 ];
 
-// Timezone helpers
+// Timezone helpers (all display uses UTC)
 function stationTz(stationId) {
   var s = STATIONS.find(function(st) { return st.id === stationId; });
   return s && s.tz ? s.tz : Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 function stationTzShort(stationId) {
-  try {
-    var tz = stationTz(stationId);
-    return new Date().toLocaleTimeString('en-US', { timeZone: tz, timeZoneName: 'short' }).split(' ').pop();
-  } catch(e) { return ''; }
+  return 'UTC';
 }
-// Format a Date in a station's local timezone
+// Format a Date in UTC
 function fmtStationTime(date, stationId, opts) {
   if (!date || isNaN(date.getTime())) return '--';
-  var tz = stationTz(stationId);
-  var defaults = { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false };
+  var defaults = { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false };
   if (opts) { for (var k in opts) defaults[k] = opts[k]; }
   return date.toLocaleString('en-GB', defaults);
 }
-// Get hour (0-23) in station-local timezone
+// Get hour (0-23) in UTC
 function stationLocalHour(date, stationId) {
-  var tz = stationTz(stationId);
-  return parseInt(date.toLocaleString('en-GB', { timeZone: tz, hour: '2-digit', hour12: false }), 10);
+  return date.getUTCHours();
 }
-// Get YYYY-MM-DD string in station-local timezone
+// Get YYYY-MM-DD string in UTC
 function stationLocalDay(date, stationId) {
-  var tz = stationTz(stationId);
-  var parts = date.toLocaleDateString('en-CA', { timeZone: tz }); // en-CA gives YYYY-MM-DD
-  return parts;
+  return date.toISOString().slice(0, 10);
 }
 
 var liveCharts = [];  // track Chart.js instances for cleanup on refresh
@@ -493,10 +490,11 @@ function renderStationSection(station, data) {
   // Freshness
   var freshnessClass = 'fresh-old', freshnessText = 'No data';
   if (hasData) {
-    var ageHrs = (Date.now() - e[e.length-1].timestamp.getTime()) / 3600000;
-    if (ageHrs < 2) { freshnessClass = 'fresh-ok'; freshnessText = 'Fresh (' + timeAgo(e[e.length-1].timestamp) + ')'; }
-    else if (ageHrs < 24) { freshnessClass = 'fresh-stale'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old'; }
-    else { freshnessClass = 'fresh-old'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old'; }
+    var ageHrs = Math.abs(Date.now() - e[e.length-1].timestamp.getTime()) / 3600000;
+    var latestStr = e[e.length-1].timestamp.toLocaleString('en-GB', { timeZone:'UTC', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) + ' UTC';
+    if (ageHrs < 2) { freshnessClass = 'fresh-ok'; freshnessText = 'Fresh (' + timeAgo(e[e.length-1].timestamp) + ', ' + latestStr + ')'; }
+    else if (ageHrs < 24) { freshnessClass = 'fresh-stale'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old (' + latestStr + ')'; }
+    else { freshnessClass = 'fresh-old'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old (' + latestStr + ')'; }
   }
 
   // Data source badge
@@ -1058,7 +1056,7 @@ function renderSyncCharts(container, entries, stationId, range) {
     // syncDrift is g_maxSyncDrift_s from field8: the worst-case wake-timer
     // jitter (T0 deep-sleep vs NTP wall clock) for the upload window.
     // The firmware resets g_maxSyncDrift_s to 0 after each successful cellular
-    // upload, so all ThingSpeak entries within a session share the same drift
+    // upload, so all Supabase entries within a session share the same drift
     // value. Emit one point per session: on value change, OR if silence > 70%
     // of session interval (catches same-value consecutive sessions).
     if (e.syncDrift !== null) {
@@ -1218,8 +1216,7 @@ function openChartModal(title, srcCanvas) {
         } else {
           mxTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
         }
-        var mTz = (_modalSource && _modalSource.stationId) ? stationTz(_modalSource.stationId) : undefined;
-        var mAdapters = mTz ? { date: { zone: mTz } } : undefined;
+        var mAdapters = { date: { zone: 'UTC' } };
         return {
           x: { type: 'time', time: mxTime, adapters: mAdapters,
                ticks: { color: '#64748b', font: { size: 11 }, maxTicksLimit: 12 }, grid: { color: '#1e293b' } },
@@ -1373,7 +1370,7 @@ function renderDailyHealth(container, entries, stationId) {
     var de  = byDay[day];
     var dl  = new Date(day + 'T12:00:00Z'); // noon UTC avoids day-boundary shifts
     var tz  = stationId ? stationTz(stationId) : undefined;
-    var dateLabel = dl.toLocaleDateString('en-GB', Object.assign({ day: 'numeric', month: 'short', weekday: 'short' }, tz ? { timeZone: tz } : {}));
+    var dateLabel = dl.toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', weekday: 'short' });
 
     // Battery delta
     function batDelta(arr, key) {
@@ -1441,9 +1438,8 @@ function chartOpts(yLabel, yMin, yMax, range, stationId) {
     xTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
     xMaxTicks = 12;
   }
-  // Station-local timezone for Luxon adapter
-  var tz = stationId ? stationTz(stationId) : undefined;
-  var adapters = tz ? { date: { zone: tz } } : undefined;
+  // UTC timezone for Luxon adapter
+  var adapters = { date: { zone: 'UTC' } };
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -1466,23 +1462,80 @@ function chartOpts(yLabel, yMin, yMax, range, stationId) {
 // timeAgo → provided by seaweed_common.js  (call with suffix=false, the default)
 
 // ============================================================
-// FETCH LIVE FROM THINGSPEAK
+// PARSE SUPABASE DATA (direct column access — no CSV field parsing)
 // ============================================================
-function getStationConfig(station) {
-  var channelId = station.defaultChannelId;
-  var apiKey    = station.defaultApiKey;
-  try {
-    var s = JSON.parse(localStorage.getItem('seaweed_dashboard_config') || '{}');
-    var c = (s.channels || []).find(function(ch) { return ch.id === station.configKey; });
-    if (c) {
-      if (c.channelId) channelId = c.channelId;
-      if (c.apiKey)    apiKey    = c.apiKey;
-    }
-  } catch(e) {}
-  return { channelId: channelId, apiKey: apiKey };
+function parseSupabaseData(rows, station) {
+  var entries = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var ts = new Date(ensureUTC(r.recorded_at));
+    if (isNaN(ts.getTime())) continue;
+
+    var entry = { timestamp: ts, entryId: r.id || i };
+
+    // T0 battery %
+    entry.t0BatPct = (r.battery_pct !== null && r.battery_pct !== undefined) ? r.battery_pct : null;
+
+    // T0 sensors
+    entry.t0Temp1 = r.temp_1 !== null ? r.temp_1 : null;
+    entry.t0Hum1  = r.humidity_1 !== null ? r.humidity_1 : null;
+    entry.t0Temp2 = r.temp_2 !== null ? r.temp_2 : null;
+    entry.t0Hum2  = r.humidity_2 !== null ? r.humidity_2 : null;
+
+    // T0 status
+    entry.t0BatV = r.battery_v !== null ? r.battery_v : null;
+    entry.t0Rssi = r.rssi !== null ? r.rssi : null;
+    entry.t0Boot = r.boot_count !== null ? r.boot_count : null;
+    entry.t0Heap = r.free_heap !== null ? r.free_heap : null;
+    entry.t0FwVersion = r.fw_version || null;
+    entry.t0BuildDate = r.fw_date || null;
+
+    // SatA status
+    entry.satABatV      = r.sat_a_battery_v !== null ? r.sat_a_battery_v : null;
+    entry.satABatPct     = r.sat_a_battery_pct !== null ? r.sat_a_battery_pct : null;
+    entry.satARssi       = r.sat_a_rssi !== null ? r.sat_a_rssi : null;
+    entry.satASampleId   = r.sat_a_sample_id !== null ? r.sat_a_sample_id : null;
+    entry.satASyncDrift  = r.sat_a_sync_drift !== null ? r.sat_a_sync_drift : null;
+    entry.satAFwVersion  = r.sat_a_fw_ver || null;
+
+    // SatA sensors
+    entry.satATemp1 = r.sat_a_temp_1 !== null ? r.sat_a_temp_1 : null;
+    entry.satAHum1  = r.sat_a_humidity_1 !== null ? r.sat_a_humidity_1 : null;
+    entry.satATemp2 = r.sat_a_temp_2 !== null ? r.sat_a_temp_2 : null;
+    entry.satAHum2  = r.sat_a_humidity_2 !== null ? r.sat_a_humidity_2 : null;
+
+    // SatB status
+    entry.satBBatV      = r.sat_b_battery_v !== null ? r.sat_b_battery_v : null;
+    entry.satBBatPct     = r.sat_b_battery_pct !== null ? r.sat_b_battery_pct : null;
+    entry.satBRssi       = r.sat_b_rssi !== null ? r.sat_b_rssi : null;
+    entry.satBSampleId   = r.sat_b_sample_id !== null ? r.sat_b_sample_id : null;
+    entry.satBSyncDrift  = r.sat_b_sync_drift !== null ? r.sat_b_sync_drift : null;
+    entry.satBFwVersion  = r.sat_b_fw_ver || null;
+
+    // SatB sensors
+    entry.satBTemp1 = r.sat_b_temp_1 !== null ? r.sat_b_temp_1 : null;
+    entry.satBHum1  = r.sat_b_humidity_1 !== null ? r.sat_b_humidity_1 : null;
+    entry.satBTemp2 = r.sat_b_temp_2 !== null ? r.sat_b_temp_2 : null;
+    entry.satBHum2  = r.sat_b_humidity_2 !== null ? r.sat_b_humidity_2 : null;
+
+    // System (field8 equivalent)
+    entry._rawField8 = null;  // Not applicable for Supabase data
+    entry.sdFreeKB   = null;  // Not in Supabase schema
+    entry.csq        = null;
+    entry.uploadOk   = null;
+    entry.syncDrift   = r.sat_a_sync_drift !== null ? r.sat_a_sync_drift : null;
+
+    entries.push(entry);
+  }
+
+  entries.sort(function(a, b) { return a.timestamp - b.timestamp; });
+  return { entries: entries, raw: { feeds: rows } };
 }
 
-// fetchWithTimeout, yieldToBrowser → provided by seaweed_common.js
+// ============================================================
+// FETCH LIVE FROM SUPABASE
+// ============================================================
+// fetchWithTimeout, yieldToBrowser, getSupabaseConfig, supabaseHeaders → provided by seaweed_common.js
 
 async function fetchLiveAll() {
   var btn    = document.getElementById('btnFetchAll');
@@ -1491,30 +1544,33 @@ async function fetchLiveAll() {
   btn.disabled  = true;
   status.textContent = '';
 
-  var fetched = 0;
-  var errors  = [];
+  var supaCfg = getSupabaseConfig();
+  if (!supaCfg.url || !supaCfg.key) {
+    status.innerHTML = '<span style="color:var(--danger)">Supabase not configured — set URL + key in Settings</span>';
+    btn.innerHTML = '&#128752; Fetch Live';
+    btn.disabled = false;
+    return;
+  }
+
+  var fetched  = 0;
+  var errors   = [];
   var totalNew = 0;
+  var hdrs     = supabaseHeaders(supaCfg.key);
 
   for (var i = 0; i < STATIONS.length; i++) {
     var station = STATIONS[i];
-    var cfg     = getStationConfig(station);
-    if (!cfg.channelId || !cfg.apiKey) {
-      errors.push(station.name + ': no API config');
-      continue;
-    }
     status.textContent = 'Fetching ' + station.name + ' (' + (i+1) + '/' + STATIONS.length + ')...';
-    await yieldToBrowser();  // let status text repaint
+    await yieldToBrowser();
     try {
-      // Small delay between ThingSpeak requests to avoid rate-limiting
-      if (i > 0) await new Promise(function(r) { setTimeout(r, 500); });
+      var url = supaCfg.url + '/rest/v1/sensor_readings' +
+                '?device_id=eq.' + station.id +
+                '&order=recorded_at.asc' +
+                '&limit=8000';
 
-      // Full fetch (same approach as station.html — always pull everything)
-      var url = 'https://api.thingspeak.com/channels/' + cfg.channelId + '/feeds.json?api_key=' + cfg.apiKey + '&results=8000';
-
-      var res = await fetchWithTimeout(url, 30000);
+      var res = await fetchWithTimeout(url, 30000, { headers: hdrs });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      var data = await res.json();
-      var newParsed = parseStationData(data, station);
+      var rows = await res.json();
+      var newParsed = parseSupabaseData(rows, station);
       var newCount = newParsed.entries.length;
 
       if (newCount > 0) {
@@ -1523,7 +1579,6 @@ async function fetchLiveAll() {
         totalNew += Math.max(0, newCount - prevCount);
       }
 
-      // Persist to shared localStorage cache (same key as station.html)
       if (stationData[station.id] && stationData[station.id].entries.length) {
         saveCacheData(station.id, stationData[station.id].entries);
       }
@@ -1572,7 +1627,7 @@ async function fetchLiveAll() {
 
   btn.innerHTML = '&#128752; Fetch Live';
   btn.disabled  = false;
-  var ts = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  var ts = new Date().toLocaleTimeString('en-GB', {timeZone:'UTC', hour:'2-digit', minute:'2-digit'}) + ' UTC';
   var newStr = totalNew > 0 ? ' (' + totalNew + ' new)' : ' (up to date)';
   if (errors.length) {
     status.innerHTML = '<span style="color:var(--warning)">' + fetched + ' OK, ' + errors.length + ' failed' + newStr + ' &mdash; ' + ts + '</span>';
@@ -1612,10 +1667,10 @@ async function fetchLiveAll() {
       var script = document.createElement('script');
       script.src = '../data/' + folder + '/merged_data.js';
       script.onload = function() {
-        if (window.THINGSPEAK_DATA) {
+        if (window.STATION_DATA) {
           try {
-            stationData[station.id] = parseStationData(window.THINGSPEAK_DATA, station);
-            window.THINGSPEAK_DATA = null;
+            stationData[station.id] = parseStationData(window.STATION_DATA, station);
+            window.STATION_DATA = null;
             _stationDataSource[station.id] = { source: 'ci', savedAt: null };
             return doneWithStation(stationData[station.id]);
           } catch (err) {
@@ -1690,5 +1745,25 @@ async function fetchLiveAll() {
   </div>
 </div>
 
+<script>
+// Ticking UTC clock
+(function() {
+  function tickUTC() {
+    var el = document.getElementById('utcClock');
+    if (!el) return;
+    var now = new Date();
+    var pad = function(n) { return String(n).padStart(2, '0'); };
+    el.textContent =
+      now.getUTCFullYear() + '-' +
+      pad(now.getUTCMonth() + 1) + '-' +
+      pad(now.getUTCDate()) + '  ' +
+      pad(now.getUTCHours()) + ':' +
+      pad(now.getUTCMinutes()) + ':' +
+      pad(now.getUTCSeconds());
+  }
+  tickUTC();
+  setInterval(tickUTC, 1000);
+})();
+</script>
 </body>
 </html>

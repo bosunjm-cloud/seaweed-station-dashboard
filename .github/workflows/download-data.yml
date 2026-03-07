@@ -1,4 +1,4 @@
-name: Download ThingSpeak Data
+name: Download Station Data
 
 on:
   schedule:
@@ -20,11 +20,14 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run download_data.ps1
+      - name: Run download_data_supabase.ps1
         shell: pwsh
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
-          Write-Host "=== Starting ThingSpeak data download ===" -ForegroundColor Cyan
-          ./download_data.ps1 -ScheduleType hourly
+          Write-Host "=== Starting Supabase data download ===" -ForegroundColor Cyan
+          ./download_data_supabase.ps1 -ScheduleType hourly
           Write-Host "=== Download complete ===" -ForegroundColor Green
 
       - name: Commit and push updated data
@@ -40,7 +43,7 @@ jobs:
             echo "No data changes to commit."
           else
             TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M UTC')
-            git commit -m "data: auto-update ThingSpeak data ${TIMESTAMP}"
+            git commit -m "data: auto-update station data ${TIMESTAMP}"
 
             # Pull any remote changes (e.g. manual pushes) before pushing
             # Use rebase to keep data commits on top and avoid merge conflicts
@@ -59,7 +62,9 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
           Write-Host "=== Running alert checks ===" -ForegroundColor Cyan
-          ./check_alerts.ps1
+          ./check_alerts_supabase.ps1
           Write-Host "=== Alert checks complete ===" -ForegroundColor Green

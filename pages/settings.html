@@ -307,19 +307,52 @@ input.wide { max-width: none; }
 <!-- ═══════════════════════════════════════════════════ MAIN ══════ -->
 <main class="main">
 
-  <!-- ─────────────────────────────────────── ThingSpeak Channels ── -->
+  <!-- ─────────────────────────────────────── Supabase Connection ── -->
   <div class="section">
     <div class="section-header">
-      <span class="section-icon">&#128225;</span>
-      <h2>ThingSpeak Channels</h2>
-      <span class="section-desc">One channel per table -- each stores data in its own folder</span>
+      <span class="section-icon">&#9889;</span>
+      <h2>Supabase Connection</h2>
+      <span class="section-desc">Primary data source &mdash; replaces ThingSpeak</span>
     </div>
     <div class="section-body">
 
       <div class="info-box info">
-        <div class="info-title">Three independent channels</div>
-        Each seaweed table has its own ThingSpeak channel. Leave Channel ID blank for tables not yet deployed.
-        The download script will skip unconfigured channels.
+        <div class="info-title">Direct database connection</div>
+        All station data is now stored in Supabase. The anon key is safe to store here &mdash;
+        Row-Level Security on the database restricts access. Leave blank to use the built-in defaults.
+      </div>
+
+      <div class="field-row">
+        <div class="field" style="flex:2">
+          <label>Supabase Project URL</label>
+          <input type="text" id="supabaseUrl" placeholder="https://xyzabc.supabase.co">
+          <div class="field-hint">Your project URL from Supabase dashboard &rarr; Settings &rarr; API</div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex:2">
+          <label>Anon / Public Key</label>
+          <input type="password" id="supabaseAnonKey" placeholder="eyJhbGciOiJIUzI1NiIs..." autocomplete="off" style="font-family:monospace;font-size:0.8rem">
+          <div class="field-hint">The <code>anon</code> key (public). Never paste the <code>service_role</code> key here.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────── ThingSpeak Channels (Legacy) ── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#128225;</span>
+      <h2>ThingSpeak Channels <span style="font-size:0.72rem;color:var(--text-muted);font-weight:400">(Legacy)</span></h2>
+      <span class="section-desc">Kept for reference &mdash; data now comes from Supabase</span>
+    </div>
+    <div class="section-body">
+
+      <div class="info-box">
+        <div class="info-title">Legacy &mdash; no longer used for live data</div>
+        These ThingSpeak channel IDs are kept for reference. The dashboard and download scripts
+        now read from Supabase. Leave these values as-is for historical data access if needed.
       </div>
 
       <!-- Perth -->
@@ -399,8 +432,8 @@ input.wide { max-width: none; }
 
       <div class="info-box info">
         <div class="info-title">&#128257; Current schedule: every hour</div>
-        GitHub Actions runs <strong>download_data.ps1</strong> automatically every hour (00:00, 01:00, 02:00 &hellip; UTC),
-        commits any new ThingSpeak data to the repo, and deploys it to GitHub Pages.
+        GitHub Actions runs <strong>download_data_supabase.ps1</strong> automatically every hour (00:00, 01:00, 02:00 &hellip; UTC),
+        commits any new data to the repo, and deploys it to GitHub Pages.
         Your PC does not need to be on.
       </div>
 
@@ -452,12 +485,12 @@ input.wide { max-width: none; }
             <option value="30">Every 30 minutes</option>
             <option value="60">Every 60 minutes</option>
           </select>
-          <div class="field-hint">How often the dashboard fetches live data from ThingSpeak while open</div>
+          <div class="field-hint">How often the dashboard fetches live data from Supabase while open</div>
         </div>
         <div class="field">
           <label>Max Results per Fetch</label>
           <input type="number" id="maxResults" value="8000" min="100" max="8000" style="width:140px">
-          <div class="field-hint">ThingSpeak free tier limit is 8000 entries per request</div>
+          <div class="field-hint">PostgREST default page size is 1000; dashboard requests up to 8000</div>
         </div>
       </div>
     </div>
@@ -501,18 +534,18 @@ input.wide { max-width: none; }
 
       <div class="info-box info">
         <div class="info-title">config.json is still used for local runs</div>
-        When running <strong>download_data.ps1</strong> directly on your PC, it reads <strong>config.json</strong>
+        When running <strong>download_data_supabase.ps1</strong> directly on your PC, it reads <strong>config.json</strong>
         from the same folder. Use <strong>Save to Browser</strong> then <strong>Download config.json</strong>
-        below, and save the file next to <strong>download_data.ps1</strong> in the repo folder.
-        GitHub Actions does not use this file &mdash; it uses the defaults built into the script.
+        below, and save the file next to <strong>download_data_supabase.ps1</strong> in the repo folder.
+        GitHub Actions uses repository secrets instead of this file.
       </div>
 
       <div class="info-box">
         <div class="info-title">Run a manual download any time</div>
         Open PowerShell in the repo folder and run:
-        <code style="display:block;margin-top:6px;color:#a5f3fc">.\download_data.ps1</code>
+        <code style="display:block;margin-top:6px;color:#a5f3fc">.\download_data_supabase.ps1</code>
         Or with override options:
-        <code style="display:block;margin-top:4px;color:#a5f3fc">.\download_data.ps1 -ScheduleType hourly -MaxResults 8000</code>
+        <code style="display:block;margin-top:4px;color:#a5f3fc">.\download_data_supabase.ps1 -ScheduleType hourly -MaxResults 8000</code>
       </div>
 
     </div>
@@ -559,6 +592,8 @@ function getFormConfig() {
   var funziId      = (document.getElementById('ch_funzi_id').value      || '').trim();
   var wroomId     = (document.getElementById('ch_wroom_id').value     || '').trim();
   return {
+    supabaseUrl:     (document.getElementById('supabaseUrl').value     || '').trim(),
+    supabaseAnonKey: (document.getElementById('supabaseAnonKey').value || '').trim(),
     channels: [
       {
         id: 'perth',
@@ -589,6 +624,11 @@ function getFormConfig() {
         dataFolder:   getDataFolder(wroomId, 'WROOM_PTT'),
       },
     ],
+    stations: [
+      { id: 'perth',    name: 'Perth Test Table',  dataFolder: getDataFolder(perthId, 'TT') },
+      { id: 'shangani', name: 'Shangani Aramani',   dataFolder: getDataFolder(shanganiId, 'Shangani') },
+      { id: 'funzi',    name: 'Funzi Island',       dataFolder: getDataFolder(funziId, 'Funzi') },
+    ],
     autoRefreshMin: parseInt(document.getElementById('autoRefreshMin').value) || 15,
     maxResults:     parseInt(document.getElementById('maxResults').value)     || 8000,
     retentionDays:  90,
@@ -607,7 +647,8 @@ function updatePreviews() {
 }
 
 //  Live update previews as user types 
-['ch_perth_id', 'ch_perth_key', 'ch_shangani_id', 'ch_shangani_key',
+['supabaseUrl', 'supabaseAnonKey',
+ 'ch_perth_id', 'ch_perth_key', 'ch_shangani_id', 'ch_shangani_key',
  'ch_funzi_id', 'ch_funzi_key', 'ch_wroom_id', 'ch_wroom_key',
  'autoRefreshMin', 'maxResults'].forEach(function (id) {
   var el = document.getElementById(id);
@@ -723,6 +764,10 @@ function loadSavedConfig() {
     // Legacy single-channel config  map to perth
     chMap.perth = { channelId: saved.channelId, apiKey: saved.apiKey || '' };
   }
+
+  // Supabase connection
+  document.getElementById('supabaseUrl').value     = saved.supabaseUrl     || '';
+  document.getElementById('supabaseAnonKey').value = saved.supabaseAnonKey || '';
 
   document.getElementById('ch_perth_id').value      = (chMap.perth    && chMap.perth.channelId)    || '3262071';
   document.getElementById('ch_perth_key').value     = (chMap.perth    && chMap.perth.apiKey)       || 'VVHUX39KINYPLCVI';

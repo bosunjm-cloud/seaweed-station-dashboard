@@ -308,7 +308,7 @@ foreach ($channel in $channels) {
             $header += "// Dual-channel: Temp=$($channel.channelId), Hum=$($channel.channelId2)`r`n"
             $header += "// Downloaded: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`r`n"
             $header += "// Temp entries: $totalTemp | Hum entries: $totalHum (from $totalArchives archives)`r`n"
-            $jsContent = $header + "window.THINGSPEAK_DATA = " + $mergedJson + ";`r`n"
+            $jsContent = $header + "window.STATION_DATA = " + $mergedJson + ";`r`n"
 
             [System.IO.File]::WriteAllText($jsFile, $jsContent, [System.Text.Encoding]::UTF8)
             $jsSize = [math]::Round($jsContent.Length / 1024, 1)
@@ -469,7 +469,7 @@ foreach ($channel in $channels) {
         $header += "// Channel: $($channel.name) ($($channel.channelId))`r`n"
         $header += "// Downloaded: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`r`n"
         $header += "// Total unique entries: $totalEntries (from $archiveCount archives)`r`n"
-        $jsContent = $header + "window.THINGSPEAK_DATA = " + $mergedJson + ";`r`n"
+        $jsContent = $header + "window.STATION_DATA = " + $mergedJson + ";`r`n"
 
         [System.IO.File]::WriteAllText($jsFile, $jsContent, [System.Text.Encoding]::UTF8)
         $jsSize = [math]::Round($jsContent.Length / 1024, 1)

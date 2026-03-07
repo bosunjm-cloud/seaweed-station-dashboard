@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2697,9 +2697,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // Detects format automatically:
   //   Old dual-channel: { tempFeeds: [...], humFeeds: [...] }
   //   New single-channel CSV-packed: { feeds: [...] } with field2=temps CSV, field3=humidity CSV
-  if (window.THINGSPEAK_DATA) {
+  if (window.STATION_DATA) {
     try {
-      var tsData = window.THINGSPEAK_DATA;
+      var tsData = window.STATION_DATA;
       var parsed;
       if (tsData.tempFeeds || tsData.humFeeds) {
         // Old dual-channel format
@@ -2726,7 +2726,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } catch (e) { console.warn('[WROOM] merged_data.js parse failed:', e); }
   } else {
-    console.warn('[WROOM] No THINGSPEAK_DATA found — merged_data.js may not have loaded');
+    console.warn('[WROOM] No STATION_DATA found — merged_data.js may not have loaded');
   }
 
   // Fall back to localStorage cache if no disk data loaded

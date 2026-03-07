@@ -1,5 +1,24 @@
 {
-  "channels": [
+  "supabaseUrl": "",
+  "supabaseAnonKey": "",
+  "stations": [
+    {
+      "id": "perth",
+      "name": "Perth Test Table",
+      "dataFolder": "data_3262071_TT"
+    },
+    {
+      "id": "shangani",
+      "name": "Shangani Aramani",
+      "dataFolder": "data_Shangani"
+    },
+    {
+      "id": "funzi",
+      "name": "Funzi Island",
+      "dataFolder": "data_Funzi"
+    }
+  ],
+  "channels_legacy": [
     {
       "id": "perth",
       "name": "Perth Test Table",
