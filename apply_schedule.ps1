@@ -76,15 +76,21 @@ if (Test-Path $cfgFile) {
     Write-Log "config.json not found, using defaults" "Yellow"
 }
 
-# -- Call download_data.ps1 ---------------------------------------------------
-$downloaderScript = Join-Path $scriptDir "download_data.ps1"
+# -- Call download_data_supabase.ps1 ------------------------------------------
+$downloaderScript = Join-Path $scriptDir "download_data_supabase.ps1"
+
+# Fallback to legacy ThingSpeak script if Supabase version not found
+if (!(Test-Path $downloaderScript)) {
+    $downloaderScript = Join-Path $scriptDir "download_data.ps1"
+    Write-Log "Supabase script not found, falling back to download_data.ps1" "Yellow"
+}
 
 if (!(Test-Path $downloaderScript)) {
-    Write-Log "ERROR: download_data.ps1 not found at $downloaderScript" "Red"
+    Write-Log "ERROR: No download script found at $scriptDir" "Red"
     exit 1
 }
 
-Write-Log "Invoking download_data.ps1..."
+Write-Log "Invoking $(Split-Path $downloaderScript -Leaf)..."
 
 try {
     & $downloaderScript `

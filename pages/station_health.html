@@ -135,6 +135,9 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 /* ======================== DATA SOURCE BADGE ======================== */
 .data-src{font-size:.68rem;padding:2px 8px;border-radius:10px;margin-left:6px;font-weight:500;letter-spacing:.02em}
 .src-live{background:#064e3b;color:#6ee7b7}.src-ci{background:#1e3a5f;color:#93c5fd}.src-cache{background:#78350f;color:#fcd34d}.src-none{background:#3f3f46;color:#a1a1aa}
+/* ======================== UTC CLOCK ======================== */
+.utc-clock-bar{font-size:.78rem;color:var(--text-muted);padding-top:7px;letter-spacing:.03em}
+.utc-clock-bar .utc-val{color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.06em}
 </style>
 </head>
 <body>
@@ -160,6 +163,7 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
       <span class="fetch-status" id="fetchStatus"></span>
     </div>
   </div>
+  <div class="utc-clock-bar">&#128336; Current UTC time: <span class="utc-val" id="utcClock">--</span></div>
 </header>
 
 <main class="main">
@@ -232,35 +236,28 @@ var STATIONS = [
   { id: 'funzi',    name: 'Funzi Island, Kenya',       defaultFolder: 'data_Funzi',      configKey: 'funzi',    type: 'gateway', tz: 'Africa/Nairobi' },
 ];
 
-// Timezone helpers
+// Timezone helpers (all display uses UTC)
 function stationTz(stationId) {
   var s = STATIONS.find(function(st) { return st.id === stationId; });
   return s && s.tz ? s.tz : Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 function stationTzShort(stationId) {
-  try {
-    var tz = stationTz(stationId);
-    return new Date().toLocaleTimeString('en-US', { timeZone: tz, timeZoneName: 'short' }).split(' ').pop();
-  } catch(e) { return ''; }
+  return 'UTC';
 }
-// Format a Date in a station's local timezone
+// Format a Date in UTC
 function fmtStationTime(date, stationId, opts) {
   if (!date || isNaN(date.getTime())) return '--';
-  var tz = stationTz(stationId);
-  var defaults = { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false };
+  var defaults = { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false };
   if (opts) { for (var k in opts) defaults[k] = opts[k]; }
   return date.toLocaleString('en-GB', defaults);
 }
-// Get hour (0-23) in station-local timezone
+// Get hour (0-23) in UTC
 function stationLocalHour(date, stationId) {
-  var tz = stationTz(stationId);
-  return parseInt(date.toLocaleString('en-GB', { timeZone: tz, hour: '2-digit', hour12: false }), 10);
+  return date.getUTCHours();
 }
-// Get YYYY-MM-DD string in station-local timezone
+// Get YYYY-MM-DD string in UTC
 function stationLocalDay(date, stationId) {
-  var tz = stationTz(stationId);
-  var parts = date.toLocaleDateString('en-CA', { timeZone: tz }); // en-CA gives YYYY-MM-DD
-  return parts;
+  return date.toISOString().slice(0, 10);
 }
 
 var liveCharts = [];  // track Chart.js instances for cleanup on refresh
@@ -494,7 +491,7 @@ function renderStationSection(station, data) {
   var freshnessClass = 'fresh-old', freshnessText = 'No data';
   if (hasData) {
     var ageHrs = Math.abs(Date.now() - e[e.length-1].timestamp.getTime()) / 3600000;
-    var latestStr = e[e.length-1].timestamp.toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+    var latestStr = e[e.length-1].timestamp.toLocaleString('en-GB', { timeZone:'UTC', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) + ' UTC';
     if (ageHrs < 2) { freshnessClass = 'fresh-ok'; freshnessText = 'Fresh (' + timeAgo(e[e.length-1].timestamp) + ', ' + latestStr + ')'; }
     else if (ageHrs < 24) { freshnessClass = 'fresh-stale'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old (' + latestStr + ')'; }
     else { freshnessClass = 'fresh-old'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old (' + latestStr + ')'; }
@@ -1219,8 +1216,7 @@ function openChartModal(title, srcCanvas) {
         } else {
           mxTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
         }
-        var mTz = (_modalSource && _modalSource.stationId) ? stationTz(_modalSource.stationId) : undefined;
-        var mAdapters = mTz ? { date: { zone: mTz } } : undefined;
+        var mAdapters = { date: { zone: 'UTC' } };
         return {
           x: { type: 'time', time: mxTime, adapters: mAdapters,
                ticks: { color: '#64748b', font: { size: 11 }, maxTicksLimit: 12 }, grid: { color: '#1e293b' } },
@@ -1374,7 +1370,7 @@ function renderDailyHealth(container, entries, stationId) {
     var de  = byDay[day];
     var dl  = new Date(day + 'T12:00:00Z'); // noon UTC avoids day-boundary shifts
     var tz  = stationId ? stationTz(stationId) : undefined;
-    var dateLabel = dl.toLocaleDateString('en-GB', Object.assign({ day: 'numeric', month: 'short', weekday: 'short' }, tz ? { timeZone: tz } : {}));
+    var dateLabel = dl.toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', weekday: 'short' });
 
     // Battery delta
     function batDelta(arr, key) {
@@ -1442,9 +1438,8 @@ function chartOpts(yLabel, yMin, yMax, range, stationId) {
     xTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
     xMaxTicks = 12;
   }
-  // Station-local timezone for Luxon adapter
-  var tz = stationId ? stationTz(stationId) : undefined;
-  var adapters = tz ? { date: { zone: tz } } : undefined;
+  // UTC timezone for Luxon adapter
+  var adapters = { date: { zone: 'UTC' } };
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -1632,7 +1627,7 @@ async function fetchLiveAll() {
 
   btn.innerHTML = '&#128752; Fetch Live';
   btn.disabled  = false;
-  var ts = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  var ts = new Date().toLocaleTimeString('en-GB', {timeZone:'UTC', hour:'2-digit', minute:'2-digit'}) + ' UTC';
   var newStr = totalNew > 0 ? ' (' + totalNew + ' new)' : ' (up to date)';
   if (errors.length) {
     status.innerHTML = '<span style="color:var(--warning)">' + fetched + ' OK, ' + errors.length + ' failed' + newStr + ' &mdash; ' + ts + '</span>';
@@ -1750,5 +1745,25 @@ async function fetchLiveAll() {
   </div>
 </div>
 
+<script>
+// Ticking UTC clock
+(function() {
+  function tickUTC() {
+    var el = document.getElementById('utcClock');
+    if (!el) return;
+    var now = new Date();
+    var pad = function(n) { return String(n).padStart(2, '0'); };
+    el.textContent =
+      now.getUTCFullYear() + '-' +
+      pad(now.getUTCMonth() + 1) + '-' +
+      pad(now.getUTCDate()) + '  ' +
+      pad(now.getUTCHours()) + ':' +
+      pad(now.getUTCMinutes()) + ':' +
+      pad(now.getUTCSeconds());
+  }
+  tickUTC();
+  setInterval(tickUTC, 1000);
+})();
+</script>
 </body>
 </html>
