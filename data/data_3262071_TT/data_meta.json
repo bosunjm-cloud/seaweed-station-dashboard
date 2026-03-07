@@ -1,7 +1,7 @@
 {
-  "lastUpdate": "2026-03-06T01:43:14.6594569+00:00",
-  "entries": 1507,
-  "lastEntryId": "99",
-  "lastEntryTs": "03/05/2026 17:59:19",
-  "source": "ci"
+  "lastUpdate": "2026-03-07T00:35:02.5517068+00:00",
+  "entries": 58,
+  "lastEntryId": "299",
+  "lastEntryTs": "03/06/2026 18:30:00",
+  "source": "supabase"
 }
