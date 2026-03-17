@@ -35,6 +35,7 @@ $defaultStations = @(
     @{ id = "shangani"; name = "Shangani Aramani";    dataFolder = "data_Shangani" }
     @{ id = "funzi";    name = "Funzi Island";        dataFolder = "data_Funzi" }
     @{ id = "spare";    name = "Spare Station";       dataFolder = "data_spare" }
+    @{ id = "wroom";    name = "Perth WROOM";         dataFolder = "data_WROOM_PTT" }
 )
 
 $cfg = @{
@@ -139,105 +140,50 @@ Write-Host "  Time       : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 Write-Host ""
 
 # ═══════════════════════════════════════════════════════════════════
-# HELPER: Map a Supabase row to ThingSpeak-compatible feed object
+# HELPER: Map a Supabase row to structured feed object (v2)
 # ═══════════════════════════════════════════════════════════════════
-function ConvertTo-ThingSpeakFeed {
+function ConvertTo-StructuredFeed {
     param($row)
 
-    # field1: battery %
-    $f1 = if ($null -ne $row.battery_pct) { [string]$row.battery_pct } else { $null }
-
-    # field2: temp1,hum1,temp2,hum2,temp3,hum3
-    $f2Parts = @(
-        $(if ($null -ne $row.temp_1)     { $row.temp_1 }     else { "" }),
-        $(if ($null -ne $row.humidity_1)  { $row.humidity_1 }  else { "" }),
-        $(if ($null -ne $row.temp_2)     { $row.temp_2 }     else { "" }),
-        $(if ($null -ne $row.humidity_2)  { $row.humidity_2 }  else { "" }),
-        $(if ($null -ne $row.temp_3)     { $row.temp_3 }     else { "" }),
-        $(if ($null -ne $row.humidity_3)  { $row.humidity_3 }  else { "" })
-    )
-    $f2 = $f2Parts -join ","
-
-    # field3: batV,rssi,bootCnt,heap|fwVersion,buildDate
-    $f3Parts = @(
-        $(if ($null -ne $row.battery_v)  { $row.battery_v }  else { "" }),
-        $(if ($null -ne $row.rssi)       { $row.rssi }       else { "" }),
-        $(if ($null -ne $row.boot_count) { $row.boot_count } else { "" }),
-        $(if ($null -ne $row.free_heap)  { $row.free_heap }  else { "" })
-    )
-    $f3 = ($f3Parts -join ",")
-    if ($row.fw_version -or $row.fw_date) {
-        $fwV = if ($row.fw_version) { $row.fw_version } else { "" }
-        $fwD = if ($row.fw_date)    { $row.fw_date }    else { "" }
-        $f3 += "|$fwV,$fwD"
-    }
-
-    # field4: satA status — batV,batPct,rssi,sampleId,flashPct,syncDrift,fwVer
-    $f4Parts = @(
-        $(if ($null -ne $row.sat_a_battery_v)   { $row.sat_a_battery_v }   else { "" }),
-        $(if ($null -ne $row.sat_a_battery_pct)  { $row.sat_a_battery_pct } else { "" }),
-        $(if ($null -ne $row.sat_a_rssi)         { $row.sat_a_rssi }        else { "" }),
-        $(if ($null -ne $row.sat_a_sample_id)    { $row.sat_a_sample_id }   else { "" }),
-        $(if ($null -ne $row.sat_a_flash_pct)    { $row.sat_a_flash_pct }   else { "" }),
-        $(if ($null -ne $row.sat_a_sync_drift)   { $row.sat_a_sync_drift }  else { "" }),
-        $(if ($row.sat_a_fw_ver)                 { $row.sat_a_fw_ver }      else { "" })
-    )
-    $f4 = $f4Parts -join ","
-
-    # field5: satA sensors — temp1,hum1,temp2,hum2
-    $f5Parts = @(
-        $(if ($null -ne $row.sat_a_temp_1)     { $row.sat_a_temp_1 }     else { "" }),
-        $(if ($null -ne $row.sat_a_humidity_1)  { $row.sat_a_humidity_1 }  else { "" }),
-        $(if ($null -ne $row.sat_a_temp_2)     { $row.sat_a_temp_2 }     else { "" }),
-        $(if ($null -ne $row.sat_a_humidity_2)  { $row.sat_a_humidity_2 }  else { "" })
-    )
-    $f5 = $f5Parts -join ","
-
-    # field6: satB status
-    $f6Parts = @(
-        $(if ($null -ne $row.sat_b_battery_v)   { $row.sat_b_battery_v }   else { "" }),
-        $(if ($null -ne $row.sat_b_battery_pct)  { $row.sat_b_battery_pct } else { "" }),
-        $(if ($null -ne $row.sat_b_rssi)         { $row.sat_b_rssi }        else { "" }),
-        $(if ($null -ne $row.sat_b_sample_id)    { $row.sat_b_sample_id }   else { "" }),
-        $(if ($null -ne $row.sat_b_flash_pct)    { $row.sat_b_flash_pct }   else { "" }),
-        $(if ($null -ne $row.sat_b_sync_drift)   { $row.sat_b_sync_drift }  else { "" }),
-        $(if ($row.sat_b_fw_ver)                 { $row.sat_b_fw_ver }      else { "" })
-    )
-    $f6 = $f6Parts -join ","
-
-    # field7: satB sensors
-    $f7Parts = @(
-        $(if ($null -ne $row.sat_b_temp_1)     { $row.sat_b_temp_1 }     else { "" }),
-        $(if ($null -ne $row.sat_b_humidity_1)  { $row.sat_b_humidity_1 }  else { "" }),
-        $(if ($null -ne $row.sat_b_temp_2)     { $row.sat_b_temp_2 }     else { "" }),
-        $(if ($null -ne $row.sat_b_humidity_2)  { $row.sat_b_humidity_2 }  else { "" })
-    )
-    $f7 = $f7Parts -join ","
-
-    # field8: diag|config|fw  (diag section empty — sdFreeKB/csq not in Supabase schema)
-    $configCsv = @(
-        $(if ($null -ne $row.deploy_mode)     { $row.deploy_mode }     else { "" }),
-        $(if ($null -ne $row.sample_period_s) { $row.sample_period_s } else { "" }),
-        $(if ($null -ne $row.bulk_interval_s) { $row.bulk_interval_s } else { "" }),
-        $(if ($null -ne $row.bulk_freq_hours) { $row.bulk_freq_hours } else { "" })
-    ) -join ","
-    $fwCsv = @(
-        $(if ($row.fw_version) { $row.fw_version } else { "" }),
-        $(if ($row.fw_date)    { $row.fw_date }    else { "" })
-    ) -join ","
-    $f8 = "|$configCsv|$fwCsv"
-
     return [ordered]@{
-        created_at = $row.recorded_at
-        entry_id   = $row.id
-        field1     = $f1
-        field2     = $f2
-        field3     = $f3
-        field4     = $f4
-        field5     = $f5
-        field6     = $f6
-        field7     = $f7
-        field8     = $f8
+        created_at       = $row.recorded_at
+        entry_id         = $row.id
+        # T0
+        battery_pct      = $row.battery_pct
+        battery_v        = $row.battery_v
+        boot_count       = $row.boot_count
+        temp_1           = $row.temp_1
+        humidity_1       = $row.humidity_1
+        temp_2           = $row.temp_2
+        humidity_2       = $row.humidity_2
+        # Sat-A
+        sat_a_battery_v   = $row.sat_a_battery_v
+        sat_a_battery_pct = $row.sat_a_battery_pct
+        sat_a_flash_pct   = $row.sat_a_flash_pct
+        sat_a_temp_1      = $row.sat_a_temp_1
+        sat_a_humidity_1  = $row.sat_a_humidity_1
+        sat_a_temp_2      = $row.sat_a_temp_2
+        sat_a_humidity_2  = $row.sat_a_humidity_2
+        # Sat-B
+        sat_b_battery_v   = $row.sat_b_battery_v
+        sat_b_battery_pct = $row.sat_b_battery_pct
+        sat_b_flash_pct   = $row.sat_b_flash_pct
+        sat_b_temp_1      = $row.sat_b_temp_1
+        sat_b_humidity_1  = $row.sat_b_humidity_1
+        sat_b_temp_2      = $row.sat_b_temp_2
+        sat_b_humidity_2  = $row.sat_b_humidity_2
+        # Config
+        deploy_mode          = $row.deploy_mode
+        sample_period_s      = $row.sample_period_s
+        sleep_enable         = $row.sleep_enable
+        espnow_sync_period_s = $row.espnow_sync_period_s
+        sat_a_installed      = $row.sat_a_installed
+        sat_b_installed      = $row.sat_b_installed
+        # Firmware
+        fw_version    = $row.fw_version
+        fw_date       = $row.fw_date
+        sat_a_fw_ver  = $row.sat_a_fw_ver
+        sat_b_fw_ver  = $row.sat_b_fw_ver
     }
 }
 
@@ -317,12 +263,12 @@ foreach ($station in $stations) {
         Write-Host "    [!] Archive write failed: $_" -ForegroundColor Yellow
     }
 
-    # -- Step 3: Build merged_data.js (backward-compatible ThingSpeak format) --
+    # -- Step 3: Build merged_data.js (structured v2 format) --
     Write-Host "    [3/3] Building merged_data.js..."
 
     $feeds = @()
     foreach ($row in $allRows) {
-        $feeds += ConvertTo-ThingSpeakFeed $row
+        $feeds += ConvertTo-StructuredFeed $row
     }
 
     $allSortedFeeds[$station.id] = $feeds
@@ -406,6 +352,7 @@ $weatherLocations = @(
     @{ name = "Perth / Noranda";  lat = -31.87; lon = 115.90; stationKey = "perth" }
     @{ name = "Shangani Aramani"; lat =  -4.55; lon =  39.50; stationKey = "shangani" }
     @{ name = "Funzi Island";     lat =  -4.55; lon =  39.45; stationKey = "funzi" }
+    @{ name = "Perth / Noranda";  lat = -31.87; lon = 115.90; stationKey = "wroom" }
 )
 
 $todayStr    = (Get-Date).ToString("yyyy-MM-dd")

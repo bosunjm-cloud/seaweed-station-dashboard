@@ -15,13 +15,13 @@
 <script src="battery_forecast_widget.js"></script>
 <style>
 /* ======================== THEME ======================== */
-:root{--bg:#0f172a;--bg-card:#1e293b;--bg-card-alt:#1a2332;--bg-hover:#334155;--text:#f1f5f9;--text-sec:#94a3b8;--text-muted:#64748b;--accent:#0ea5e9;--success:#22c55e;--warning:#f59e0b;--danger:#ef4444;--border:#334155;--radius:10px;--shadow:0 4px 12px rgba(0,0,0,.3)}
+:root{--bg:#eef8f5;--bg-card:#ffffff;--bg-card-alt:#f2f8f6;--bg-hover:#e5f2ee;--text:#12362f;--text-sec:#457c72;--text-muted:#6d8f88;--accent:#2f89b7;--success:#1f9d6c;--warning:#d0892d;--danger:#d04f5f;--border:#bfded6;--radius:10px;--shadow:0 4px 14px rgba(25,81,77,.10)}
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5}
+body{background:linear-gradient(180deg,#e8f5f1 0%,#f5fbf9 100%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5}
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 
 /* ======================== HEADER ======================== */
-.header{background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);padding:16px 24px;border-bottom:1px solid var(--border)}
+.header{background:linear-gradient(135deg,#d9f0e9 0%,#dbeef8 100%);padding:16px 24px;border-bottom:1px solid var(--border)}
 .header-top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
 .header h1{font-size:1.35rem;font-weight:700}
 .header h1 span{color:var(--text-muted);font-weight:400;font-size:.85rem;margin-left:8px}
@@ -35,7 +35,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .station-header{background:var(--bg-card);padding:12px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
 .station-header h2{font-size:1.1rem;font-weight:600;display:flex;align-items:center;gap:8px}
 .station-header .freshness{font-size:.75rem;padding:3px 10px;border-radius:12px}
-.fresh-ok{background:#166534;color:#86efac}.fresh-stale{background:#92400e;color:#fcd34d}.fresh-old{background:#991b1b;color:#fca5a5}
+.fresh-ok{background:#dff5eb;color:#1f9d6c}.fresh-stale{background:#fff1dd;color:#d0892d}.fresh-old{background:#ffe4e8;color:#d04f5f}
 .station-body{padding:14px 18px}
 .chevron{font-size:.7rem;transition:transform .3s;color:var(--text-muted)}
 
@@ -57,7 +57,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .chart-box h4{font-size:.78rem;color:var(--text-sec);margin-bottom:6px}
 .chart-box canvas{width:100%!important;height:180px!important}
 /* ======================== CHART EXPAND BUTTON ======================== */
-.chart-expand-btn{position:absolute;top:6px;right:6px;background:rgba(15,23,42,.8);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;opacity:0;transition:opacity .15s,color .15s;z-index:2;line-height:1;padding:0}
+.chart-expand-btn{position:absolute;top:6px;right:6px;background:rgba(255,255,255,.92);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;opacity:0;transition:opacity .15s,color .15s;z-index:2;line-height:1;padding:0}
 .chart-box:hover .chart-expand-btn,.chart-box-full:hover .chart-expand-btn{opacity:1}
 .chart-expand-btn:hover{color:var(--accent)!important;border-color:var(--accent)}
 /* ======================== CHART EXPAND MODAL ======================== */
@@ -77,7 +77,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .health-table-wrap{overflow-x:auto;margin-bottom:14px}
 .health-table{width:100%;border-collapse:collapse;font-size:.78rem}
 .health-table th{background:var(--bg-card);color:var(--text-sec);padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
-.health-table td{padding:5px 8px;border-bottom:1px solid #1e293b;white-space:nowrap}
+.health-table td{padding:5px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
 .health-table tr:hover{background:var(--bg-hover)}
 
 /* ======================== CHART TIME RANGE CONTROLS ======================== */
@@ -98,7 +98,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .fc-config-table-wrap{overflow-x:auto}
 .fc-config-table{width:100%;border-collapse:collapse;font-size:.75rem}
 .fc-config-table th{background:var(--bg-card);color:var(--text-muted);padding:5px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
-.fc-config-table td{padding:4px 8px;border-bottom:1px solid #1e293b;white-space:nowrap}
+.fc-config-table td{padding:4px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
 .fc-config-table tr:hover{background:var(--bg-hover)}
 
 
@@ -134,7 +134,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 
 /* ======================== DATA SOURCE BADGE ======================== */
 .data-src{font-size:.68rem;padding:2px 8px;border-radius:10px;margin-left:6px;font-weight:500;letter-spacing:.02em}
-.src-live{background:#064e3b;color:#6ee7b7}.src-ci{background:#1e3a5f;color:#93c5fd}.src-cache{background:#78350f;color:#fcd34d}.src-none{background:#3f3f46;color:#a1a1aa}
+.src-live{background:#dff5eb;color:#1f9d6c}.src-ci{background:#e1eff8;color:#2f89b7}.src-cache{background:#fff1dd;color:#d0892d}.src-none{background:#eef8f5;color:#6d8f88}
 /* ======================== UTC CLOCK ======================== */
 .utc-clock-bar{font-size:.78rem;color:var(--text-muted);padding-top:7px;letter-spacing:.03em}
 .utc-clock-bar .utc-val{color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.06em}
@@ -177,29 +177,29 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
     <div class="chart-header">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <h3>&#128267; Battery Forecast</h3>
-        <span style="font-size:11px;color:#64748b;">Station:</span>
-        <select id="fcStationSelect" onchange="switchForecastStation(this.value)" style="background:#0f172a;border:1px solid #334155;border-radius:4px;color:#94a3b8;font-size:11px;padding:3px 8px;cursor:pointer;">
+        <span style="font-size:11px;color:var(--text-muted);">Station:</span>
+        <select id="fcStationSelect" onchange="switchForecastStation(this.value)" style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text-sec);font-size:11px;padding:3px 8px;cursor:pointer;">
           <option value="perth">Perth TT</option>
           <option value="shangani">Shangani</option>
           <option value="funzi">Funzi</option>
           <option value="spare">Spare</option>
         </select>
-        <span style="font-size:11px;color:#64748b;">From</span>
-        <input type="date" id="fcStartDate" style="background:#0f172a;border:1px solid #334155;border-radius:4px;color:#94a3b8;font-size:11px;padding:2px 6px;cursor:pointer;">
+        <span style="font-size:11px;color:var(--text-muted);">From</span>
+        <input type="date" id="fcStartDate" style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text-sec);font-size:11px;padding:2px 6px;cursor:pointer;">
       </div>
       <div class="time-btns">
         <button class="btn btn-sm" data-fcrange="day">Day</button>
         <button class="btn btn-sm active" data-fcrange="week">Week</button>
         <button class="btn btn-sm" data-fcrange="month">Month</button>
         <button class="btn btn-sm" data-fcrange="all">All</button>
-        <span style="border-left:1px solid #334155;margin:0 8px;height:20px;display:inline-block"></span>
+        <span style="border-left:1px solid var(--border);margin:0 8px;height:20px;display:inline-block"></span>
         <button class="btn btn-sm active" id="fcAnchorAuto" title="Re-anchor prediction from latest reading">Auto</button>
         <button class="btn btn-sm" id="fcAnchorLock" title="Lock anchor &mdash; click chart to pick point.">&#128204; Lock</button>
       </div>
     </div>
-    <div class="chart-subhead">Solid = actual &nbsp;&bull;&nbsp; Dashed = calculated &nbsp;&bull;&nbsp; Light dashed = trend &nbsp;&bull;&nbsp; Red dashed = config change &nbsp;&bull;&nbsp; Click chart in Lock mode to set anchor &nbsp;&bull;&nbsp; Scroll to zoom</div>
+    <div class="chart-subhead">Solid = actual &nbsp;&bull;&nbsp; Dashed = modelled &nbsp;&bull;&nbsp; Light dashed = trend &nbsp;&bull;&nbsp; Red dashed = config change &nbsp;&bull;&nbsp; Click chart in Lock mode to set anchor &nbsp;&bull;&nbsp; Scroll to zoom</div>
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-      <span style="font-size:.72rem;color:#64748b;">Trend window:</span>
+      <span style="font-size:.72rem;color:var(--text-muted);">Trend window:</span>
       <button class="btn btn-sm active" data-fctrend="auto">Auto</button>
       <button class="btn btn-sm" data-fctrend="48 h">48 h</button>
       <button class="btn btn-sm" data-fctrend="5 d">5 d</button>
@@ -305,6 +305,35 @@ function lttbDownsample(data, maxPts) {
 }
 
 var stationData = {}; // { stationId: { entries: [], raw: {} } }
+var _stationDiag = {}; // v2: { stationId: { upload: <row>, sync: { A: <row>, B: <row> } } }
+
+function latestInstalledFlag(entries, key) {
+  if (!entries || !entries.length) return null;
+  for (var i = entries.length - 1; i >= 0; i--) {
+    if (entries[i][key] === true || entries[i][key] === false) return entries[i][key];
+  }
+  return null;
+}
+
+function hasSatelliteSignals(entries, node) {
+  if (!entries || !entries.length) return false;
+  var keys = node === 'A'
+    ? ['satABatV', 'satABatPct', 'satATemp1', 'satATemp2', 'satAHum1', 'satAHum2', 'satASampleId']
+    : ['satBBatV', 'satBBatPct', 'satBTemp1', 'satBTemp2', 'satBHum1', 'satBHum2', 'satBSampleId'];
+  return entries.some(function(e) {
+    for (var i = 0; i < keys.length; i++) {
+      if (e[keys[i]] !== null && e[keys[i]] !== undefined) return true;
+    }
+    return false;
+  });
+}
+
+function isSatelliteInstalled(entries, node) {
+  var key = node === 'A' ? 'satAInstalled' : 'satBInstalled';
+  var explicit = latestInstalledFlag(entries, key);
+  if (explicit === true || explicit === false) return explicit;
+  return hasSatelliteSignals(entries, node);
+}
 
 // Parse gateway station data (T0 + SatA + SatB)
 function parseStationData(raw, station) {
@@ -399,10 +428,21 @@ function parseStationData(raw, station) {
       entry.t0BuildDate = f3fw[1] ? f3fw[1].trim() : null;
     }
 
+    var cfg = parseField8ConfigUnified(f.field8 || '');
+    entry.satAInstalled = cfg && typeof cfg.satAInstalled === 'boolean'
+      ? cfg.satAInstalled
+      : (entry.satABatV !== null || entry.satATemp1 !== null || entry.satATemp2 !== null);
+    entry.satBInstalled = cfg && typeof cfg.satBInstalled === 'boolean'
+      ? cfg.satBInstalled
+      : (entry.satBBatV !== null || entry.satBTemp1 !== null || entry.satBTemp2 !== null);
+
     entries.push(entry);
   }
 
   entries.sort(function(a,b) { return a.timestamp - b.timestamp; });
+  if (typeof filterEntryArrayByResetWindow === 'function') {
+    entries = filterEntryArrayByResetWindow(station.id, entries);
+  }
   return { entries: entries, raw: raw };
 }
 
@@ -421,6 +461,9 @@ function getCachedStationData(stationId) {
         return entry.timestamp && !isNaN(entry.timestamp.getTime());
       })
       .sort(function(a, b) { return a.timestamp - b.timestamp; });
+    if (typeof filterEntryArrayByResetWindow === 'function') {
+      entries = filterEntryArrayByResetWindow(stationId, entries);
+    }
     if (!entries.length) return null;
     return { entries: entries, raw: null, source: 'cache', savedAt: cached.savedAt || null };
   } catch (e) {
@@ -433,14 +476,7 @@ function getCachedStationData(stationId) {
 // Key: seaweed_cache_<stationId>  Shape: { allEntries, savedAt }
 // ============================================================
 function saveCacheData(stationId, entries) {
-  try {
-    localStorage.setItem('seaweed_cache_' + stationId, JSON.stringify({
-      allEntries: entries,
-      savedAt:    Date.now()
-    }));
-  } catch (e) {
-    console.warn('[Health] Could not save cache for ' + stationId + ':', e.message);
-  }
+  saveStationCache(stationId, entries, { source: 'live' });
 }
 
 // ============================================================
@@ -490,14 +526,14 @@ function renderStationSection(station, data) {
   var e = data.entries;
   var hasData = e.length > 0;
 
-  // Freshness
+  // Freshness bands: online <=24h, stale 24-48h, offline >48h.
   var freshnessClass = 'fresh-old', freshnessText = 'No data';
   if (hasData) {
     var ageHrs = Math.abs(Date.now() - e[e.length-1].timestamp.getTime()) / 3600000;
     var latestStr = e[e.length-1].timestamp.toLocaleString('en-GB', { timeZone:'UTC', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) + ' UTC';
-    if (ageHrs < 2) { freshnessClass = 'fresh-ok'; freshnessText = 'Fresh (' + timeAgo(e[e.length-1].timestamp) + ', ' + latestStr + ')'; }
-    else if (ageHrs < 24) { freshnessClass = 'fresh-stale'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old (' + latestStr + ')'; }
-    else { freshnessClass = 'fresh-old'; freshnessText = timeAgo(e[e.length-1].timestamp) + ' old (' + latestStr + ')'; }
+    if (ageHrs <= 24) { freshnessClass = 'fresh-ok'; freshnessText = 'Online (' + timeAgo(e[e.length-1].timestamp) + ', ' + latestStr + ')'; }
+    else if (ageHrs <= 48) { freshnessClass = 'fresh-stale'; freshnessText = 'Stale (' + timeAgo(e[e.length-1].timestamp) + ', ' + latestStr + ')'; }
+    else { freshnessClass = 'fresh-old'; freshnessText = 'Offline (' + timeAgo(e[e.length-1].timestamp) + ', ' + latestStr + ')'; }
   }
 
   // Data source badge
@@ -656,6 +692,8 @@ function setStationRange(stationId, range) {
 function renderSummaryCards(container, entries, stationId) {
   var e = entries;
   var latest = e[e.length - 1];
+  var satAEnabled = isSatelliteInstalled(e, 'A');
+  var satBEnabled = isSatelliteInstalled(e, 'B');
 
   function lastWith(key) {
     for (var i = e.length - 1; i >= 0; i--) { if (e[i][key] !== null) return e[i]; }
@@ -680,22 +718,36 @@ function renderSummaryCards(container, entries, stationId) {
 
   // Firmware strings
   var t0Fw  = (t0  && t0.t0FwVersion)   ? 'v' + t0.t0FwVersion + (t0.t0BuildDate ? ' (' + t0.t0BuildDate + ')' : '') : '--';
-  var satAFw = (satA && satA.satAFwVersion) ? 'v' + satA.satAFwVersion : '--';
-  var satBFw = (satB && satB.satBFwVersion) ? 'v' + satB.satBFwVersion : '--';
+
+  // v2: satellite FW and RSSI/drift now come from sync_sessions
+  var diag = _stationDiag[stationId] || { upload: null, sync: {} };
+  var syncA = diag.sync && diag.sync.A ? diag.sync.A : null;
+  var syncB = diag.sync && diag.sync.B ? diag.sync.B : null;
+  var ulSess = diag.upload || null;
+
+  var satAFw = syncA && syncA.sat_fw_ver ? 'v' + syncA.sat_fw_ver : '--';
+  var satBFw = syncB && syncB.sat_fw_ver ? 'v' + syncB.sat_fw_ver : '--';
 
   // Sync rates (24h) based on expected sync windows (default 3h cadence)
+  // v2: satASampleId is no longer in sensor_readings view;
+  // fallback to satABatV presence (LATERAL join → non-null when sat data present)
   var cutoff24h = latest.timestamp.getTime() - 24 * 3600000;
   // Cache sync window evaluations per station (reused by renderSyncCharts)
   var cacheKey = stationId + '_24h';
   if (!_syncWindowCache[cacheKey]) {
     _syncWindowCache[cacheKey] = {
-      satA: evaluateSyncWindows(e, 'satASampleId', 'satABatV', cutoff24h, latest.timestamp.getTime(), 3 * 3600000, 'satAInstalled'),
-      satB: evaluateSyncWindows(e, 'satBSampleId', 'satBBatV', cutoff24h, latest.timestamp.getTime(), 3 * 3600000, 'satBInstalled')
+      satA: satAEnabled
+        ? evaluateSyncWindows(e, 'satASampleId', 'satABatV', cutoff24h, latest.timestamp.getTime(), 3 * 3600000, 'satAInstalled')
+        : { synced: 0, missed: 0, total: 0, slots: [] },
+      satB: satBEnabled
+        ? evaluateSyncWindows(e, 'satBSampleId', 'satBBatV', cutoff24h, latest.timestamp.getTime(), 3 * 3600000, 'satBInstalled')
+        : { synced: 0, missed: 0, total: 0, slots: [] }
     };
   }
   var satA24 = _syncWindowCache[cacheKey].satA;
   var satB24 = _syncWindowCache[cacheKey].satB;
   function syncPctStr(stats) {
+    if (!stats || !stats.total) return '--';
     var total = stats.total || 1;
     var n = stats.synced;
     var p = (n / total * 100);
@@ -703,34 +755,20 @@ function renderSummaryCards(container, entries, stationId) {
     return '<span style="color:' + color + '">' + p.toFixed(0) + '%</span> (' + n + '/' + total + ')';
   }
 
-  // Returns { last: <drift_s|null>, stale: <bool> }
-  // stale = no new sync event has appeared within 1.5× the estimated sync period
-  function satDriftInfo(sampleIdKey, driftKey) {
-    var syncEvents = [];
-    var lastSampleId = null;
-    for (var i = 0; i < e.length; i++) {
-      var sid = e[i][sampleIdKey];
-      if (sid === null) continue;
-      if (lastSampleId === null || sid !== lastSampleId) {
-        syncEvents.push({ timestamp: e[i].timestamp, drift: e[i][driftKey] });
-        lastSampleId = sid;
-      }
-    }
-    if (!syncEvents.length) return { last: null, stale: true };
-    var lastEv = syncEvents[syncEvents.length - 1];
+  // v2: drift sourced from latest sync_sessions row per node
+  function syncSessionDrift(sess) {
+    if (!sess || sess.sat_drift_s === null || sess.sat_drift_s === undefined) return { last: null, stale: true };
+    var sessTime = sess.sync_started_at ? new Date(ensureUTC(sess.sync_started_at)) : null;
     var stale = false;
-    if (syncEvents.length >= 2) {
-      var periodMs = lastEv.timestamp.getTime() - syncEvents[syncEvents.length - 2].timestamp.getTime();
-      if (periodMs > 0) {
-        var ageMs = latest.timestamp.getTime() - lastEv.timestamp.getTime();
-        stale = ageMs > periodMs * 1.5;
-      }
+    if (sessTime && !isNaN(sessTime.getTime())) {
+      var ageMs = Date.now() - sessTime.getTime();
+      stale = ageMs > 6 * 3600000; // stale if > 6h old
     }
-    return { last: lastEv.drift, stale: stale };
+    return { last: sess.sat_drift_s, stale: stale };
   }
 
-  var driftA = satDriftInfo('satASampleId', 'satASyncDrift');
-  var driftB = satDriftInfo('satBSampleId', 'satBSyncDrift');
+  var driftA = syncSessionDrift(syncA);
+  var driftB = syncSessionDrift(syncB);
 
   function driftStr(v) {
     if (v === null) return '--';
@@ -751,40 +789,47 @@ function renderSummaryCards(container, entries, stationId) {
     return val.toFixed(decimals) + (suffix || '');
   }
 
+  var satACard = satAEnabled
+    ? '<div class="sum-card">' +
+      '<h4>Satellite A</h4>' +
+      '<div class="sum-val" style="color:' + batColor(satA ? satA.satABatPct : null) + '">' + (satA ? safeFixed(satA.satABatPct, 0, '%') : '--') + '</div>' +
+      '<div class="sum-sub">Voltage: ' + (satA ? safeFixed(satA.satABatV, 2, 'V') : '--') + ' &nbsp; RSSI: ' + (syncA && syncA.sat_rssi_avg !== null ? syncA.sat_rssi_avg : '--') + '</div>' +
+      '<div class="sum-sub">24h \u0394: ' + drain24('satABatPct') + '</div>' +
+      '<div class="sum-sub">Sync (24h): ' + syncPctStr(satA24) + '</div>' +
+      '<div class="sum-sub">Drift: ' + driftCardLine(driftA) + '</div>' +
+      '<div class="sum-sub" style="margin-top:4px;color:var(--accent)">FW: ' + satAFw + '</div>' +
+    '</div>'
+    : '';
+
+  var satBCard = satBEnabled
+    ? '<div class="sum-card">' +
+      '<h4>Satellite B</h4>' +
+      '<div class="sum-val" style="color:' + batColor(satB ? satB.satBBatPct : null) + '">' + (satB ? safeFixed(satB.satBBatPct, 0, '%') : '--') + '</div>' +
+      '<div class="sum-sub">Voltage: ' + (satB ? safeFixed(satB.satBBatV, 2, 'V') : '--') + ' &nbsp; RSSI: ' + (syncB && syncB.sat_rssi_avg !== null ? syncB.sat_rssi_avg : '--') + '</div>' +
+      '<div class="sum-sub">24h \u0394: ' + drain24('satBBatPct') + '</div>' +
+      '<div class="sum-sub">Sync (24h): ' + syncPctStr(satB24) + '</div>' +
+      '<div class="sum-sub">Drift: ' + driftCardLine(driftB) + '</div>' +
+      '<div class="sum-sub" style="margin-top:4px;color:var(--accent)">FW: ' + satBFw + '</div>' +
+    '</div>'
+    : '';
+
   row.innerHTML =
     '<div class="sum-card">' +
       '<h4>T0 Gateway</h4>' +
       '<div class="sum-val" style="color:' + batColor(t0 ? t0.t0BatPct : null) + '">' + (t0 ? safeFixed(t0.t0BatPct, 0, '%') : '--') + '</div>' +
       '<div class="sum-sub">Voltage: ' + (t0 ? safeFixed(t0.t0BatV, 2, 'V') : '--') + '</div>' +
       '<div class="sum-sub">24h \u0394: ' + drain24('t0BatPct') + '</div>' +
-      '<div class="sum-sub">RSSI: ' + (t0 && t0.t0Rssi !== null ? t0.t0Rssi + ' dBm' : '--') + '</div>' +
       '<div class="sum-sub">Boot: ' + (t0 && t0.t0Boot !== null ? '#' + t0.t0Boot : '--') +
-        ' &nbsp; Heap: ' + (t0 && t0.t0Heap !== null ? (t0.t0Heap/1024).toFixed(0) + ' KB' : '--') + '</div>' +
+        ' &nbsp; Heap: ' + (ulSess && ulSess.free_heap !== null ? (ulSess.free_heap/1024).toFixed(0) + ' KB' : '--') + '</div>' +
       '<div class="sum-sub" style="margin-top:4px;color:var(--accent)">FW: ' + t0Fw + '</div>' +
     '</div>' +
-    '<div class="sum-card">' +
-      '<h4>Satellite A</h4>' +
-      '<div class="sum-val" style="color:' + batColor(satA ? satA.satABatPct : null) + '">' + (satA ? safeFixed(satA.satABatPct, 0, '%') : '--') + '</div>' +
-      '<div class="sum-sub">Voltage: ' + (satA ? safeFixed(satA.satABatV, 2, 'V') : '--') + ' &nbsp; RSSI: ' + (satA && satA.satARssi !== null ? satA.satARssi : '--') + '</div>' +
-      '<div class="sum-sub">24h \u0394: ' + drain24('satABatPct') + '</div>' +
-      '<div class="sum-sub">Sync (24h): ' + syncPctStr(satA24) + '</div>' +
-      '<div class="sum-sub">Drift: ' + driftCardLine(driftA) + '</div>' +
-      '<div class="sum-sub" style="margin-top:4px;color:var(--accent)">FW: ' + satAFw + '</div>' +
-    '</div>' +
-    '<div class="sum-card">' +
-      '<h4>Satellite B</h4>' +
-      '<div class="sum-val" style="color:' + batColor(satB ? satB.satBBatPct : null) + '">' + (satB ? safeFixed(satB.satBBatPct, 0, '%') : '--') + '</div>' +
-      '<div class="sum-sub">Voltage: ' + (satB ? safeFixed(satB.satBBatV, 2, 'V') : '--') + ' &nbsp; RSSI: ' + (satB && satB.satBRssi !== null ? satB.satBRssi : '--') + '</div>' +
-      '<div class="sum-sub">24h \u0394: ' + drain24('satBBatPct') + '</div>' +
-      '<div class="sum-sub">Sync (24h): ' + syncPctStr(satB24) + '</div>' +
-      '<div class="sum-sub">Drift: ' + driftCardLine(driftB) + '</div>' +
-      '<div class="sum-sub" style="margin-top:4px;color:var(--accent)">FW: ' + satBFw + '</div>' +
-    '</div>' +
+    satACard +
+    satBCard +
     '<div class="sum-card">' +
       '<h4>System</h4>' +
-      '<div class="sum-val">' + (latest.sdFreeKB !== null ? formatKB(latest.sdFreeKB) : '--') + '</div>' +
-      '<div class="sum-sub">SD Free &nbsp;|&nbsp; CSQ: ' + (latest.csq !== null ? latest.csq : '--') + '</div>' +
-      '<div class="sum-sub">Upload OK: ' + (latest.uploadOk !== null ? (latest.uploadOk ? '\u2705' : '\u274C') : '--') + '</div>' +
+      '<div class="sum-val">' + (ulSess && ulSess.sd_free_kb !== null ? formatKB(ulSess.sd_free_kb) : '--') + '</div>' +
+      '<div class="sum-sub">SD Free &nbsp;|&nbsp; CSQ: ' + (ulSess && ulSess.csq !== null ? ulSess.csq : '--') + '</div>' +
+      '<div class="sum-sub">Upload: ' + (ulSess ? (ulSess.status === 'ok' ? '\u2705' : '\u274C') + ' ' + (ulSess.transport || '') : '--') + '</div>' +
       '<div class="sum-sub">Entries: ' + e.length.toLocaleString() + '</div>' +
       '<div class="sum-sub">Last upload: ' + timeAgo(latest.timestamp) + ' ago</div>' +
     '</div>';
@@ -794,8 +839,9 @@ function renderSummaryCards(container, entries, stationId) {
 
 function batColor(pct) {
   if (pct === null) return 'var(--text-muted)';
-  if (pct > 50) return 'var(--success)';
-  if (pct > 20) return 'var(--warning)';
+  if (pct > 80) return 'var(--success)';
+  if (pct < 30) return 'var(--danger)';
+  if (pct <= 80) return 'var(--warning)';
   return 'var(--danger)';
 }
 
@@ -806,6 +852,7 @@ function batColor(pct) {
 // ============================================================
 function renderBatteryCharts(container, entries, stationId, range) {
   if (!entries || !entries.length) return;
+  var satBEnabled = isSatelliteInstalled(entries, 'B');
   var row = document.createElement('div');
   row.className = 'chart-row';
 
@@ -832,23 +879,80 @@ function renderBatteryCharts(container, entries, stationId, range) {
       borderColor: color, backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false };
   }
 
+  function makeCalculatedT0VoltageDS(data) {
+    if (typeof BatteryModel === 'undefined' || !BatteryModel.calcT0Daily || !BatteryModel.projectVoltageCurve) return null;
+    var latest = data[data.length - 1];
+    if (!latest || latest.t0BatPct === null) return null;
+
+    var cfg = null;
+    if (latest._rawField8 && BatteryModel.parseField8Config) {
+      cfg = BatteryModel.parseField8Config(latest._rawField8);
+    }
+    if (!cfg) {
+      cfg = {
+        deployMode: 1,
+        sleepEnable: true,
+        samplePeriod_s: 600,
+        tsBulkInterval_s: 900,
+        tsBulkFreqHours: 24,
+        espnowSyncPeriod_s: 10800,
+        satAInstalled: true,
+        satBInstalled: true,
+      };
+    }
+
+    var est = BatteryModel.calcT0Daily(cfg);
+    var curve = BatteryModel.projectVoltageCurve(
+      latest.t0BatPct,
+      latest.timestamp,
+      est.dailyTotal_mAh,
+      est.batteryCapacity,
+      est.derating,
+      {
+        boardKind: 't0',
+        fullV: 4.2,
+        cutoffV: 3.3,
+        maxDays: Math.max(7, Math.min(180, Math.ceil(est.lifetimeDays || 30)))
+      }
+    );
+    if (!curve || !curve.length) return null;
+
+    return {
+      label: 'T0 Model',
+      data: curve.map(function(p) { return { x: p.time, y: p.voltage }; }),
+      borderColor: '#f87171',
+      backgroundColor: 'transparent',
+      borderWidth: 1.8,
+      borderDash: [6, 4],
+      pointRadius: 0,
+      tension: 0.25,
+      fill: false,
+    };
+  }
+
   makeLiveChart(batBox, batCanvas, 'Battery % \u2013 ' + rangeLabel(range), {
     type: 'line',
-    data: { datasets: [
-      makeDS(entries, 't0BatPct', 'T0', '#3b82f6'),
-      makeDS(entries, 'satABatPct', 'Sat-A', '#10b981'),
-      makeDS(entries, 'satBBatPct', 'Sat-B', '#f59e0b'),
-    ]},
+    data: { datasets: (function() {
+      var ds = [
+        makeDS(entries, 't0BatPct', 'T0', '#3b82f6'),
+        makeDS(entries, 'satABatPct', 'Sat-A', '#10b981')
+      ];
+      if (satBEnabled) ds.push(makeDS(entries, 'satBBatPct', 'Sat-B', '#f59e0b'));
+      return ds;
+    })()},
     options: chartOpts('Battery (%)', 0, 100, range, stationId),
   }, { stationId: stationId, chartKey: 'battery_pct' });
 
   makeLiveChart(voltBox, voltCanvas, 'Battery Voltage \u2013 ' + rangeLabel(range), {
+    data: { datasets: (function() {
+      var ds = [
+        makeDS(entries, 't0BatV', 'T0', '#60a5fa'),
+        makeDS(entries, 'satABatV', 'Sat-A', '#34d399'),
+      ];
+      if (satBEnabled) ds.push(makeDS(entries, 'satBBatV', 'Sat-B', '#fbbf24'));
+      return ds;
+    })()},
     type: 'line',
-    data: { datasets: [
-      makeDS(entries, 't0BatV', 'T0', '#60a5fa'),
-      makeDS(entries, 'satABatV', 'Sat-A', '#34d399'),
-      makeDS(entries, 'satBBatV', 'Sat-B', '#fbbf24'),
-    ]},
     options: chartOpts('Voltage (V)', 2.5, 4.5, range, stationId),
   }, { stationId: stationId, chartKey: 'battery_voltage' });
 }
@@ -859,11 +963,19 @@ function renderBatteryCharts(container, entries, stationId, range) {
 // ============================================================
 function renderSyncCharts(container, entries, stationId, range) {
   if (!entries || !entries.length) return;
+  var satAEnabled = isSatelliteInstalled(entries, 'A');
+  var satBEnabled = isSatelliteInstalled(entries, 'B');
   // Check if any sync/RSSI data exists
-  var hasDrift = entries.some(function(e) { return e.satASyncDrift !== null || e.satBSyncDrift !== null; });
+  var hasDrift = entries.some(function(e) {
+    return (satAEnabled && e.satASyncDrift !== null) || (satBEnabled && e.satBSyncDrift !== null);
+  });
   var hasSystemDrift = entries.some(function(e) { return e.syncDrift !== null; });
-  var hasRssi  = entries.some(function(e) { return (e.satARssi !== null && e.satARssi !== 0) || (e.satBRssi !== null && e.satBRssi !== 0); });
-  var hasSyncData = entries.some(function(e) { return e.satABatV !== null || e.satBBatV !== null; });
+  var hasRssi  = entries.some(function(e) {
+    return (satAEnabled && e.satARssi !== null && e.satARssi !== 0) || (satBEnabled && e.satBRssi !== null && e.satBRssi !== 0);
+  });
+  var hasSyncData = entries.some(function(e) {
+    return (satAEnabled && e.satABatV !== null) || (satBEnabled && e.satBBatV !== null);
+  });
   if (!hasDrift && !hasSystemDrift && !hasRssi && !hasSyncData) return;
 
   if (hasSyncData) {
@@ -889,8 +1001,12 @@ function renderSyncCharts(container, entries, stationId, range) {
     var syncRangeCacheKey = stationId + '_sync_' + range;
     if (!_syncWindowCache[syncRangeCacheKey]) {
       _syncWindowCache[syncRangeCacheKey] = {
-        satA: evaluateSyncWindows(entries, 'satASampleId', 'satABatV', rangeStartMs, rangeEndMs, 3 * 3600000, 'satAInstalled'),
-        satB: evaluateSyncWindows(entries, 'satBSampleId', 'satBBatV', rangeStartMs, rangeEndMs, 3 * 3600000, 'satBInstalled')
+        satA: satAEnabled
+          ? evaluateSyncWindows(entries, 'satASampleId', 'satABatV', rangeStartMs, rangeEndMs, 3 * 3600000, 'satAInstalled')
+          : { synced: 0, missed: 0, total: 0, slots: [] },
+        satB: satBEnabled
+          ? evaluateSyncWindows(entries, 'satBSampleId', 'satBBatV', rangeStartMs, rangeEndMs, 3 * 3600000, 'satBInstalled')
+          : { synced: 0, missed: 0, total: 0, slots: [] }
       };
     }
     var satAWindowEval = _syncWindowCache[syncRangeCacheKey].satA;
@@ -919,12 +1035,14 @@ function renderSyncCharts(container, entries, stationId, range) {
         byBucket[idx].satATotal++;
         if (slot.hit) byBucket[idx].satA++;
       });
-      satBWindowEval.slots.forEach(function(slot) {
-        var idx = Math.floor((slot.ts - windowStart) / 3600000);
-        if (idx < 0 || idx > 23) return;
-        byBucket[idx].satBTotal++;
-        if (slot.hit) byBucket[idx].satB++;
-      });
+      if (satBEnabled) {
+        satBWindowEval.slots.forEach(function(slot) {
+          var idx = Math.floor((slot.ts - windowStart) / 3600000);
+          if (idx < 0 || idx > 23) return;
+          byBucket[idx].satBTotal++;
+          if (slot.hit) byBucket[idx].satB++;
+        });
+      }
     } else {
       var dayStart = new Date(rangeStartMs); dayStart.setHours(0, 0, 0, 0);
       var dayEnd = new Date(rangeEndMs); dayEnd.setHours(0, 0, 0, 0);
@@ -939,12 +1057,14 @@ function renderSyncCharts(container, entries, stationId, range) {
         byBucket[k].satATotal++;
         if (slot.hit) byBucket[k].satA++;
       });
-      satBWindowEval.slots.forEach(function(slot) {
-        var k = keyFromTs(slot.ts);
-        if (!byBucket[k]) byBucket[k] = { satATotal: 0, satA: 0, satBTotal: 0, satB: 0 };
-        byBucket[k].satBTotal++;
-        if (slot.hit) byBucket[k].satB++;
-      });
+      if (satBEnabled) {
+        satBWindowEval.slots.forEach(function(slot) {
+          var k = keyFromTs(slot.ts);
+          if (!byBucket[k]) byBucket[k] = { satATotal: 0, satA: 0, satBTotal: 0, satB: 0 };
+          byBucket[k].satBTotal++;
+          if (slot.hit) byBucket[k].satB++;
+        });
+      }
 
       bucketKeys = Object.keys(byBucket).sort();
       labels = bucketKeys.map(function(k) {
@@ -958,12 +1078,17 @@ function renderSyncCharts(container, entries, stationId, range) {
       type: 'bar',
       data: {
         labels: labels,
-        datasets: [
-          { label: 'Sat-A Synced', data: bucketKeys.map(function(k) { return byBucket[k].satA; }), backgroundColor: '#22c55e99', stack: 'a' },
-          { label: 'Sat-A Missed', data: bucketKeys.map(function(k) { return byBucket[k].satATotal - byBucket[k].satA; }), backgroundColor: '#ef444466', stack: 'a' },
-          { label: 'Sat-B Synced', data: bucketKeys.map(function(k) { return byBucket[k].satB; }), backgroundColor: '#3b82f699', stack: 'b' },
-          { label: 'Sat-B Missed', data: bucketKeys.map(function(k) { return byBucket[k].satBTotal - byBucket[k].satB; }), backgroundColor: '#f59e0b66', stack: 'b' },
-        ]
+        datasets: (function() {
+          var ds = [
+            { label: 'Sat-A Synced', data: bucketKeys.map(function(k) { return byBucket[k].satA; }), backgroundColor: '#22c55e99', stack: 'a' },
+            { label: 'Sat-A Missed', data: bucketKeys.map(function(k) { return byBucket[k].satATotal - byBucket[k].satA; }), backgroundColor: '#ef444466', stack: 'a' }
+          ];
+          if (satBEnabled) {
+            ds.push({ label: 'Sat-B Synced', data: bucketKeys.map(function(k) { return byBucket[k].satB; }), backgroundColor: '#3b82f699', stack: 'b' });
+            ds.push({ label: 'Sat-B Missed', data: bucketKeys.map(function(k) { return byBucket[k].satBTotal - byBucket[k].satB; }), backgroundColor: '#f59e0b66', stack: 'b' });
+          }
+          return ds;
+        })()
       },
       options: {
         responsive: true,
@@ -1048,7 +1173,7 @@ function renderSyncCharts(container, entries, stationId, range) {
         satALastDriftTs = tsMs;
       }
     }
-    if (e.satBSyncDrift !== null) {
+    if (satBEnabled && e.satBSyncDrift !== null) {
       var emitSatBDrift = satBNewSync || satBLastDrift === null || e.satBSyncDrift !== satBLastDrift || satBLastDriftTs === null || (tsMs - satBLastDriftTs >= MAX_POINT_GAP_MS);
       if (emitSatBDrift) {
         satBDriftSeries.push({ x: e.timestamp, y: e.satBSyncDrift });
@@ -1079,7 +1204,7 @@ function renderSyncCharts(container, entries, stationId, range) {
         satALastRssiTs = tsMs;
       }
     }
-    if (e.satBRssi !== null && e.satBRssi !== 0) {
+    if (satBEnabled && e.satBRssi !== null && e.satBRssi !== 0) {
       var emitSatBRssi = satBNewSync || satBLastRssi === null || e.satBRssi !== satBLastRssi || satBLastRssiTs === null || (tsMs - satBLastRssiTs >= MAX_POINT_GAP_MS);
       if (emitSatBRssi) {
         satBRssiSeries.push({ x: e.timestamp, y: e.satBRssi });
@@ -1107,7 +1232,7 @@ function renderSyncCharts(container, entries, stationId, range) {
     dOpts.scales.y.ticks = { callback: function(v) { return (v>=0?'+':'')+v+'s'; }, color: '#94a3b8', font: { size: 10 } };
     var driftDatasets = [];
     if (satADriftSeries.length) driftDatasets.push(makeSeriesDS(lttbDownsample(satADriftSeries), 'Sat-A Drift', '#22c55e'));
-    if (satBDriftSeries.length) driftDatasets.push(makeSeriesDS(lttbDownsample(satBDriftSeries), 'Sat-B Drift', '#3b82f6'));
+    if (satBEnabled && satBDriftSeries.length) driftDatasets.push(makeSeriesDS(lttbDownsample(satBDriftSeries), 'Sat-B Drift', '#3b82f6'));
     if (sysDriftSeries.length) { var _sdDS = makeSeriesDS(lttbDownsample(sysDriftSeries), 'Cell Clock Correction', '#f59e0b'); _sdDS.stepped = 'before'; _sdDS.tension = 0; driftDatasets.push(_sdDS); }
     makeLiveChart(driftBox, driftCanvas, 'Satellite Sync Drift \u2013 ' + rangeLabel(range), {
       type: 'line',
@@ -1119,10 +1244,11 @@ function renderSyncCharts(container, entries, stationId, range) {
   if (hasRssi && rssiCanvas) {
     makeLiveChart(rssiBox, rssiCanvas, 'RSSI \u2013 ' + rangeLabel(range), {
       type: 'line',
-      data: { datasets: [
-        makeSeriesDS(lttbDownsample(satARssiSeries), 'Sat-A RSSI', '#22c55e'),
-        makeSeriesDS(lttbDownsample(satBRssiSeries), 'Sat-B RSSI', '#3b82f6'),
-      ]},
+      data: { datasets: (function() {
+        var ds = [makeSeriesDS(lttbDownsample(satARssiSeries), 'Sat-A RSSI', '#22c55e')];
+        if (satBEnabled) ds.push(makeSeriesDS(lttbDownsample(satBRssiSeries), 'Sat-B RSSI', '#3b82f6'));
+        return ds;
+      })()},
       options: chartOpts('RSSI (dBm)', -100, 0, range, stationId),
     }, { stationId: stationId, chartKey: 'rssi' });
   }
@@ -1347,6 +1473,7 @@ function renderDataHealth(container, entries) {
 // ============================================================
 function renderDailyHealth(container, entries, stationId) {
   if (!entries.length) return;
+  var satBEnabled = isSatelliteInstalled(entries, 'B');
 
   var byDay = {};
   entries.forEach(function(e) {
@@ -1361,8 +1488,8 @@ function renderDailyHealth(container, entries, stationId) {
 
   var html = '<table class="health-table"><thead><tr>' +
     '<th>Date</th><th>Samples</th>' +
-    '<th>T0 Bat%</th><th>SatA Bat%</th><th>SatB Bat%</th>' +
-    '<th>SatA Syncs</th><th>SatB Syncs</th>' +
+    '<th>T0 Bat%</th><th>SatA Bat%</th>' + (satBEnabled ? '<th>SatB Bat%</th>' : '') +
+    '<th>SatA Syncs</th>' + (satBEnabled ? '<th>SatB Syncs</th>' : '') +
     '<th>Gaps</th>' +
     '</tr></thead><tbody>';
 
@@ -1388,7 +1515,7 @@ function renderDailyHealth(container, entries, stationId) {
 
     // Sync counts
     var satASyncs = de.filter(function(e){return e.satABatV!==null;}).length;
-    var satBSyncs = de.filter(function(e){return e.satBBatV!==null;}).length;
+    var satBSyncs = satBEnabled ? de.filter(function(e){return e.satBBatV!==null;}).length : 0;
 
     // Gap count within day (>2.5× median)
     var dayGaps = 0;
@@ -1406,9 +1533,9 @@ function renderDailyHealth(container, entries, stationId) {
       '<td>' + de.length + '</td>' +
       '<td>' + batDelta(de, 't0BatPct') + '</td>' +
       '<td>' + batDelta(de, 'satABatPct') + '</td>' +
-      '<td>' + batDelta(de, 'satBBatPct') + '</td>' +
+      (satBEnabled ? '<td>' + batDelta(de, 'satBBatPct') + '</td>' : '') +
       '<td style="color:' + (satASyncs > 0 ? 'var(--success)' : 'var(--text-muted)') + '">' + satASyncs + '/' + de.length + '</td>' +
-      '<td style="color:' + (satBSyncs > 0 ? 'var(--success)' : 'var(--text-muted)') + '">' + satBSyncs + '/' + de.length + '</td>' +
+      (satBEnabled ? '<td style="color:' + (satBSyncs > 0 ? 'var(--success)' : 'var(--text-muted)') + '">' + satBSyncs + '/' + de.length + '</td>' : '') +
       '<td style="color:' + (dayGaps === 0 ? 'var(--success)' : 'var(--warning)') + '">' + dayGaps + '</td>' +
     '</tr>';
   }
@@ -1465,8 +1592,14 @@ function chartOpts(yLabel, yMin, yMax, range, stationId) {
 // timeAgo → provided by seaweed_common.js  (call with suffix=false, the default)
 
 // ============================================================
-// PARSE SUPABASE DATA (direct column access — no CSV field parsing)
+// PARSE SUPABASE DATA (direct column access — v2 sensor_readings VIEW)
 // ============================================================
+// v2: sensor_readings is a VIEW over samples_raw.
+// Columns removed from view (now in sync_sessions / upload_sessions):
+//   rssi, free_heap, csq, sd_free_kb, t0_sync_drift_s, espnow_sync_period_s,
+//   sat_a/b_rssi, sat_a/b_sync_drift, sat_a/b_fw_ver, sat_a/b_sample_id
+// New columns: sat_a/b_flash_pct
+// Diagnostic data is fetched separately from upload_sessions + sync_sessions.
 function parseSupabaseData(rows, station) {
   var entries = [];
   for (var i = 0; i < rows.length; i++) {
@@ -1485,21 +1618,22 @@ function parseSupabaseData(rows, station) {
     entry.t0Temp2 = r.temp_2 !== null ? r.temp_2 : null;
     entry.t0Hum2  = r.humidity_2 !== null ? r.humidity_2 : null;
 
-    // T0 status
+    // T0 status (rssi + free_heap moved to upload_sessions in v2)
     entry.t0BatV = r.battery_v !== null ? r.battery_v : null;
-    entry.t0Rssi = r.rssi !== null ? r.rssi : null;
+    entry.t0Rssi = null;
     entry.t0Boot = r.boot_count !== null ? r.boot_count : null;
-    entry.t0Heap = r.free_heap !== null ? r.free_heap : null;
+    entry.t0Heap = null;
     entry.t0FwVersion = r.fw_version || null;
     entry.t0BuildDate = r.fw_date || null;
 
-    // SatA status
+    // SatA status (rssi, sample_id, sync_drift, fw_ver moved to sync_sessions)
     entry.satABatV      = r.sat_a_battery_v !== null ? r.sat_a_battery_v : null;
-    entry.satABatPct     = r.sat_a_battery_pct !== null ? r.sat_a_battery_pct : null;
-    entry.satARssi       = r.sat_a_rssi !== null ? r.sat_a_rssi : null;
-    entry.satASampleId   = r.sat_a_sample_id !== null ? r.sat_a_sample_id : null;
-    entry.satASyncDrift  = r.sat_a_sync_drift !== null ? r.sat_a_sync_drift : null;
-    entry.satAFwVersion  = r.sat_a_fw_ver || null;
+    entry.satABatPct    = r.sat_a_battery_pct !== null ? r.sat_a_battery_pct : null;
+    entry.satARssi      = null;
+    entry.satASampleId  = null;
+    entry.satAFlashPct  = r.sat_a_flash_pct !== null ? r.sat_a_flash_pct : null;
+    entry.satASyncDrift = null;
+    entry.satAFwVersion = null;
 
     // SatA sensors
     entry.satATemp1 = r.sat_a_temp_1 !== null ? r.sat_a_temp_1 : null;
@@ -1509,11 +1643,12 @@ function parseSupabaseData(rows, station) {
 
     // SatB status
     entry.satBBatV      = r.sat_b_battery_v !== null ? r.sat_b_battery_v : null;
-    entry.satBBatPct     = r.sat_b_battery_pct !== null ? r.sat_b_battery_pct : null;
-    entry.satBRssi       = r.sat_b_rssi !== null ? r.sat_b_rssi : null;
-    entry.satBSampleId   = r.sat_b_sample_id !== null ? r.sat_b_sample_id : null;
-    entry.satBSyncDrift  = r.sat_b_sync_drift !== null ? r.sat_b_sync_drift : null;
-    entry.satBFwVersion  = r.sat_b_fw_ver || null;
+    entry.satBBatPct    = r.sat_b_battery_pct !== null ? r.sat_b_battery_pct : null;
+    entry.satBRssi      = null;
+    entry.satBSampleId  = null;
+    entry.satBFlashPct  = r.sat_b_flash_pct !== null ? r.sat_b_flash_pct : null;
+    entry.satBSyncDrift = null;
+    entry.satBFwVersion = null;
 
     // SatB sensors
     entry.satBTemp1 = r.sat_b_temp_1 !== null ? r.sat_b_temp_1 : null;
@@ -1521,18 +1656,23 @@ function parseSupabaseData(rows, station) {
     entry.satBTemp2 = r.sat_b_temp_2 !== null ? r.sat_b_temp_2 : null;
     entry.satBHum2  = r.sat_b_humidity_2 !== null ? r.sat_b_humidity_2 : null;
 
-    // System diagnostics (previously packed in field8; now individual Supabase columns)
-    entry._rawField8        = null;  // Not applicable for Supabase data
-    entry.sdFreeKB          = r.sd_free_kb          != null ? r.sd_free_kb          : null;
-    entry.csq               = r.csq                 != null ? r.csq                 : null;
-    entry.uploadOk          = null;  // Not stored per-row; see device_status.last_upload_result
-    entry.syncDrift         = r.t0_sync_drift_s     != null ? r.t0_sync_drift_s     : null;
-    entry.espnowSyncPeriod_s = r.espnow_sync_period_s != null ? r.espnow_sync_period_s : null;
+    // System diagnostics (moved to upload_sessions in v2)
+    entry._rawField8        = null;
+    entry.sdFreeKB          = null;
+    entry.csq               = null;
+    entry.uploadOk          = null;
+    entry.syncDrift         = null;
+    entry.espnowSyncPeriod_s = null;
+    entry.satAInstalled     = r.sat_a_installed != null ? !!r.sat_a_installed : null;
+    entry.satBInstalled     = r.sat_b_installed != null ? !!r.sat_b_installed : null;
 
     entries.push(entry);
   }
 
   entries.sort(function(a, b) { return a.timestamp - b.timestamp; });
+  if (typeof filterEntryArrayByResetWindow === 'function') {
+    entries = filterEntryArrayByResetWindow(station.id, entries);
+  }
   return { entries: entries, raw: { feeds: rows } };
 }
 
@@ -1572,6 +1712,16 @@ async function fetchLiveAll() {
       }
       _stationDataSource[station.id] = { source: 'live', savedAt: Date.now() };
       fetched++;
+
+      // v2: fetch diagnostic data from upload_sessions + sync_sessions
+      try {
+        var ulSess = await fetchLatestUploadSession(station.id);
+        var syncSess = await fetchLatestSyncSessions(station.id);
+        _stationDiag[station.id] = { upload: ulSess, sync: syncSess };
+      } catch (diagErr) {
+        console.warn('[Health] Diagnostics fetch failed for ' + station.name + ':', diagErr);
+        _stationDiag[station.id] = { upload: null, sync: {} };
+      }
     } catch (err) {
       console.error('[Health] Live fetch failed for ' + station.name + ':', err);
       errors.push(station.name + ': ' + err.message);
@@ -1622,7 +1772,67 @@ async function fetchLiveAll() {
   } else {
     status.innerHTML = '<span style="color:var(--success)">All ' + fetched + ' stations updated' + newStr + ' &mdash; ' + ts + '</span>';
   }
+  if (fetched > 0) {
+    notifyDashboardDataRefresh(STATIONS.map(function(st) { return st.id; }), 'station_health.fetchLiveAll');
+  }
 }
+
+function applySharedCacheToHealth(stationIds) {
+  var ids = Array.isArray(stationIds) && stationIds.length
+    ? stationIds
+    : STATIONS.map(function(st) { return st.id; });
+  var changed = false;
+
+  ids.forEach(function(id) {
+    try {
+      var raw = localStorage.getItem('seaweed_cache_' + id);
+      if (!raw) return;
+      var cached = JSON.parse(raw);
+      if (!cached || !Array.isArray(cached.allEntries) || !cached.allEntries.length) return;
+      var entries = cached.allEntries
+        .map(function(entry) {
+          entry.timestamp = new Date(entry.timestamp);
+          return entry;
+        })
+        .filter(function(entry) {
+          return entry.timestamp && !isNaN(entry.timestamp.getTime());
+        })
+        .sort(function(a, b) { return a.timestamp - b.timestamp; });
+      if (!entries.length) return;
+      stationData[id] = { entries: entries, raw: null };
+      _stationDataSource[id] = { source: cached.source || 'cache', savedAt: cached.savedAt || null };
+      changed = true;
+    } catch (e) {
+      console.warn('[Health] Shared cache sync failed for ' + id + ':', e.message);
+    }
+  });
+
+  if (!changed) return;
+
+  liveCharts.forEach(function(c) { try { c.destroy(); } catch(e){} });
+  liveCharts = [];
+  _syncWindowCache = {};
+  _stationChartsRendered = {};
+  var container = document.getElementById('stationsContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  container.style.display = '';
+  var loading = document.getElementById('loadingMsg');
+  if (loading) loading.style.display = 'none';
+
+  STATIONS.forEach(function(st) {
+    var data = stationData[st.id];
+    if (!data) return;
+    container.appendChild(renderStationSection(st, data));
+  });
+}
+
+onDashboardDataRefresh(function(msg) {
+  try {
+    var ids = Array.isArray(msg && msg.stationIds) ? msg.stationIds : [];
+    applySharedCacheToHealth(ids);
+  } catch (e) {}
+});
 
 // ==========================================================
 // BOOT: Load all stations — localStorage first, then merged_data.js
@@ -1646,7 +1856,7 @@ async function fetchLiveAll() {
     var cached = getCachedStationData(station.id);
     if (cached && cached.entries.length > 0) {
       console.log('[Health] Loaded ' + cached.entries.length + ' entries from cache for ' + station.name);
-      _stationDataSource[station.id] = { source: 'live', savedAt: cached.savedAt || null };
+      _stationDataSource[station.id] = { source: cached.source || 'cache', savedAt: cached.savedAt || null };
       return doneWithStation(cached);
     }
 

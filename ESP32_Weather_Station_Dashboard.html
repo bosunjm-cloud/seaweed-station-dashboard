@@ -13,21 +13,21 @@
 <style>
 /* -- CSS Variables ------------------------------------------------- */
 :root {
-  --bg: #0f172a; --bg-card: #1e293b; --bg-hover: #334155;
-  --text: #f1f5f9; --text-sec: #94a3b8; --text-muted: #64748b;
-  --border: #334155; --radius: 12px;
-  --accent: #3b82f6; --success: #22c55e; --warning: #f59e0b; --danger: #ef4444;
-  --success-dim: #052e16; --warning-dim: #431a03; --danger-dim: #450a0a;
-  --shadow: 0 2px 8px rgba(0,0,0,0.3);
+  --bg: #eef8f5; --bg-card: #ffffff; --bg-hover: #e5f2ee;
+  --text: #12362f; --text-sec: #457c72; --text-muted: #6d8f88;
+  --border: #bfded6; --radius: 12px;
+  --accent: #2f89b7; --success: #1f9d6c; --warning: #d0892d; --danger: #d04f5f;
+  --success-dim: #dff5eb; --warning-dim: #fff1dd; --danger-dim: #ffe4e8;
+  --shadow: 0 4px 14px rgba(25, 81, 77, 0.10);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; }
+body { background: linear-gradient(180deg, #e8f5f1 0%, #f5fbf9 100%); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 /* -- Header -------------------------------------------------------- */
 .header {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  background: linear-gradient(135deg, #d9f0e9 0%, #dbeef8 100%);
   padding: 16px 24px; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
 }
@@ -41,7 +41,7 @@ a:hover { text-decoration: underline; }
 .btn {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 7px 16px; border-radius: 8px; border: 1px solid var(--border);
-  background: var(--bg); color: var(--text); font-size: 0.82rem; font-weight: 500;
+  background: #ffffff; color: var(--text); font-size: 0.82rem; font-weight: 500;
   cursor: pointer; transition: all 0.15s;
 }
 .btn:hover { background: var(--bg-hover); border-color: var(--accent); }
@@ -62,18 +62,45 @@ a:hover { text-decoration: underline; }
 .main { max-width: 1400px; margin: 0 auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 24px; }
 
 /* -- Table cards --------------------------------------------------- */
-.table-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; }
+.table-grid { display: flex; flex-direction: column; gap: 14px; }
 .table-card {
   background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 20px;
+  border-radius: var(--radius); padding: 14px 16px;
   box-shadow: var(--shadow); transition: border-color 0.2s;
-  display: flex; flex-direction: column; gap: 14px;
-  cursor: pointer;
+  display: flex; flex-direction: column; gap: 10px;
+  cursor: pointer; position: relative; overflow: hidden;
 }
 .table-card:hover { border-color: var(--accent); }
-.table-card-header { display: flex; align-items: center; justify-content: space-between; }
+.table-card::before {
+  content: ''; position: absolute; left: 0; top: 0; right: 0; height: 3px;
+  background: #a9cfc5;
+}
+.table-card.status-ok {
+  border-color: var(--border);
+  background: var(--bg-card);
+}
+.table-card.status-ok::before { background: #a9cfc5; }
+.table-card.status-warn {
+  border-color: var(--border);
+  background: var(--bg-card);
+}
+.table-card.status-warn::before { background: #a9cfc5; }
+.table-card.status-err {
+  border-color: var(--border);
+  background: var(--bg-card);
+}
+.table-card.status-err::before { background: #a9cfc5; }
+.table-card.status-nc {
+  border-color: var(--border);
+  background: var(--bg-card);
+}
+.table-card.status-nc::before { background: #a9cfc5; }
+.table-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .table-card-header h2 { font-size: 1.15rem; font-weight: 700; }
 .table-card-header .location { font-size: 0.78rem; color: var(--text-sec); }
+.table-card-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.status-time { font-size: 0.78rem; color: var(--text-sec); }
+.station-metrics { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
 .table-badge {
   display: inline-block; padding: 3px 10px; border-radius: 12px;
   font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
@@ -84,11 +111,29 @@ a:hover { text-decoration: underline; }
 .badge-nc { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
 
 /* -- Metrics grid -------------------------------------------------- */
-.metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.metric-box { background: var(--bg); border-radius: 8px; padding: 8px 10px; text-align: center; }
+.metrics-grid { display: contents; }
+.metric-box { background: var(--bg); border-radius: 8px; padding: 8px 10px; text-align: left; min-width: 145px; }
 .metric-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .metric-value { font-size: 1rem; font-weight: 700; margin-top: 1px; }
 .metric-sub { font-size: 0.65rem; color: var(--text-muted); }
+.metric-value.bat-green { color: var(--success); }
+.metric-value.bat-yellow { color: var(--warning); }
+.metric-value.bat-red { color: var(--danger); }
+.station-metrics .metric-box { border-top: 2px solid #d5e8e2; }
+.metric-group {
+  background: var(--bg); border-radius: 8px; padding: 6px 8px;
+  min-width: 260px; border-top: 2px solid #d5e8e2;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.metric-group-title {
+  font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.06em; font-weight: 700;
+}
+.metric-group-row { display: flex; gap: 8px; }
+.metric-group .metric-box {
+  border-top: none; min-width: 110px; flex: 1;
+  background: #f7fcfa; padding: 7px 8px;
+}
 
 /* -- Node health row ----------------------------------------------- */
 .node-row { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -151,8 +196,7 @@ a:hover { text-decoration: underline; }
 @media (max-width: 768px) {
   .header { padding: 12px 16px; }
   .main { padding: 12px; gap: 12px; }
-  .table-grid { grid-template-columns: 1fr; }
-  .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+  .metric-box { min-width: 130px; }
 }
 </style>
 </head>
@@ -211,38 +255,52 @@ function getChannelConfig(tableId) {
 
 var TABLES = [
   {
-    id: 'perth',
-    name: 'Perth Test Table',
-    location: 'Noranda, WA',
-    page: 'pages/station.html?table=perth',
-    dataFile: 'data/data_3262071_TT/merged_data.js',
-    weather: { lat: -31.87, lon: 115.90 },
-    channelId: '3262071',
-    apiKey: 'VVHUX39KINYPLCVI',
-  },
-  {
     id: 'shangani',
-    name: 'Shangani Aramani',
+    name: 'Shangani',
     location: 'Kwale County, Kenya',
     page: 'pages/station.html?table=shangani',
     dataFile: 'data/data_Shangani/merged_data.js',
     weather: { lat: -4.55, lon: 39.50 },
     channelId: '',
     apiKey: '',
+    hasSatellite: true,
   },
   {
     id: 'funzi',
-    name: 'Funzi Island',
+    name: 'Funzi',
     location: 'Funzi Island, Kenya',
     page: 'pages/station.html?table=funzi',
     dataFile: 'data/data_Funzi/merged_data.js',
     weather: { lat: -4.55, lon: 39.45 },
     channelId: '',
     apiKey: '',
+    hasSatellite: true,
+  },
+  {
+    id: 'spare',
+    name: 'Spare',
+    location: 'Spare Station',
+    page: 'pages/station.html?table=spare',
+    dataFile: 'data/data_spare/merged_data.js',
+    weather: { lat: 0, lon: 0 },
+    channelId: '',
+    apiKey: '',
+    hasSatellite: true,
+  },
+  {
+    id: 'perth',
+    name: 'Perth Test',
+    location: 'Noranda, WA',
+    page: 'pages/station.html?table=perth',
+    dataFile: 'data/data_3262071_TT/merged_data.js',
+    weather: { lat: -31.87, lon: 115.90 },
+    channelId: '3262071',
+    apiKey: 'VVHUX39KINYPLCVI',
+    hasSatellite: true,
   },
   {
     id: 'wroom',
-    name: 'Perth WROOM Test',
+    name: 'Perth WROOM',
     location: 'Noranda, WA (WROOM-32E)',
     page: 'pages/perth_wroom.html',
     dataFile: 'data/data_WROOM_PTT/merged_data.js',
@@ -251,6 +309,7 @@ var TABLES = [
     apiKey: '7K00B1Y8DNOTEIM0',
     temp: true,
     legacy: true, /* WROOM: ThingSpeak legacy, retiring soon */
+    hasSatellite: false,
   },
 ];
 
@@ -268,6 +327,37 @@ TABLES.forEach(function(t) {
 // UTILITY: Parse feed entry into usable values
 // =====================================================================
 function parseEntry(f) {
+  // Already-parsed entry object from cache
+  if (f && f.timestamp !== undefined && f.t0BatPct !== undefined) {
+    var parsedTs = f.timestamp instanceof Date ? f.timestamp : new Date(f.timestamp);
+    if (isNaN(parsedTs.getTime()) && f.created_at) parsedTs = new Date(f.created_at);
+    var out = Object.assign({}, f);
+    out.timestamp = parsedTs;
+    return out;
+  }
+
+  // Structured feed object (named properties)
+  if (f && f.field1 === undefined && (f.battery_pct !== undefined || f.recorded_at !== undefined)) {
+    var st = new Date(f.created_at || f.recorded_at);
+    return {
+      timestamp: st,
+      t0BatPct: numParse(f.battery_pct),
+      t0BatV: numParse(f.battery_v),
+      t0Temp1: numParse(f.temp_1), t0Temp2: numParse(f.temp_2), t0Temp3: null,
+      t0Hum1: numParse(f.humidity_1), t0Hum2: numParse(f.humidity_2), t0Hum3: null,
+      satABatPct: numParse(f.sat_a_battery_pct), satABatV: numParse(f.sat_a_battery_v),
+      satATemp1: numParse(f.sat_a_temp_1), satATemp2: numParse(f.sat_a_temp_2),
+      satAHum1: numParse(f.sat_a_humidity_1), satAHum2: numParse(f.sat_a_humidity_2),
+      satBBatPct: numParse(f.sat_b_battery_pct), satBBatV: numParse(f.sat_b_battery_v),
+      satBTemp1: numParse(f.sat_b_temp_1), satBTemp2: numParse(f.sat_b_temp_2),
+      satBHum1: numParse(f.sat_b_humidity_1), satBHum2: numParse(f.sat_b_humidity_2),
+      t0FwVersion: f.fw_version ? String(f.fw_version) : null,
+      t0BuildDate: f.fw_date ? String(f.fw_date) : null,
+      satAFwVersion: f.sat_a_fw_ver ? String(f.sat_a_fw_ver) : null,
+      satBFwVersion: f.sat_b_fw_ver ? String(f.sat_b_fw_ver) : null,
+    };
+  }
+
   var ts = new Date(f.created_at);
   var t0Sensors = csvParse(f.field2);
   var t0Status  = csvParse(f.field3);
@@ -319,9 +409,59 @@ function findLast(entries, key) {
   return null;
 }
 
+function formatDatasetUpdate(ts) {
+  if (!ts) return { value: '--', sub: 'No dataset timestamp', hoursSince: null };
+  var d = ts instanceof Date ? ts : new Date(ts);
+  if (isNaN(d.getTime())) return { value: '--', sub: 'Invalid timestamp', hoursSince: null };
+
+  var abs = d.toLocaleString('en-GB', {
+    year: 'numeric', month: 'short', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  });
+
+  var mins = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+  var hoursSince = mins / 60;
+  var rel;
+  if (mins < 1) rel = 'just now';
+  else if (mins < 60) rel = mins + 'm ago';
+  else {
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) rel = hrs + 'h ago';
+    else rel = Math.floor(hrs / 24) + 'd ago';
+  }
+
+  return { value: abs, sub: rel, hoursSince: hoursSince };
+}
+
+function formatStatusTime(updateInfo) {
+  if (!updateInfo || !updateInfo.value) return '--';
+  if (updateInfo.hoursSince == null || !isFinite(updateInfo.hoursSince)) return updateInfo.value;
+  return updateInfo.value + ' (' + updateInfo.hoursSince.toFixed(1) + 'h)';
+}
+
 // =====================================================================
 // COMPUTE SUMMARY for a table
 // =====================================================================
+function computeDataHealth(entries, nowMs) {
+  var now = nowMs || Date.now();
+  var h24 = entries.filter(function(e) { return (now - e.timestamp.getTime()) < 86400000; });
+  var actual = h24.length;
+  if (!actual) return { actual: 0, expected: 0, pct: null };
+
+  var diffs = [];
+  for (var i = 1; i < h24.length; i++) {
+    var d = (h24[i].timestamp.getTime() - h24[i - 1].timestamp.getTime()) / 60000;
+    if (d > 0 && d <= 360) diffs.push(d);
+  }
+  diffs.sort(function(a, b) { return a - b; });
+  var cadence = diffs.length ? diffs[Math.floor(diffs.length / 2)] : 15;
+  if (!cadence || cadence < 1) cadence = 15;
+
+  var expected = Math.max(1, Math.round((24 * 60) / cadence));
+  var pct = Math.max(0, Math.min(100, (actual / expected) * 100));
+  return { actual: actual, expected: expected, pct: pct };
+}
+
 function computeSummary(entries) {
   if (!entries || entries.length === 0) return null;
 
@@ -330,6 +470,7 @@ function computeSummary(entries) {
   var h24 = entries.filter(function(e) { return (now - e.timestamp.getTime()) < 86400000; });
   var w7  = entries.filter(function(e) { return (now - e.timestamp.getTime()) < 7 * 86400000; });
   var m30 = entries.filter(function(e) { return (now - e.timestamp.getTime()) < 30 * 86400000; });
+  var health = computeDataHealth(entries, now);
 
   function peak(arr, key) {
     var max = null;
@@ -352,9 +493,9 @@ function computeSummary(entries) {
   var tempKey  = findLast(entries, 'satATemp1') ? 'satATemp1' : 't0Temp1';
   var humKey   = findLast(entries, 'satAHum1')  ? 'satAHum1'  : 't0Hum1';
 
-  // Freshness: how old is the latest entry?
+  // Freshness: online <=24h, stale 24-48h, offline >48h.
   var ageMins = (now - latest.timestamp.getTime()) / 60000;
-  var freshness = ageMins < 20 ? 'ok' : (ageMins < 120 ? 'warn' : 'err');
+  var freshness = ageMins <= (24 * 60) ? 'ok' : (ageMins <= (48 * 60) ? 'warn' : 'err');
 
   // Node health
   var lastT0  = findLast(entries, 't0BatPct');
@@ -363,10 +504,13 @@ function computeSummary(entries) {
 
   function nodeHealth(lastEntry, batKey, fwKey) {
     if (!lastEntry) return { status: 'nc', bat: null, lastSeen: null, fw: null };
-    var age = (now - lastEntry.timestamp.getTime()) / 60000;
     var bat = lastEntry[batKey];
-    var status = age < 20 ? 'green' : (age < 120 ? 'yellow' : 'red');
-    if (bat !== null && bat < 15) status = 'red';
+    var status = 'yellow';
+    if (bat !== null) {
+      if (bat > 80) status = 'green';
+      else if (bat < 30) status = 'red';
+      else status = 'yellow';
+    }
     return { status: status, bat: bat, lastSeen: lastEntry.timestamp, fw: lastEntry[fwKey] || null };
   }
 
@@ -377,6 +521,7 @@ function computeSummary(entries) {
     t0: nodeHealth(lastT0, 't0BatPct', 't0FwVersion'),
     satA: nodeHealth(lastSatA, 'satABatPct', 'satAFwVersion'),
     satB: nodeHealth(lastSatB, 'satBBatPct', 'satBFwVersion'),
+    dataHealth: health,
     dayTempHigh:  peak(h24, tempKey),
     dayTempLow:   minVal(h24, tempKey),
     dayHumHigh:   peak(h24, humKey),
@@ -452,6 +597,7 @@ function computeWroomSummary(entries) {
   var now = Date.now();
   var h24 = entries.filter(function(e) { return (now - e.timestamp.getTime()) < 86400000; });
   var w7  = entries.filter(function(e) { return (now - e.timestamp.getTime()) < 7 * 86400000; });
+  var health = computeDataHealth(entries, now);
 
   function peak(arr, keys) {
     var max = null;
@@ -488,7 +634,7 @@ function computeWroomSummary(entries) {
   var hKeys = ['rh1','rh2','rh3','rh4','rh5'];
 
   var ageMins = (now - latest.timestamp.getTime()) / 60000;
-  var freshness = ageMins < 20 ? 'ok' : (ageMins < 120 ? 'warn' : 'err');
+  var freshness = ageMins <= (24 * 60) ? 'ok' : (ageMins <= (48 * 60) ? 'warn' : 'err');
 
   // Count active sensors from latest
   var activeSensors = 0;
@@ -510,6 +656,7 @@ function computeWroomSummary(entries) {
     lastUpdate: latest.timestamp,
     entries: entries.length,
     activeSensors: activeSensors,
+    dataHealth: health,
     dayTempHigh:  peak(h24, tKeys),
     dayTempLow:   minVal(h24, tKeys),
     dayTempAvg:   avg(h24, tKeys),
@@ -539,42 +686,37 @@ function renderWroomCard(table, summary) {
 
   var badgeClass = summary.freshness === 'ok' ? 'badge-ok' : (summary.freshness === 'warn' ? 'badge-warn' : 'badge-err');
   var badgeText  = summary.freshness === 'ok' ? 'Online' : (summary.freshness === 'warn' ? 'Stale' : 'Offline');
+  card.className = 'table-card status-' + summary.freshness;
   var fmt = function(v, unit, dp) {
     if (v === null || v === undefined) return '--';
     return v.toFixed(dp !== undefined ? dp : 1) + (unit || '');
   };
 
+  var healthValue = summary.dataHealth && summary.dataHealth.pct != null ? summary.dataHealth.pct.toFixed(0) + '%' : '--';
+  var healthSub = summary.dataHealth && summary.dataHealth.pct != null ?
+    (summary.dataHealth.actual + '/' + summary.dataHealth.expected + ' samples (24h)') :
+    'No samples in last 24h';
+  var updateInfo = formatDatasetUpdate(summary.lastUpdate);
+
   card.innerHTML =
     '<div class="table-card-header">' +
       '<div><h2>' + table.name + '</h2><div class="location">' + table.location + '</div></div>' +
-      '<span class="table-badge ' + badgeClass + '">' + badgeText + '</span>' +
-    '</div>' +
-    '<div class="node-row">' +
-      '<div class="node-chip"><span class="dot dot-' + (summary.freshness === 'ok' ? 'green' : summary.freshness === 'warn' ? 'yellow' : 'red') + '"></span>' +
-        '<span class="node-name">WROOM-32E</span><span class="node-bat">' + summary.activeSensors + '/5 sensors</span></div>' +
-    '</div>' +
-    '<div class="metrics-grid">' +
-      metricBox('Day High', fmt(summary.dayTempHigh, '\u00B0C'), 'Peak temp (24h)') +
-      metricBox('Day Hum', fmt(summary.dayHumHigh, '%'), 'Peak humidity (24h)') +
-      metricBox('Day Low', fmt(summary.dayTempLow, '\u00B0C'), 'Low temp (24h)') +
-      metricBox('Avg Temp', fmt(summary.dayTempAvg, '\u00B0C'), 'Avg across sensors') +
-      metricBox('Avg Hum', fmt(summary.dayHumAvg, '%'), 'Avg across sensors') +
-      metricBox('Week High', fmt(summary.weekTempHigh, '\u00B0C'), 'Peak temp (7d)') +
-    '</div>' +
-    '<div class="spark-controls">' +
-      '<span style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase">Sensor Data</span>' +
-      '<div class="spark-range-btns">' +
-        ['Day','Week','Month','All'].map(function(r) {
-          return '<button class="spark-range-btn' + (r==='Day'?' active':'') + '" data-table="wroom" data-range="' + r + '" onclick="setSparkRange(\'wroom\',\'' + r + '\',event)">' + r + '</button>';
-        }).join('') +
+      '<div class="table-card-right">' +
+        '<span class="table-badge ' + badgeClass + '">' + badgeText + '</span>' +
+        '<span class="status-time">' + formatStatusTime(updateInfo) + '</span>' +
       '</div>' +
     '</div>' +
-    '<div class="spark-row">' +
-      '<div class="spark-box"><div class="spark-title">Temp</div><div class="spark-wrap"><canvas id="spark-temp-wroom"></canvas></div></div>' +
-      '<div class="spark-box"><div class="spark-title">Humidity</div><div class="spark-wrap"><canvas id="spark-hum-wroom"></canvas></div></div>' +
-    '</div>' +
-    '<div style="font-size:0.7rem;color:var(--text-muted);text-align:right">' +
-      'Last update: ' + timeAgo(summary.lastUpdate, true) + ' &bull; ' + summary.entries + ' entries total' +
+    '<div class="station-metrics">' +
+      metricBox('T0 Batt', '--', 'Not available on WROOM') +
+      metricBox('Data Health', healthValue, healthSub) +
+      metricGroup('Peak 24h',
+        metricBox('Temp', fmt(summary.dayTempHigh, '\u00B0C')) +
+        metricBox('Humidity', fmt(summary.dayHumHigh, '%'))
+      ) +
+      metricGroup('Peak 7 Days',
+        metricBox('Temp', fmt(summary.weekTempHigh, '\u00B0C')) +
+        metricBox('Humidity', fmt(summary.weekHumHigh, '%'))
+      ) +
     '</div>';
 
   return card;
@@ -700,6 +842,7 @@ function renderTableCard(table, summary) {
       t0:   { status: 'nc', bat: null, lastSeen: null, fw: null },
       satA: { status: 'nc', bat: null, lastSeen: null, fw: null },
       satB: { status: 'nc', bat: null, lastSeen: null, fw: null },
+      dataHealth: { actual: 0, expected: 0, pct: null },
       dayTempHigh: null, dayTempLow: null, dayHumHigh: null,
       weekTempHigh: null, weekHumHigh: null,
       monthTempHigh: null, monthHumHigh: null,
@@ -713,54 +856,59 @@ function renderTableCard(table, summary) {
     badgeClass = summary.freshness === 'ok' ? 'badge-ok' : (summary.freshness === 'warn' ? 'badge-warn' : 'badge-err');
     badgeText  = summary.freshness === 'ok' ? 'Online' : (summary.freshness === 'warn' ? 'Stale' : 'Offline');
   }
+  card.className = 'table-card status-' + (noData ? 'nc' : summary.freshness);
 
   var fmt = function(v, unit, dp) {
     if (v === null || v === undefined) return '--';
     return v.toFixed(dp !== undefined ? dp : 1) + (unit || '');
   };
+  var batteryToneClass = function(pct) {
+    if (pct === null || pct === undefined || isNaN(pct)) return '';
+    if (pct > 80) return 'bat-green';
+    if (pct < 30) return 'bat-red';
+    return 'bat-yellow';
+  };
+  var satLabel = '--';
+  var satPctForTone = null;
+  var satAVal = summary.satA && summary.satA.bat != null ? Math.round(summary.satA.bat) + '%' : null;
+  var satBVal = summary.satB && summary.satB.bat != null ? Math.round(summary.satB.bat) + '%' : null;
+  var satAValNum = summary.satA && summary.satA.bat != null ? Number(summary.satA.bat) : null;
+  var satBValNum = summary.satB && summary.satB.bat != null ? Number(summary.satB.bat) : null;
+  if (satAVal && satBVal) satLabel = 'A ' + satAVal + ' / B ' + satBVal;
+  else if (satAVal) satLabel = satAVal;
+  else if (satBVal) satLabel = satBVal;
+  if (satAValNum !== null && satBValNum !== null) satPctForTone = Math.min(satAValNum, satBValNum);
+  else if (satAValNum !== null) satPctForTone = satAValNum;
+  else if (satBValNum !== null) satPctForTone = satBValNum;
+
+  var healthValue = summary.dataHealth && summary.dataHealth.pct != null ? summary.dataHealth.pct.toFixed(0) + '%' : '--';
+  var healthSub = summary.dataHealth && summary.dataHealth.pct != null ?
+    (summary.dataHealth.actual + '/' + summary.dataHealth.expected + ' samples (24h)') :
+    'No samples in last 24h';
+  var updateInfo = formatDatasetUpdate(summary.lastUpdate);
+
+  var metrics =
+    metricBox('T0 Batt', summary.t0 && summary.t0.bat != null ? Math.round(summary.t0.bat) + '%': '--', '', batteryToneClass(summary.t0 && summary.t0.bat != null ? summary.t0.bat : null)) +
+    (table.hasSatellite ? metricBox('Satellite Batt', satLabel, '', batteryToneClass(satPctForTone)) : '') +
+    metricBox('Data Health', healthValue, healthSub) +
+    metricGroup('Peak 24h',
+      metricBox('Temp', fmt(summary.dayTempHigh, '\u00B0C')) +
+      metricBox('Humidity', fmt(summary.dayHumHigh, '%'))
+    ) +
+    metricGroup('Peak 7 Days',
+      metricBox('Temp', fmt(summary.weekTempHigh, '\u00B0C')) +
+      metricBox('Humidity', fmt(summary.weekHumHigh, '%'))
+    );
 
   card.innerHTML =
     '<div class="table-card-header">' +
       '<div><h2>' + table.name + '</h2><div class="location">' + table.location + '</div></div>' +
-      '<span class="table-badge ' + badgeClass + '">' + badgeText + '</span>' +
-    '</div>' +
-
-    // Node health chips
-    '<div class="node-row">' +
-      renderNodeChip('T0', summary.t0) +
-      renderNodeChip('Sat-A', summary.satA) +
-      renderNodeChip('Sat-B', summary.satB) +
-    '</div>' +
-
-    // Metrics
-    '<div class="metrics-grid">' +
-      metricBox('Day High', fmt(summary.dayTempHigh, '\u00B0C'), 'Peak temp (24h)') +
-      metricBox('Day Hum', fmt(summary.dayHumHigh, '%'), 'Peak humidity (24h)') +
-      metricBox('Day Low', fmt(summary.dayTempLow, '\u00B0C'), 'Low temp (24h)') +
-      metricBox('Week High', fmt(summary.weekTempHigh, '\u00B0C'), 'Peak temp (7d)') +
-      metricBox('Week Hum', fmt(summary.weekHumHigh, '%'), 'Peak humidity (7d)') +
-      metricBox('Month High', fmt(summary.monthTempHigh, '\u00B0C'), 'Peak temp (30d)') +
-    '</div>' +
-
-    // Sparklines with range selector
-    '<div class="spark-controls">' +
-      '<span style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase">Sensor Data</span>' +
-      '<div class="spark-range-btns">' +
-        ['Day','Week','Month','All'].map(function(r) {
-          return '<button class="spark-range-btn' + (r==='Day'?' active':'') + '" data-table="' + table.id + '" data-range="' + r + '" onclick="setSparkRange(\'' + table.id + '\',\'' + r + '\',event)">' + r + '</button>';
-        }).join('') +
+      '<div class="table-card-right">' +
+        '<span class="table-badge ' + badgeClass + '">' + badgeText + '</span>' +
+        '<span class="status-time">' + formatStatusTime(updateInfo) + '</span>' +
       '</div>' +
     '</div>' +
-    '<div class="spark-row">' +
-      '<div class="spark-box"><div class="spark-title">Temp</div><div class="spark-wrap"><canvas id="spark-temp-' + table.id + '"></canvas></div></div>' +
-      '<div class="spark-box"><div class="spark-title">Humidity</div><div class="spark-wrap"><canvas id="spark-hum-' + table.id + '"></canvas></div></div>' +
-    '</div>' +
-
-    '<div style="font-size:0.7rem;color:var(--text-muted);text-align:right">' +
-      (noData ? 'No sensor data yet &mdash; sensors not deployed' :
-        'Last update: ' + timeAgo(summary.lastUpdate, true) + ' &bull; ' + summary.entries + ' entries' +
-        (_dataSource[table.id] ? ' <span class="source-badge source-' + _dataSource[table.id] + '">' + _dataSource[table.id] + '</span>' : '')) +
-    '</div>';
+    '<div class="station-metrics">' + metrics + '</div>';
 
   return card;
 }
@@ -775,9 +923,16 @@ function renderNodeChip(name, node) {
   return '<div class="node-chip"><span class="dot ' + dotClass + '"></span><span class="node-name">' + name + '</span><span class="node-bat">' + batStr + '</span>' + fwStr + '</div>';
 }
 
-function metricBox(label, value, sub) {
-  return '<div class="metric-box"><div class="metric-label">' + label + '</div><div class="metric-value">' + value + '</div>' +
+function metricBox(label, value, sub, valueClass) {
+  return '<div class="metric-box"><div class="metric-label">' + label + '</div><div class="metric-value ' + (valueClass || '') + '">' + value + '</div>' +
     (sub ? '<div class="metric-sub">' + sub + '</div>' : '') + '</div>';
+}
+
+function metricGroup(title, contentHtml) {
+  return '<div class="metric-group">' +
+    '<div class="metric-group-title">' + title + '</div>' +
+    '<div class="metric-group-row">' + contentHtml + '</div>' +
+    '</div>';
 }
 
 // =====================================================================
@@ -855,6 +1010,21 @@ function loadTableData(table) {
   // WROOM: load from merged_data.js on disk (dual-channel format), fallback to localStorage
   if (table.id === 'wroom') {
     return new Promise(function(resolve) {
+      var settled = false;
+      var hardTimeout = setTimeout(function() {
+        if (!settled) {
+          settled = true;
+          resolveFromCache();
+        }
+      }, 8000);
+
+      function done(val) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(hardTimeout);
+        resolve(val);
+      }
+
       // Try disk file first
       if (table.dataFile) {
         var script = document.createElement('script');
@@ -868,7 +1038,10 @@ function loadTableData(table) {
             var hf = tsData.humFeeds || [];
             if (tf.length || hf.length) {
               var entries = parseWroomDualChannel(tf, hf);
-              if (entries.length) { resolve(entries); return; }
+              if (typeof filterEntryArrayByResetWindow === 'function') {
+                entries = filterEntryArrayByResetWindow(table.id, entries);
+              }
+              if (entries.length) { done(entries); return; }
             }
           }
           resolveFromCache();
@@ -888,12 +1061,15 @@ function loadTableData(table) {
                 e.timestamp = new Date(e.timestamp);
                 return e;
               });
-              resolve(entries);
+              if (typeof filterEntryArrayByResetWindow === 'function') {
+                entries = filterEntryArrayByResetWindow(table.id, entries);
+              }
+              done(entries);
               return;
             }
           }
         } catch (e) {}
-        resolve(null);
+        done(null);
       }
     });
   }
@@ -901,14 +1077,33 @@ function loadTableData(table) {
   // --- Supabase-first data loading with fallbacks ---
   // Priority: 1) Supabase live fetch  2) localStorage cache  3) merged_data.js file
   return new Promise(async function(resolve) {
+    var settled = false;
+    var hardTimeout = setTimeout(function() {
+      if (!settled) {
+        settled = true;
+        resolve(null);
+      }
+    }, 15000);
+
+    function done(val) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(hardTimeout);
+      resolve(val);
+    }
+
     // --- 1. Try Supabase live fetch ---
     try {
-      var result = await fetchStationData(table.id);
+      var result = await fetchStationData(table.id, { limit: 2000, timeoutMs: 20000 });
       if (result && result.feeds && result.feeds.length) {
         var entries = result.feeds.map(parseEntry).filter(function(e) { return !isNaN(e.timestamp.getTime()); });
-        if (entries.length) {
+          if (typeof filterEntryArrayByResetWindow === 'function') {
+            entries = filterEntryArrayByResetWindow(table.id, entries);
+          }
+          if (entries.length) {
+          saveStationCache(table.id, entries, { source: 'live' });
           _dataSource[table.id] = 'live';
-          resolve(entries);
+          done(entries);
           return;
         }
       }
@@ -924,21 +1119,14 @@ function loadTableData(table) {
           var cached = JSON.parse(raw);
           var arr = cached.allEntries || cached;
           if (Array.isArray(arr) && arr.length) {
-            // Cache may contain feed objects or parsed entry objects
-            var entries;
-            if (arr[0].field1 !== undefined) {
-              // Feed format from fetchStationData cache
-              entries = arr.map(parseEntry).filter(function(e) { return !isNaN(e.timestamp.getTime()); });
-            } else {
-              // Already-parsed entry format from station.html cache
-              entries = arr.map(function(e) {
-                e.timestamp = new Date(e.timestamp);
-                return e;
-              }).filter(function(e) { return !isNaN(e.timestamp.getTime()); });
+            // Cache may contain legacy feeds, structured feeds, or parsed entries.
+            var entries = arr.map(parseEntry).filter(function(e) { return !isNaN(e.timestamp.getTime()); });
+            if (typeof filterEntryArrayByResetWindow === 'function') {
+              entries = filterEntryArrayByResetWindow(table.id, entries);
             }
             if (entries.length) {
               _dataSource[table.id] = 'cache';
-              resolve(entries);
+              done(entries);
               return;
             }
           }
@@ -950,7 +1138,7 @@ function loadTableData(table) {
 
     // --- 3. Fall back to static merged_data.js file ---
     var jsUrl = table.dataFile;
-    if (!jsUrl) { resolve(null); return; }
+    if (!jsUrl) { done(null); return; }
 
     var script = document.createElement('script');
     script.src = jsUrl;
@@ -959,19 +1147,22 @@ function loadTableData(table) {
         var data = window.STATION_DATA;
         delete window.STATION_DATA;
         var entries = (data.feeds || []).map(parseEntry).filter(function(e) { return !isNaN(e.timestamp.getTime()); });
+        if (typeof filterEntryArrayByResetWindow === 'function') {
+          entries = filterEntryArrayByResetWindow(table.id, entries);
+        }
         if (entries.length) {
           _dataSource[table.id] = 'file';
-          resolve(entries);
+          done(entries);
         } else {
-          resolve(null);
+          done(null);
         }
       } else {
-        resolve(null);
+        done(null);
       }
       script.remove();
     };
     script.onerror = function() {
-      resolve(null);
+      done(null);
       script.remove();
     };
     document.head.appendChild(script);
@@ -989,39 +1180,60 @@ async function fetchAllLive() {
   statusEl.textContent = '';
 
   var fetched = 0, errors = [];
+  try {
+    var liveTables = TABLES.filter(function(table) { return !table.legacy; });
+    statusEl.textContent = 'Fetching ' + liveTables.length + ' stations...';
 
-  for (var i = 0; i < TABLES.length; i++) {
-    var table = TABLES[i];
-    if (table.legacy) continue;  // Legacy stations (e.g. WROOM) stay on their own data source
-    statusEl.textContent = 'Fetching ' + table.name + '...';
-    try {
-      var result = await fetchStationData(table.id);
-      if (result && result.feeds && result.feeds.length) {
-        var entries = result.feeds.map(parseEntry).filter(function(e) { return !isNaN(e.timestamp.getTime()); });
+    var tasks = liveTables.map(function(table) {
+      return (async function() {
+        var result = await fetchStationData(table.id, { limit: 2000, timeoutMs: 20000 });
+        var entries = (result && result.feeds ? result.feeds : [])
+          .map(parseEntry)
+          .filter(function(e) { return !isNaN(e.timestamp.getTime()); });
         if (entries.length) {
           tableEntries[table.id] = entries;
+          saveStationCache(table.id, entries, { source: 'live' });
           _dataSource[table.id] = 'live';
-          fetched++;
+          return { table: table, updated: true };
         }
+        return { table: table, updated: false };
+      })();
+    });
+
+    var settled = await Promise.allSettled(tasks);
+    for (var i = 0; i < settled.length; i++) {
+      var s = settled[i];
+      if (s.status === 'fulfilled') {
+        if (s.value && s.value.updated) fetched++;
+      } else {
+        var t = liveTables[i];
+        var msg = s.reason && s.reason.message ? s.reason.message : 'Unknown error';
+        console.error('[Overview] Fetch failed for ' + t.name + ':', s.reason);
+        errors.push(t.name + ': ' + msg);
       }
-    } catch (err) {
-      console.error('[Overview] Fetch failed for ' + table.name + ':', err);
-      errors.push(table.name + ': ' + err.message);
     }
-  }
 
-  // Re-render all cards
-  renderAllCards();
+    // Re-render all cards
+    renderAllCards();
+    if (fetched > 0) {
+      var updatedIds = liveTables.map(function(t) { return t.id; });
+      notifyDashboardDataRefresh(updatedIds, 'overview.fetchAllLive');
+    }
 
-  btn.innerHTML = '&#128752; Fetch Live';
-  btn.disabled = false;
-  var ts = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
-  if (errors.length) {
-    statusEl.innerHTML = '<span style="color:var(--warning)">' + fetched + ' OK, ' + errors.length + ' failed &mdash; ' + ts + '</span>';
-  } else if (fetched > 0) {
-    statusEl.innerHTML = '<span style="color:var(--success)">' + fetched + ' stations updated &mdash; ' + ts + '</span>';
-  } else {
-    statusEl.innerHTML = '<span style="color:var(--text-muted)">No updates &mdash; ' + ts + '</span>';
+    var ts = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+    if (errors.length) {
+      statusEl.innerHTML = '<span style="color:var(--warning)">' + fetched + ' OK, ' + errors.length + ' failed &mdash; ' + ts + '</span>';
+    } else if (fetched > 0) {
+      statusEl.innerHTML = '<span style="color:var(--success)">' + fetched + ' stations updated &mdash; ' + ts + '</span>';
+    } else {
+      statusEl.innerHTML = '<span style="color:var(--text-muted)">No updates &mdash; ' + ts + '</span>';
+    }
+  } catch (err) {
+    console.error('[Overview] Fetch/render failure:', err);
+    statusEl.innerHTML = '<span style="color:var(--danger)">Fetch failed: ' + (err && err.message ? err.message : 'Unknown error') + '</span>';
+  } finally {
+    btn.innerHTML = '&#128752; Fetch Live';
+    btn.disabled = false;
   }
 }
 
@@ -1042,17 +1254,6 @@ function renderAllCards() {
       card = renderTableCard(table, null);
     }
     grid.appendChild(card);
-    // Re-render sparklines
-    if (table.id === 'wroom') {
-      if (entries) renderSparkline('spark-temp-wroom', computeWroomSummary(entries).sparkTemp, '#ef4444');
-      if (entries) renderSparkline('spark-hum-wroom', computeWroomSummary(entries).sparkHum, '#3b82f6');
-    } else {
-      var sum = entries ? computeSummary(entries) : null;
-      if (sum && sum.sparkTemp) {
-        renderSparkline('spark-temp-' + table.id, sum.sparkTemp, '#ef4444');
-        renderSparkline('spark-hum-'  + table.id, sum.sparkHum,  '#3b82f6');
-      }
-    }
   }
 }
 
@@ -1075,56 +1276,31 @@ async function init() {
   var grid = document.getElementById('tableGrid');
   grid.innerHTML = '<div class="loading-text"><span class="spinner"></span> Loading table data...</div>';
 
-  var cards = [];
-
-  // Kick off weather fetches for no-data tables in parallel
-  var weatherPromises = {};
-  TABLES.forEach(function(t) {
-    if (!t.dataFile && t.id !== 'wroom' && t.weather) {
-      weatherPromises[t.id] = fetchWeatherCard(t);
-    }
-    // WROOM has dataFile now but also needs weather if data missing
-    if (t.id === 'wroom' && t.weather && !weatherPromises[t.id]) {
-      // weather will be fetched inline if needed
-    }
+  var loadTasks = TABLES.map(function(table) {
+    return loadTableData(table);
   });
+  var settled = await Promise.allSettled(loadTasks);
 
+  grid.innerHTML = '';
   for (var i = 0; i < TABLES.length; i++) {
     var table = TABLES[i];
-
-    // WROOM: special path
-    if (table.id === 'wroom') {
-      var wroomEntries = await loadTableData(table);
-      if (wroomEntries) tableEntries[table.id] = wroomEntries;
-      var wroomSummary = computeWroomSummary(wroomEntries);
-      var wroomCard = renderWroomCard(table, wroomSummary);
-      cards.push({ card: wroomCard, table: table, summary: wroomSummary });
-      continue;
-    }
-
-    var entries = await loadTableData(table);
-
-    // Tables with no sensor data: render same card layout with '--' values
-    if (!entries) {
-      var noCard = renderTableCard(table, null);
-      cards.push({ card: noCard, table: table, summary: null });
-      continue;
+    var s = settled[i];
+    var entries = null;
+    if (s && s.status === 'fulfilled') {
+      entries = s.value;
+    } else if (s && s.reason) {
+      console.warn('[Overview] Initial load failed for ' + table.id + ':', s.reason);
     }
 
     if (entries) tableEntries[table.id] = entries;
-    var summary = computeSummary(entries);
-    var card = renderTableCard(table, summary);
-    cards.push({ card: card, table: table, summary: summary });
-  }
 
-  grid.innerHTML = '';
-  for (var j = 0; j < cards.length; j++) {
-    grid.appendChild(cards[j].card);
-    // Render sparklines after card is in DOM
-    if (cards[j].summary && cards[j].summary.sparkTemp) {
-      renderSparkline('spark-temp-' + cards[j].table.id, cards[j].summary.sparkTemp, '#ef4444');
-      renderSparkline('spark-hum-'  + cards[j].table.id, cards[j].summary.sparkHum,  '#3b82f6');
+    var card;
+    if (table.id === 'wroom') {
+      card = renderWroomCard(table, computeWroomSummary(entries));
+    } else {
+      card = renderTableCard(table, entries ? computeSummary(entries) : null);
     }
+    grid.appendChild(card);
   }
 
   // Start auto-refresh
@@ -1132,6 +1308,29 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+onDashboardDataRefresh(function(msg) {
+  try {
+    var ids = Array.isArray(msg && msg.stationIds) ? msg.stationIds : [];
+    if (!ids.length) return;
+    var changed = false;
+    ids.forEach(function(id) {
+      var t = TABLES.find(function(x) { return x.id === id; });
+      if (!t) return;
+      var raw = localStorage.getItem('seaweed_cache_' + id);
+      if (!raw) return;
+      var cached = JSON.parse(raw);
+      var arr = cached && Array.isArray(cached.allEntries) ? cached.allEntries : null;
+      if (!arr || !arr.length) return;
+      var entries = arr.map(parseEntry).filter(function(e) { return !isNaN(e.timestamp.getTime()); });
+      if (!entries.length) return;
+      tableEntries[id] = entries;
+      _dataSource[id] = cached.source || 'cache';
+      changed = true;
+    });
+    if (changed) renderAllCards();
+  } catch (e) {}
+});
 </script>
 </body>
 </html>

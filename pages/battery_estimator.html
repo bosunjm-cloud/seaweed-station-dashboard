@@ -7,23 +7,23 @@
 <title>ESP32 Seaweed Station — Battery Lifetime Estimator v2.1</title>
 <style>
   :root {
-    --bg: #0f1117;
-    --card: #1a1d27;
-    --border: #2a2d3a;
-    --accent: #4fc3f7;
-    --accent2: #81c784;
-    --accent3: #ce93d8;
-    --warn: #ffb74d;
-    --danger: #ef5350;
-    --text: #e0e0e0;
-    --muted: #8a8fa0;
-    --row-new: rgba(79,195,247,0.08);
+    --bg: #eef8f5;
+    --card: #ffffff;
+    --border: #bfded6;
+    --accent: #2f89b7;
+    --accent2: #1f9d6c;
+    --accent3: #4f8e80;
+    --warn: #d0892d;
+    --danger: #d04f5f;
+    --text: #12362f;
+    --muted: #6d8f88;
+    --row-new: rgba(47,137,183,0.10);
     --row-old: transparent;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: var(--bg);
+    background: linear-gradient(180deg, #e8f5f1 0%, #f5fbf9 100%);
     color: var(--text);
     padding: 20px;
     min-height: 100vh;
@@ -71,7 +71,7 @@
     font-weight: 500;
   }
   .field label .unit {
-    color: #666;
+    color: var(--text-muted, #6d8f88);
     font-weight: 400;
   }
   .field input, .field select {
@@ -115,9 +115,9 @@
   }
   .btn-apply {
     background: var(--accent);
-    color: #000;
+    color: #fff;
   }
-  .btn-apply:hover { background: #29b6f6; }
+  .btn-apply:hover { background: #2a7ea7; }
   .btn-clear {
     background: transparent;
     border: 1px solid var(--border);
@@ -142,7 +142,7 @@
     min-width: 1200px;
   }
   thead th {
-    background: #12141c;
+    background: #f2f8f6;
     color: var(--muted);
     font-weight: 600;
     text-transform: uppercase;
@@ -485,7 +485,30 @@
     border-radius: 4px;
     transition: width 0.4s;
   }
+
+  .plot-col, .plot-cell {
+    text-align: center !important;
+    width: 42px;
+    min-width: 42px;
+  }
+  .plot-cell input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent2);
+    cursor: pointer;
+  }
+  .scenario-chart-wrap {
+    height: 320px;
+    margin-top: 8px;
+  }
+  .scenario-chart-note {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 8px;
+  }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="battery_model.js"></script>
 </head>
 <body>
 
@@ -846,6 +869,7 @@
   <table id="resultsTable" style="min-width:1600px;">
     <thead>
       <tr>
+        <th rowspan="2" class="plot-col">Plot</th>
         <th rowspan="2">#</th>
         <th class="group-head" colspan="10">Inputs</th>
         <th class="group-head group-sep" colspan="6">Battery Estimate</th>
@@ -884,6 +908,17 @@
     </tbody>
   </table>
   <div class="empty-msg" id="resultsEmptyMsg">Adjust settings and click <strong>Apply</strong> to calculate battery lifetime.</div>
+</div>
+
+<div class="panel" style="margin-top:16px;">
+  <div class="panel-title" style="color:var(--accent2);">Nonlinear Voltage Projection</div>
+  <div class="info-box" style="margin-bottom:8px;">
+    Check rows in the results table to overlay scenario projections. Curves are generated from the shared battery model using a nonlinear Li-ion voltage profile.
+  </div>
+  <div class="scenario-chart-wrap">
+    <canvas id="scenarioVoltageChart"></canvas>
+  </div>
+  <div id="scenarioChartNote" class="scenario-chart-note">Select one or more rows in the table to display projected voltage curves.</div>
 </div>
 
 <!-- Data Estimate -->
@@ -1045,6 +1080,7 @@ function calcDataEst() {
 const LS_SETTINGS  = 'bee_settings_v1';
 const LS_T0RESULTS = 'bee_t0results_v1';
 const LS_TERESULTS = 'bee_teresults_v1';
+const LS_SELECTED_SCENARIOS = 'bee_selected_scenarios_v1';
 const MAX_SAVED_ROWS = 10;
 
 function saveSettings() {
@@ -1071,10 +1107,18 @@ function saveResults() {
   try {
     localStorage.setItem(LS_T0RESULTS, JSON.stringify(t0Results.slice(0, MAX_SAVED_ROWS)));
     localStorage.setItem(LS_TERESULTS, JSON.stringify(teResults.slice(0, MAX_SAVED_ROWS)));
+    localStorage.setItem(LS_SELECTED_SCENARIOS, JSON.stringify(Object.keys(selectedScenarioKeys).filter(k => !!selectedScenarioKeys[k])));
   } catch(e) {}
 }
 
 function loadResults() {
+  let selectedKeys = [];
+  try {
+    const loaded = JSON.parse(localStorage.getItem(LS_SELECTED_SCENARIOS));
+    if (Array.isArray(loaded)) selectedKeys = loaded;
+  } catch(e) {}
+  selectedKeys.forEach(k => { selectedScenarioKeys[k] = true; });
+
   try {
     const t0 = JSON.parse(localStorage.getItem(LS_T0RESULTS));
     if (Array.isArray(t0) && t0.length > 0) {
@@ -1091,6 +1135,7 @@ function loadResults() {
   } catch(e) {}
   if (t0Results.length > 0 || teResults.length > 0) {
     renderResultsTable();
+    renderScenarioVoltageChart();
     updateT0RowCount();
     updateTERowCount();
   }
@@ -1100,6 +1145,7 @@ function clearAllStorage() {
   try {
     localStorage.removeItem(LS_T0RESULTS);
     localStorage.removeItem(LS_TERESULTS);
+    localStorage.removeItem(LS_SELECTED_SCENARIOS);
   } catch(e) {}
 }
 
@@ -1110,6 +1156,8 @@ let t0RowCounter = 0;
 const t0Results  = [];
 let teRowCounter = 0;
 const teResults  = [];
+let scenarioVoltageChart = null;
+const selectedScenarioKeys = {};
 
 function syncSharedPeriod() {
   // Shared schedule values are read directly by the estimators.
@@ -1126,6 +1174,158 @@ function getVal(id, fallback, allowZero = false) {
 function getBool(id) { return document.getElementById(id).checked; }
 function getStr(id)  { return document.getElementById(id).value; }
 
+function scenarioKey(row) {
+  return row.board + '-' + row.num;
+}
+
+function colorForScenario(idx, board) {
+  var t0Colors = ['#4fc3f7', '#29b6f6', '#81d4fa', '#0288d1', '#90caf9'];
+  var teColors = ['#ce93d8', '#ba68c8', '#ab47bc', '#e1bee7', '#8e24aa'];
+  var pool = board === 'T-Energy' ? teColors : t0Colors;
+  return pool[idx % pool.length];
+}
+
+function onScenarioToggle(key, checked) {
+  if (checked) selectedScenarioKeys[key] = true;
+  else delete selectedScenarioKeys[key];
+  saveResults();
+  renderScenarioVoltageChart();
+}
+
+function renderScenarioVoltageChart() {
+  var noteEl = document.getElementById('scenarioChartNote');
+  var canvas = document.getElementById('scenarioVoltageChart');
+  if (!canvas || typeof Chart === 'undefined') {
+    if (noteEl) noteEl.textContent = 'Chart.js not available.';
+    return;
+  }
+
+  var rows = [...t0Results, ...teResults].sort((a, b) => b.num - a.num);
+  var selectedRows = rows.filter(r => !!selectedScenarioKeys[scenarioKey(r)]);
+
+  if (!selectedRows.length) {
+    if (scenarioVoltageChart) {
+      scenarioVoltageChart.destroy();
+      scenarioVoltageChart = null;
+    }
+    if (noteEl) noteEl.textContent = 'Select one or more rows in the table to display projected voltage curves.';
+    return;
+  }
+
+  var cutoffV = 3.3;
+  var fullV = 4.2;
+  var datasets = [
+    {
+      label: 'Full (4.2V)',
+      data: [{ x: 0, y: fullV }, { x: 365, y: fullV }],
+      yAxisID: 'y',
+      borderColor: '#94a3b8',
+      borderWidth: 1,
+      borderDash: [4, 4],
+      pointRadius: 0,
+      parsing: false,
+    },
+    {
+      label: 'Cutoff (3.3V)',
+      data: [{ x: 0, y: cutoffV }, { x: 365, y: cutoffV }],
+      yAxisID: 'y',
+      borderColor: '#ef5350',
+      borderWidth: 1,
+      borderDash: [6, 4],
+      pointRadius: 0,
+      parsing: false,
+    }
+  ];
+
+  var maxDay = 1;
+  selectedRows.forEach(function(row, idx) {
+    var curve = [];
+    if (typeof BatteryModel !== 'undefined' && typeof BatteryModel.projectVoltageCurve === 'function') {
+      curve = BatteryModel.projectVoltageCurve(
+        100,
+        new Date(),
+        row.dailyTotal,
+        row.battCap,
+        row.derating,
+        {
+          boardKind: row.board === 'T-Energy' ? 'te' : 't0',
+          fullV: fullV,
+          cutoffV: cutoffV,
+          maxDays: Math.max(7, Math.min(365, Math.ceil(row.lifetimeDays + 3)))
+        }
+      );
+    }
+    if (!curve.length) return;
+
+    var vPoints = curve.map(function(p, dayIdx) {
+      return { x: dayIdx, y: p.voltage };
+    });
+    maxDay = Math.max(maxDay, vPoints.length - 1);
+    var daysLabel = Math.max(1, Math.round(row.lifetimeDays || 0));
+    var baseLabel = row.board + ' #' + row.num + ' (' + row.dailyTotal.toFixed(2) + ' mAh/day - ' + daysLabel + ' days)';
+    datasets.push({
+      label: baseLabel,
+      data: vPoints,
+      yAxisID: 'y',
+      borderColor: colorForScenario(idx, row.board),
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.2,
+      borderDash: row.board === 'T-Energy' ? [8, 4] : [],
+      parsing: false,
+    });
+  });
+
+  datasets[0].data[1].x = maxDay;
+  datasets[1].data[1].x = maxDay;
+
+  if (scenarioVoltageChart) scenarioVoltageChart.destroy();
+  scenarioVoltageChart = new Chart(canvas, {
+    type: 'line',
+    data: { datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Days From Start', color: '#94a3b8' },
+          ticks: { color: '#64748b' },
+          grid: { color: '#1e293b' },
+          min: 0,
+          max: maxDay
+        },
+        y: {
+          min: 3.3,
+          max: 4.2,
+          title: { display: true, text: 'Voltage (V)', color: '#94a3b8' },
+          ticks: { color: '#64748b' },
+          grid: { color: '#1e293b' }
+        },
+        yPct: {
+          position: 'right',
+          min: 0,
+          max: 100,
+          title: { display: true, text: 'Battery (%)', color: '#94a3b8' },
+          ticks: { color: '#64748b', callback: function(v) { return v + '%'; } },
+          grid: { drawOnChartArea: false }
+        }
+      }
+    }
+  });
+
+  if (noteEl) {
+    noteEl.textContent = selectedRows.length + ' scenario' + (selectedRows.length > 1 ? 's' : '')
+      + ' selected. Solid lines are modelled voltage (left axis), with equivalent battery % scale on the right axis.';
+  }
+}
+
 function runAllEstimates() {
   saveSettings();
   runT0Estimate();
@@ -1136,6 +1336,8 @@ function runAllEstimates() {
 function clearAllResults() {
   clearT0Results();
   clearTEResults();
+  Object.keys(selectedScenarioKeys).forEach(k => delete selectedScenarioKeys[k]);
+  renderScenarioVoltageChart();
   clearAllStorage();
 }
 function exportAllCSV() {
@@ -1197,7 +1399,48 @@ function runT0Estimate() {
   const t0SensorMs     = getVal('t0_sensorMs', 25, true);
   const t0SensorCurrent = getVal('t0_sensorCurrent', 40, true);
 
-  const usable_mAh  = battCap * derating;
+  const modelCfg = {
+    deployMode: mode === 'cell' ? 1 : 0,
+    sleepEnable: sleepEn,
+    samplePeriod_s: samplePeriod,
+    tsBulkInterval_s: bulkInterval * 60,
+    tsBulkFreqHours: syncFreqHours,
+    espnowSyncPeriod_s: syncPeriod,
+    satAInstalled: tEnergyNodes >= 1,
+    satBInstalled: tEnergyNodes >= 2,
+  };
+  const modelHw = {
+    sleepCurrent_mA: I_sleep,
+    mcuActive_mA: I_mcu,
+    wifiActive_mA: I_wifi,
+    cellActive_mA: I_cell,
+    sampleDuration_s: t_sample,
+    sensorMs: t0SensorMs,
+    sensorCurrent_mA: t0SensorCurrent,
+    sensorCount: t0SensorCount,
+    modemBoot_s: t_modemBoot,
+    modemShutdown_s: t_modemOff,
+    cellBulkBase_s: t_cellBase,
+    cellInitReg_s: t_cellInit,
+    cellBulkPerRow_s: t_cellRow,
+    blynkOps_s: t_blynk,
+    modemBlockMax_s: t_modemMax,
+    wifiConnect_s: t_wifiConn,
+    wifiBulkUpload_s: t_wifiBulk,
+    sdWriteCurrent_mA: I_sd,
+    sdWriteTime_s: t_sdWrite,
+    bootOverhead_s: t_boot,
+    teRxWindowMs: t_teWindowMs,
+    teTxSyncMs: t_teTxMs,
+    teRxProcMs: t_teProcMs,
+    teEarlyWake_s: t_teEarlyWakeS,
+    batteryDerating: derating,
+    batteryCapacity_mAh: battCap,
+  };
+  const model = (typeof BatteryModel !== 'undefined' && BatteryModel.calcT0Daily)
+    ? BatteryModel.calcT0Daily(modelCfg, modelHw)
+    : null;
+
   const samplesPerDay   = Math.floor(86400 / samplePeriod);
   const syncsPerDay     = (tEnergyNodes > 0) ? Math.floor(86400 / syncPeriod) : 0;
   const uploadsPerDay   = 24.0 / syncFreqHours;
@@ -1205,62 +1448,9 @@ function runT0Estimate() {
   const bulkInterval_s  = bulkInterval * 60;
   const rowsPerUpload   = Math.max(1, Math.floor((syncFreqHours * 3600) / bulkInterval_s));
 
-  // --- Sample energy (base + sensors + SD write per wake) ---
-  const t0Sensors_s = (t0SensorCount * t0SensorMs) / 1000.0;
-  const t_sampleTotal = t_sample + t0Sensors_s;
-  let sampleActivePerDay_s;
-  if (sleepEn) {
-    sampleActivePerDay_s = samplesPerDay * t_sampleTotal;
-  } else {
-    const t_readOnly = Math.max(0, t_sampleTotal - t_boot);
-    sampleActivePerDay_s = samplesPerDay * t_readOnly;
-  }
-  const sdEnergy_mAh     = (samplesPerDay * t_sdWrite * I_sd) / 3600.0;
-  const sensorEnergy_mAh = (samplesPerDay * t0Sensors_s * t0SensorCurrent) / 3600.0;
-  const sampleEnergy_mAh = (sampleActivePerDay_s * I_mcu) / 3600.0 + sdEnergy_mAh + sensorEnergy_mAh;
-
-  // --- Early-wake penalty (T0 idles at MCU current before epoch grid for satellite sync) ---
-  // Applied every sample cycle when tEnergyNodes > 0
-  const earlyWakePerDay_s  = (tEnergyNodes > 0) ? syncsPerDay * t_teEarlyWakeS : 0;
-  const earlyWakeEnergy_mAh = (earlyWakePerDay_s * I_mcu) / 3600.0;
-
-  // --- Satellite ESP-NOW window (RX HELLO/DATA + TX SYNC/ACK + processing) ---
-  // Extra current above MCU idle for the radio-active portion
-  const I_espnowExtra    = Math.max(0, I_wifi - I_mcu);
-  const tePerSync_s    = (tEnergyNodes * (t_teWindowMs + t_teTxMs + t_teProcMs)) / 1000.0;
-  const teActivePerDay_s = syncsPerDay * tePerSync_s;
-  const teEnergy_mAh     = (teActivePerDay_s * I_wifi) / 3600.0;
-
-  // --- Upload energy ---
-  let uploadDuration_s = 0;
-  let I_radio = I_mcu;
-  if (mode === 'cell') {
-    I_radio = I_cell;
-    uploadDuration_s = t_modemBoot + t_cellInit + t_cellBase + (rowsPerUpload * t_cellRow) + t_blynk + t_modemOff;
-    uploadDuration_s = Math.min(uploadDuration_s, t_modemMax);
-  } else {
-    I_radio = I_wifi;
-    uploadDuration_s = t_wifiConn + t_wifiBulk + (rowsPerUpload * 0.05);
-  }
-  const uploadActivePerDay_s = uploadsPerDay * uploadDuration_s;
-  const uploadEnergy_mAh = (uploadActivePerDay_s * I_radio) / 3600.0;
-
-  // --- Sleep energy ---
-  const totalActivePerDay_s = sampleActivePerDay_s + earlyWakePerDay_s + teActivePerDay_s + uploadActivePerDay_s;
-  let sleepEnergy_mAh;
-  if (sleepEn) {
-    const sleepTime_s = Math.max(0, 86400 - totalActivePerDay_s);
-    sleepEnergy_mAh = (sleepTime_s * I_sleep) / 3600.0;
-  } else {
-    const idleTime_s = Math.max(0, 86400 - totalActivePerDay_s);
-    sleepEnergy_mAh = (idleTime_s * I_mcu) / 3600.0;
-  }
-
-  const dailyTotal_mAh = sleepEnergy_mAh + sampleEnergy_mAh + earlyWakeEnergy_mAh + teEnergy_mAh + uploadEnergy_mAh;
-  const lifetimeDays   = (dailyTotal_mAh > 0) ? usable_mAh / dailyTotal_mAh : 0;
+  const dailyTotal_mAh = model ? model.dailyTotal_mAh : 0;
+  const lifetimeDays   = model ? model.lifetimeDays : 0;
   const lifetimeMonths = lifetimeDays / 30.44;
-  const pctAsleep = (sleepEn && totalActivePerDay_s < 86400)
-    ? ((86400 - totalActivePerDay_s) / 86400 * 100) : 0;
 
   // --- Data estimate snapshot (replicated from calcDataEst logic) ---
   const _de_teSensors   = Math.max(0, Math.round(getVal('te_sensorCount', 2, true)));
@@ -1300,13 +1490,14 @@ function runT0Estimate() {
     bulkInterval: bulkInterval + ' min',
     webFreq: syncFreqHours + (syncFreqHours === 1 ? ' hr' : ' hrs'),
     battCap,
+    derating,
     sensorCount: t0SensorCount,
     dailyTotal: dailyTotal_mAh,
-    sleepMah: sleepEnergy_mAh,
-    webSyncMah: uploadEnergy_mAh,
-    sampleMah: sampleEnergy_mAh,
-    espNowMah: teEnergy_mAh,
-    otherMah: earlyWakeEnergy_mAh,
+    sleepMah: model ? model.sleepMah : 0,
+    webSyncMah: model ? model.uploadMah : 0,
+    sampleMah: model ? model.sampleMah : 0,
+    espNowMah: model ? model.espNowMah : 0,
+    otherMah: model ? model.earlyWakeMah : 0,
     lifetimeDays,
     lifetimeMonths,
     samplesPerDay,
@@ -1316,6 +1507,7 @@ function runT0Estimate() {
     driftTypical: _fmtDrift(_driftTyp_s),
     driftWorst:   _fmtDrift(_driftWst_s)
   };
+  selectedScenarioKeys[scenarioKey(row)] = true;
   t0Results.unshift(row);
   if (t0Results.length > MAX_SAVED_ROWS) t0Results.length = MAX_SAVED_ROWS;
   renderT0Table();
@@ -1326,7 +1518,12 @@ function runT0Estimate() {
 function renderResultsTable() {
   const tbody    = document.getElementById('resultsBody');
   const emptyMsg = document.getElementById('resultsEmptyMsg');
-  if (t0Results.length === 0 && teResults.length === 0) { tbody.innerHTML = ''; emptyMsg.style.display = 'block'; return; }
+  if (t0Results.length === 0 && teResults.length === 0) {
+    tbody.innerHTML = '';
+    emptyMsg.style.display = 'block';
+    renderScenarioVoltageChart();
+    return;
+  }
   emptyMsg.style.display = 'none';
   let html = '';
   const rows = [...t0Results, ...teResults].sort((a, b) => b.num - a.num);
@@ -1334,7 +1531,10 @@ function renderResultsTable() {
   rows.forEach((r, i) => {
     const isTe = r.board === 'T-Energy';
     const cls = (i === 0) ? 'row-latest row-flash' : '';
+    const sk = scenarioKey(r);
+    const checked = !!selectedScenarioKeys[sk] ? 'checked' : '';
     html += `<tr class="${cls}">
+      <td class="plot-cell"><input type="checkbox" data-scenariokey="${sk}" ${checked}></td>
       <td>${r.num}</td>
       <td class="col-input ${isTe ? 'val-te' : 'val-mode'}">${r.board}</td>
       <td class="col-input">${r.samplePeriod}</td>
@@ -1363,6 +1563,12 @@ function renderResultsTable() {
     </tr>`;
   });
   tbody.innerHTML = html;
+  tbody.querySelectorAll('input[data-scenariokey]').forEach(cb => {
+    cb.addEventListener('change', function() {
+      onScenarioToggle(this.getAttribute('data-scenariokey'), this.checked);
+    });
+  });
+  renderScenarioVoltageChart();
 }
 
 function renderT0Table() { renderResultsTable(); }
@@ -1425,84 +1631,43 @@ function runTEEstimate() {
   const teSensorMs     = getVal('te_sensorMs', 25, true);
   const teSensorCurrent = getVal('te_sensorCurrent', 40, true);
 
-  const usable_mAh    = battCap * derating;
+  const modelCfg = {
+    samplePeriod_s: samplePeriod,
+    espnowSyncPeriod_s: syncPeriod,
+    sleepEnable: sleepEn,
+  };
+  const modelHw = {
+    sleepUa: sleepUa,
+    bootCurrent_mA: I_boot,
+    bootMs: t_boot_ms,
+    i2cCurrent_mA: I_i2c,
+    i2cMs: t_i2c_ms,
+    mcuActive_mA: I_teMcuActive,
+    txCurrent_mA: I_tx,
+    txMs: t_tx_ms,
+    rxCurrent_mA: I_rx,
+    flashCurrent_mA: I_flash,
+    flashMs: t_flash_ms,
+    syncApplyMs: t_syncApplyMs,
+    sensorMs: teSensorMs,
+    sensorCurrent_mA: teSensorCurrent,
+    sensorCount: teSensorCount,
+    listenMs: listenMs,
+    listenLongMs: listenLongMs,
+    listenEveryN: listenEveryN,
+    retries: retries,
+    batteryDerating: derating,
+    batteryCapacity_mAh: battCap,
+  };
+  const model = (typeof BatteryModel !== 'undefined' && BatteryModel.calcTEDaily)
+    ? BatteryModel.calcTEDaily(modelCfg, modelHw)
+    : null;
+
   const samplesPerDay = Math.floor(86400 / samplePeriod);
   const syncsPerDay   = Math.floor(86400 / syncPeriod);
-  const periodsMatch  = Math.abs(samplePeriod - syncPeriod) < 0.001;
-
-  // Per-wake active phases (ms)
-  const boot_ms    = t_boot_ms;
-  const sensor_ms  = teSensorCount * teSensorMs;
-  const i2c_ms     = t_i2c_ms + sensor_ms;
-  // HELLO + DATA each with retry budget
-  const tx_frames = 2 * (1 + retries);
-  const tx_ms     = tx_frames * t_tx_ms;
-  // Weighted average listen window
-  const normalFraction = (listenEveryN - 1) / listenEveryN;
-  const longFraction   = 1.0 / listenEveryN;
-  const avgListenMs    = normalFraction * listenMs + longFraction * listenLongMs;
-  const flash_ms       = t_flash_ms;
-  // SYNC processing: computeNextWake() + RTC correction, runs at boot-level CPU current
-  const sync_ms        = t_syncApplyMs;
-
-  const sampleWakeCount = samplesPerDay;
-  const syncWakeCount   = periodsMatch ? samplesPerDay : syncsPerDay;
-  const bootWakeCount   = periodsMatch ? sampleWakeCount : (sampleWakeCount + syncWakeCount);
-
-  // Pre-wake margin: T-Energy wakes 5 s before expected SYNC (SLEEP_WAKE_MARGIN_S).
-  // Only adds to energy when sleep is enabled (always-on boards already idle at that current).
-  const preWakeMargin_ms = sleepEn ? 5000 : 0;
-
-  const sampleWakeMs    = boot_ms + i2c_ms + flash_ms;
-  const syncWakeMs      = boot_ms + preWakeMargin_ms + tx_ms + avgListenMs + sync_ms;
-  const totalActiveMs   = periodsMatch
-    ? (sampleWakeCount * (sampleWakeMs + preWakeMargin_ms + tx_ms + avgListenMs + sync_ms))
-    : (sampleWakeCount * sampleWakeMs) + (syncWakeCount * syncWakeMs);
-  const totalMsDay      = 86400 * 1000;
-  const sleepMsDay      = Math.max(0, totalMsDay - totalActiveMs);
-
-  // Energy per event (µAh)
-  const mAhPerMs        = 1.0 / 3600000.0;
-  const e_boot_uAh      = I_boot  * boot_ms      * mAhPerMs * 1000;
-  const e_i2c_uAh       = I_i2c   * t_i2c_ms     * mAhPerMs * 1000;
-  const e_sensor_uAh    = teSensorCurrent * sensor_ms * mAhPerMs * 1000;
-  const e_tx_uAh        = I_tx    * tx_ms        * mAhPerMs * 1000;
-  const e_rx_uAh        = I_rx    * avgListenMs  * mAhPerMs * 1000;
-  const e_flash_uAh     = I_flash * flash_ms     * mAhPerMs * 1000;
-
-  const sampleMcuMs      = t_i2c_ms + sensor_ms + flash_ms;
-  const syncApplyMcuMs   = sync_ms;
-  const e_mcuActive_uAh  = I_teMcuActive * ((sampleWakeCount * sampleMcuMs) + (syncWakeCount * syncApplyMcuMs)) * mAhPerMs * 1000;
-  const e_syncApply_uAh  = I_teMcuActive * (syncWakeCount * syncApplyMcuMs) * mAhPerMs * 1000;
-
-  const e_active_uAh =
-    (e_boot_uAh * bootWakeCount) +
-    (e_mcuActive_uAh) +
-    (e_i2c_uAh * sampleWakeCount) +
-    (e_sensor_uAh * sampleWakeCount) +
-    (e_flash_uAh * sampleWakeCount) +
-    (e_tx_uAh * syncWakeCount) +
-    (e_rx_uAh * syncWakeCount);
-
-  const e_sleep_uAh = sleepEn
-    ? (sleepUa * sleepMsDay / 3600000.0) // µA × ms / 3600000
-    : (I_boot * sleepMsDay * mAhPerMs * 1000); // idle at boot current when deep sleep disabled
-
-  // Daily figures
-  const dailyEnergy_mAh  = (e_active_uAh + e_sleep_uAh) / 1000.0;
-  const sleepMah_d       = e_sleep_uAh / 1000.0;
-  const bootMah_d        = (e_boot_uAh * bootWakeCount) / 1000.0;
-  const txMah_d          = (e_tx_uAh * syncWakeCount) / 1000.0;
-  const rxMah_d          = (e_rx_uAh * syncWakeCount) / 1000.0;
-  const flashMah_d       = (e_flash_uAh * sampleWakeCount) / 1000.0;
-  const syncApplyMah_d   = e_syncApply_uAh / 1000.0;
-  const sampleMcuMah_d   = (I_teMcuActive * (sampleWakeCount * sampleMcuMs) * mAhPerMs * 1000) / 1000.0;
-  const i2cMah_d         = (e_i2c_uAh * sampleWakeCount) / 1000.0;
-  const sensorMah_d      = (e_sensor_uAh * sampleWakeCount) / 1000.0;
-
-  const lifetimeDays   = (dailyEnergy_mAh > 0) ? usable_mAh / dailyEnergy_mAh : 0;
+  const dailyEnergy_mAh = model ? model.dailyTotal_mAh : 0;
+  const lifetimeDays   = model ? model.lifetimeDays : 0;
   const lifetimeMonths = lifetimeDays / 30.44;
-  const pctActive      = (totalActiveMs / totalMsDay) * 100;
 
   teRowCounter++;
   const row = {
@@ -1516,18 +1681,20 @@ function runTEEstimate() {
     bulkInterval: '-',
     webFreq: '-',
     battCap,
+    derating,
     sensorCount: teSensorCount,
     dailyTotal: dailyEnergy_mAh,
-    sleepMah: sleepMah_d,
+    sleepMah: model ? model.sleepMah : 0,
     webSyncMah: '-',
-    sampleMah: sampleMcuMah_d + i2cMah_d + sensorMah_d + flashMah_d,
-    espNowMah: txMah_d + rxMah_d,
-    otherMah: bootMah_d + syncApplyMah_d,
+    sampleMah: model ? model.activeMah : 0,
+    espNowMah: '-',
+    otherMah: model ? ((model.preWakeActiveMs || 0) / 3600000.0 * I_teMcuActive) : 0,
     lifetimeDays,
     lifetimeMonths,
     samplesPerDay,
     syncsPerDay
   };
+  selectedScenarioKeys[scenarioKey(row)] = true;
   teResults.unshift(row);
   if (teResults.length > MAX_SAVED_ROWS) teResults.length = MAX_SAVED_ROWS;
   renderTETable();
@@ -1697,6 +1864,7 @@ window.addEventListener('DOMContentLoaded', () => {
   loadSettings();       // restore inputs first
   syncSharedPeriod();
   loadResults();        // restore saved rows (renders them)
+  renderScenarioVoltageChart();
   calcDataEst();        // data estimate reads its own inputs
   autoDriftWindow();    // auto-computes listen-window from period, then runs drift est
 });

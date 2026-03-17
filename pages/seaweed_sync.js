@@ -1,9 +1,12 @@
 /**
  * seaweed_sync.js — Sync-window analysis functions for Seaweed Dashboard.
  *
- * Provides:  collectSyncEventTimes, parseField8ConfigUnified,
- *            parseSyncConfigFromField8, estimateSyncPeriodMs,
- *            buildSyncPeriodTimeline, syncCfgAt, evaluateSyncWindows
+ * Provides:  collectSyncEventTimes, parseSyncConfigFromEntry,
+ *            estimateSyncPeriodMs, buildSyncPeriodTimeline,
+ *            syncCfgAt, evaluateSyncWindows
+ *
+ * Legacy field8 helpers (parseField8ConfigUnified, parseSyncConfigFromField8)
+ * are retained only as fallback for old exported datasets.
  *
  * Depends on: (none — standalone pure functions)
  *
@@ -11,7 +14,7 @@
  */
 
 // =====================================================================
-// FIELD-8 CONFIG PARSING
+// LEGACY FIELD-8 CONFIG PARSING (fallback for old data only)
 // =====================================================================
 
 /**
@@ -30,16 +33,21 @@ function parseField8ConfigUnified(rawField8) {
   var parts = rawField8.split('|');
   if (parts.length < 2) return null;
   var tokens = parts[1].split(',');
-  if (tokens.length < 8) return null;
+  if (!tokens.length) return null;
+  var deployMode = parseInt(tokens[0], 10);
+  var samplePeriod = parseInt(tokens[1], 10);
+  var sleepEnable = parseInt(tokens[1], 10);
+  var legacyLayout = tokens.length >= 8;
   return {
-    deployMode:        parseInt(tokens[0], 10) || 0,
-    sleepEnable:       parseInt(tokens[1], 10) === 1,
-    samplePeriod_s:    parseInt(tokens[2], 10) || 600,
-    tsBulkInterval_s:  parseInt(tokens[3], 10) || 900,
-    tsBulkFreqHours:   parseInt(tokens[4], 10) || 24,
-    espnowSyncPeriod_s:parseInt(tokens[5], 10) || 3600,
-    satAInstalled:     parseInt(tokens[6], 10) === 1,
-    satBInstalled:     parseInt(tokens[7], 10) === 1
+    deployMode:        isFinite(deployMode) ? deployMode : 0,
+    sleepEnable:       legacyLayout ? (sleepEnable === 1) : false,
+    samplePeriod_s:    legacyLayout ? (parseInt(tokens[2], 10) || 600)
+                                    : (isFinite(samplePeriod) ? samplePeriod : 600),
+    tsBulkInterval_s:  legacyLayout ? (parseInt(tokens[3], 10) || 900) : 900,
+    tsBulkFreqHours:   legacyLayout ? (parseInt(tokens[4], 10) || 24) : 24,
+    espnowSyncPeriod_s:legacyLayout ? (parseInt(tokens[5], 10) || 3600) : 3600,
+    satAInstalled:     legacyLayout ? (parseInt(tokens[6], 10) === 1) : true,
+    satBInstalled:     legacyLayout ? (parseInt(tokens[7], 10) === 1) : true
   };
 }
 
@@ -60,6 +68,35 @@ function parseSyncConfigFromField8(rawField8) {
     satAInstalled:  !!cfg.satAInstalled,
     satBInstalled:  !!cfg.satBInstalled
   };
+}
+
+/**
+ * Extract sync config from a parsed entry, preferring structured fields.
+ * Falls back to legacy field8 parsing for older datasets.
+ *
+ * @param {Object} entry
+ * @returns {{ periodMs: number, satAInstalled: boolean, satBInstalled: boolean }|null}
+ */
+function parseSyncConfigFromEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+
+  var periodSec = parseInt(entry.espnowSyncPeriod_s, 10);
+  if (isFinite(periodSec) && periodSec > 0) {
+    periodSec = Math.max(60, Math.min(24 * 3600, periodSec));
+    var satAInstalled = (entry.satAInstalled !== null && entry.satAInstalled !== undefined)
+      ? !!entry.satAInstalled
+      : (entry.satASampleId != null);
+    var satBInstalled = (entry.satBInstalled !== null && entry.satBInstalled !== undefined)
+      ? !!entry.satBInstalled
+      : (entry.satBSampleId != null);
+    return {
+      periodMs: periodSec * 1000,
+      satAInstalled: satAInstalled,
+      satBInstalled: satBInstalled
+    };
+  }
+
+  return parseSyncConfigFromField8(entry._rawField8);
 }
 
 // =====================================================================
@@ -154,18 +191,7 @@ function buildSyncPeriodTimeline(entries, sampleIdKey, valueKey, defaultPeriodMs
   });
 
   for (var i = 0; i < entries.length; i++) {
-    var syncCfg = parseSyncConfigFromField8(entries[i]._rawField8);
-    // Fallback for Supabase entries: use espnow_sync_period_s column directly
-    // (field8 is always null for Supabase data; satA/satB installed are inferred
-    //  from whether sat_a_sample_id / sat_b_sample_id are non-null in this entry)
-    if (!syncCfg && entries[i].espnowSyncPeriod_s > 0) {
-      var e = entries[i];
-      syncCfg = {
-        periodMs:      e.espnowSyncPeriod_s * 1000,
-        satAInstalled: e.satASampleId != null,
-        satBInstalled: e.satBSampleId != null
-      };
-    }
+    var syncCfg = parseSyncConfigFromEntry(entries[i]);
     if (!syncCfg) continue;
     var changed = syncCfg.periodMs !== lastPeriod ||
                   syncCfg.satAInstalled !== lastSatAInstalled ||

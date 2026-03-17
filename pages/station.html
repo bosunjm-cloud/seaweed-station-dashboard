@@ -16,31 +16,31 @@
    CSS -- Dark monitoring dashboard theme  (unified template)
    =================================================================== */
 :root {
-  --bg:          #0f172a;
-  --bg-card:     #1e293b;
-  --bg-card-alt: #1a2332;
-  --bg-hover:    #334155;
-  --text:        #f1f5f9;
-  --text-sec:    #94a3b8;
-  --text-muted:  #64748b;
-  --accent:      #0ea5e9;
-  --accent-dim:  #0284c7;
-  --success:     #22c55e;
-  --success-dim: #166534;
-  --warning:     #f59e0b;
-  --warning-dim: #92400e;
-  --danger:      #ef4444;
-  --danger-dim:  #991b1b;
-  --border:      #334155;
+  --bg:          #eef8f5;
+  --bg-card:     #ffffff;
+  --bg-card-alt: #f2f8f6;
+  --bg-hover:    #e5f2ee;
+  --text:        #12362f;
+  --text-sec:    #457c72;
+  --text-muted:  #6d8f88;
+  --accent:      #2f89b7;
+  --accent-dim:  #2a7ea7;
+  --success:     #1f9d6c;
+  --success-dim: #dff5eb;
+  --warning:     #d0892d;
+  --warning-dim: #fff1dd;
+  --danger:      #d04f5f;
+  --danger-dim:  #ffe4e8;
+  --border:      #bfded6;
   --radius:      10px;
-  --shadow:      0 4px 12px rgba(0,0,0,0.3);
+  --shadow:      0 4px 14px rgba(25, 81, 77, 0.10);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  background: var(--bg);
+  background: linear-gradient(180deg, #e8f5f1 0%, #f5fbf9 100%);
   color: var(--text);
   line-height: 1.5;
   min-height: 100vh;
@@ -48,7 +48,7 @@ body {
 
 /* -- Header --------------------------------------------------------- */
 .header {
-  background: linear-gradient(135deg, #0c4a6e 0%, #1e293b 100%);
+  background: linear-gradient(135deg, #d9f0e9 0%, #dbeef8 100%);
   border-bottom: 1px solid var(--border);
   padding: 16px 24px;
   display: flex;
@@ -226,7 +226,7 @@ body {
 .badge-ok    { background: var(--success-dim); color: var(--success); }
 .badge-warn  { background: var(--warning-dim); color: var(--warning); }
 .badge-error { background: var(--danger-dim);  color: var(--danger); }
-.badge-nc    { background: #1e293b; color: var(--text-muted); border: 1px solid var(--border); }
+.badge-nc    { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
 
 .big-number { font-size: 2.2rem; font-weight: 700; line-height: 1.1; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
 .big-label  { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 14px; }
@@ -399,10 +399,11 @@ body {
 
 /* -- Collapsible sections ---------------------------------------- */
 .collapsible-section{margin-bottom:12px}
-.collapsible-toggle{width:100%;background:#1e293b;border:1px solid #334155;border-radius:8px;color:#f1f5f9;font-size:1rem;font-weight:600;padding:10px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .2s}
-.collapsible-toggle:hover{background:#334155}
+.collapsible-toggle{width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:1rem;font-weight:600;padding:10px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .2s}
+.collapsible-toggle:hover{background:var(--bg-hover)}
 .collapsible-chevron{font-size:.7rem;transition:transform .3s}
 .collapsible-body{padding-top:10px}
+.stack-gap{margin-bottom:12px}
 
 /* -- Daily summary highlight classes ------------------------------ */
 .peaks-table td .hl-min{color:#38bdf8;font-weight:700}
@@ -410,7 +411,7 @@ body {
 .peaks-table td .hl-max{color:#ef4444;font-weight:700}
 
 /* -- Health link bar ---------------------------------------------- */
-.health-link-bar{text-align:center;padding:18px 0;margin:12px 0;border:1px dashed #334155;border-radius:8px;font-size:.95rem}
+.health-link-bar{text-align:center;padding:18px 0;margin:12px 0;border:1px dashed var(--border);border-radius:8px;font-size:.95rem}
 </style>
 </head>
 <body>
@@ -496,11 +497,11 @@ body {
     <section class="status-grid" id="sensorCards" style="margin-bottom:16px"></section>
 
     <!-- Sensor Chart Overlay Controls -->
-    <div style="display:flex;align-items:center;gap:16px;padding:8px 14px;margin-bottom:8px;background:#0a1628;border-radius:8px;border:1px solid #1e293b;flex-wrap:wrap">
-      <span style="color:#475569;font-size:0.75rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">Chart overlays:</span>
+    <div style="display:flex;align-items:center;gap:16px;padding:8px 14px;margin-bottom:8px;background:var(--bg-card-alt);border-radius:8px;border:1px solid var(--border);flex-wrap:wrap">
+      <span style="color:var(--text-muted);font-size:0.75rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">Chart overlays:</span>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
         <input type="checkbox" id="ovNight" checked style="accent-color:#94a3b8;width:14px;height:14px" onchange="onSensorOptsChange()">
-        <span style="color:#94a3b8;font-size:0.82rem">&#127769; Night/Day</span>
+        <span style="color:var(--text-sec);font-size:0.82rem">&#127769; Night/Day</span>
       </label>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
         <input type="checkbox" id="ovHarvest" checked style="accent-color:#22c55e;width:14px;height:14px" onchange="onSensorOptsChange()">
@@ -533,7 +534,7 @@ body {
     </section>
 
     <!-- -- Humidity Chart ----------------------------------------- -->
-    <section class="chart-panel">
+    <section class="chart-panel stack-gap">
       <div class="chart-header">
         <h3>Humidity (%RH)</h3>
         <div class="time-btns">
@@ -548,6 +549,21 @@ body {
         <canvas id="humChart"></canvas>
         <div class="chart-empty" id="humEmpty">No humidity sensor data yet -- probes may not be connected</div>
       </div>
+    </section>
+
+    <!-- -- Daily Summary Table ------------------------------------ -->
+    <section class="peaks-panel stack-gap" id="peaksPanel">
+      <h3>Daily Summary</h3>
+      <div class="peaks-sub" id="peaksSub">
+        Sensor min / avg / max per day &mdash; most recent first &mdash;
+        <span style="color:#38bdf8">&#9632; Lowest Min</span> &nbsp;
+        <span style="color:#22c55e">&#9632; Highest Avg</span> &nbsp;
+        <span style="color:#ef4444">&#9632; Highest Max</span>
+      </div>
+      <table class="peaks-table">
+        <thead id="peaksHead"></thead>
+        <tbody id="peaksBody"></tbody>
+      </table>
     </section>
 
     <!-- -- Local Weather (Open-Meteo) -- collapsible --------------- -->
@@ -592,30 +608,30 @@ body {
     </div><!-- /collapsible-body -->
     </div><!-- /weatherCollapsible -->
 
-    <!-- -- Tides & Moon Phase -- collapsible ----------------------- -->
+    <!-- -- Local Tides -- collapsible ------------------------------ -->
     <div class="collapsible-section" id="tidesCollapsible" style="display:none">
     <button class="collapsible-toggle" onclick="toggleCollapsible('tidesCollapsible')">
-      &#127754; Tides &amp; Moon Phase
+      &#127754; Local Tides
       <span class="collapsible-chevron">&#9660;</span>
     </button>
     <div class="collapsible-body" id="tidesCollapsibleBody" style="display:none">
     <section class="chart-panel" id="tidesSection" style="display:block">
       <div class="chart-header">
-        <h3>&#127754; Tides &amp; Moon Phase</h3>
+        <h3>&#127754; Local Tides</h3>
         <span class="chart-subhead" id="tideStation" style="margin:0"></span>
       </div>
 
       <!-- Harvest threshold control -->
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;margin-bottom:12px;background:#0a1628;border-radius:8px;border:1px solid #1e293b;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;margin-bottom:12px;background:var(--bg-card-alt);border-radius:8px;border:1px solid var(--border);flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none">
           <input type="checkbox" id="harvestThreshEnabled" checked style="accent-color:#22c55e;width:15px;height:15px" onchange="onHarvestCtrlChange()">
           <span style="color:#22c55e;font-weight:600;font-size:0.85rem">&#127807; Show harvest</span>
         </label>
-        <span style="color:#64748b;font-size:0.82rem">when tide is below</span>
+        <span style="color:var(--text-muted);font-size:0.82rem">when tide is below</span>
         <input type="number" id="harvestThreshHeight" value="0.50" min="0" max="5" step="0.05"
-          style="width:64px;background:#1e293b;color:#f1f5f9;border:1px solid #334155;border-radius:6px;padding:3px 8px;font-size:0.85rem"
+          style="width:64px;background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:0.85rem"
           oninput="onHarvestCtrlChange()" onchange="onHarvestCtrlChange()">
-        <span style="color:#64748b;font-size:0.82rem">m</span>
+        <span style="color:var(--text-muted);font-size:0.82rem">m</span>
       </div>
 
       <!-- Moon info -->
@@ -645,7 +661,7 @@ body {
         <thead><tr><th>Date</th><th>Time</th><th>Height</th><th></th></tr></thead>
         <tbody id="lowTideTable"></tbody>
       </table>
-      <button class="btn btn-sm" style="margin-top:10px;width:100%;color:#64748b;border-color:#1e293b"
+      <button class="btn btn-sm" style="margin-top:10px;width:100%;color:var(--text-muted);border-color:var(--border)"
         onclick="if(window.SeaweedTides)window.SeaweedTides.loadMoreTides()">Load next 14 days &darr;</button>
 
       <!-- Harvest calendar -->
@@ -657,21 +673,6 @@ body {
 
     <!-- Battery / Sync / Drift / Health sections removed -->
     <!-- See station_health.html for these metrics -->
-
-    <!-- -- Daily Summary Table ------------------------------------ -->
-    <section class="peaks-panel" id="peaksPanel">
-      <h3>Daily Summary</h3>
-      <div class="peaks-sub" id="peaksSub">
-        Sensor min / avg / max per day &mdash; most recent first &mdash;
-        <span style="color:#38bdf8">&#9632; Lowest Min</span> &nbsp;
-        <span style="color:#22c55e">&#9632; Highest Avg</span> &nbsp;
-        <span style="color:#ef4444">&#9632; Highest Max</span>
-      </div>
-      <table class="peaks-table">
-        <thead id="peaksHead"></thead>
-        <tbody id="peaksBody"></tbody>
-      </table>
-    </section>
 
   </div> <!-- /dashboardContent -->
 
@@ -813,6 +814,7 @@ var WEATHER_LOCATION = STATION.weather;
 var state = {
   allEntries:       [],
   filteredEntries:  [],
+  syncSessions:     [],
   timeRange:        'week',
   dateStart:        null,
   dateEnd:          null,
@@ -825,6 +827,41 @@ var state = {
   weatherTimeRange: 'week',
   autoRefreshTimer: null,
 };
+
+var SYNC_CACHE_KEY = 'seaweed_sync_cache_' + TABLE_ID;
+
+function loadSyncSessionsFromCache() {
+  try {
+    var raw = localStorage.getItem(SYNC_CACHE_KEY);
+    if (!raw) return [];
+    var obj = JSON.parse(raw);
+    if (!obj || !Array.isArray(obj.rows)) return [];
+    return obj.rows;
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveSyncSessionsCache(rows) {
+  if (!Array.isArray(rows)) return;
+  try {
+    localStorage.setItem(SYNC_CACHE_KEY, JSON.stringify({ rows: rows, savedAt: Date.now() }));
+  } catch (e) {}
+}
+
+async function refreshSyncSessions(renderAfter) {
+  try {
+    var rows = await fetchSyncSessions(TABLE_ID, { limit: 2000, timeoutMs: 20000 });
+    state.syncSessions = Array.isArray(rows) ? rows : [];
+    saveSyncSessionsCache(state.syncSessions);
+  } catch (e) {
+    state.syncSessions = loadSyncSessionsFromCache();
+    console.warn('[Dashboard] sync_sessions fetch failed:', e.message || e);
+  }
+  if (renderAfter && state.filteredEntries && state.filteredEntries.length) {
+    renderDashboard();
+  }
+}
 
 // =====================================================================
 // SENSOR MAP SVGs (per-station)
@@ -1122,6 +1159,34 @@ function countRecentMissing(entries, key, hoursBack, sampleIdKey, defaultPeriodH
   var result = evaluateSyncWindows(entries, sampleIdKey, key, startMs, latestMs, defaultPeriodMs, satInstallKey);
   return { total: result.total, missing: result.missed, synced: result.synced };
 }
+
+function latestInstalledFlag(entries, key) {
+  if (!entries || !entries.length) return null;
+  for (var i = entries.length - 1; i >= 0; i--) {
+    if (entries[i][key] === true || entries[i][key] === false) return entries[i][key];
+  }
+  return null;
+}
+
+function hasSatelliteSignals(entries, node) {
+  if (!entries || !entries.length) return false;
+  var keys = node === 'A'
+    ? ['satABatV', 'satABatPct', 'satATemp1', 'satATemp2', 'satAHum1', 'satAHum2', 'satASampleId']
+    : ['satBBatV', 'satBBatPct', 'satBTemp1', 'satBTemp2', 'satBHum1', 'satBHum2', 'satBSampleId'];
+  return entries.some(function(e) {
+    for (var i = 0; i < keys.length; i++) {
+      if (e[keys[i]] !== null && e[keys[i]] !== undefined) return true;
+    }
+    return false;
+  });
+}
+
+function isSatelliteInstalled(entries, node) {
+  var key = node === 'A' ? 'satAInstalled' : 'satBInstalled';
+  var explicit = latestInstalledFlag(entries, key);
+  if (explicit === true || explicit === false) return explicit;
+  return hasSatelliteSignals(entries, node);
+}
 </script>
 
 <!-- =================================================================
@@ -1131,34 +1196,87 @@ function countRecentMissing(entries, key, hoursBack, sampleIdKey, defaultPeriodH
 "use strict";
 
 // =====================================================================
-// DATA PARSING (ThingSpeak field mapping)
+// DATA PARSING — v2 structured feeds (no more ThingSpeak field1-8)
 // =====================================================================
-// field1: T0 Battery % (numeric)
-// field2: T0 Sensors "t1,rh1,t2,rh2"
-// field3: T0 Status  "batV,rssi,bootCnt,heap"
-// field4: Sat-A Status "batV,bat%,rssi,sampleId"
-// field5: Sat-A Sensors "t1,rh1,t2,rh2"
-// field6: Sat-B Status "batV,bat%,rssi,sampleId"
-// field7: Sat-B Sensors "t1,rh1,t2,rh2"
-// field8: System "sdFreeKB,csq,uploadOk" | config | fw
+// supabaseRowToFeed now emits named properties directly.
+// Legacy field1-8 CSV is still accepted as fallback for old exported datasets.
 //
 function parseFeeds(rawFeeds) {
   return rawFeeds.map(function (f) {
     var ts = new Date(f.created_at);
+
+    // ── Detect format: structured (new) vs legacy field1-8 ──
+    var isLegacy = f.field1 !== undefined || f.field2 !== undefined;
+
+    if (!isLegacy) {
+      // ── Structured path (Supabase v2) ──
+      return {
+        timestamp: ts,
+        entryId:   f.entry_id,
+        // Config
+        deployMode:         f.deploy_mode != null ? numParse(f.deploy_mode) : null,
+        samplePeriod_s:     f.sample_period_s != null ? numParse(f.sample_period_s) : null,
+        sleepEnable:        f.sleep_enable != null ? (numParse(f.sleep_enable) === 1) : null,
+        espnowSyncPeriod_s: f.espnow_sync_period_s != null ? numParse(f.espnow_sync_period_s) : null,
+        satAInstalled:      f.sat_a_installed != null ? (numParse(f.sat_a_installed) === 1) : null,
+        satBInstalled:      f.sat_b_installed != null ? (numParse(f.sat_b_installed) === 1) : null,
+        // T0
+        t0BatPct:  numParse(f.battery_pct),
+        t0Temp1:   f.temp_1 != null ? numParse(f.temp_1) : null,
+        t0Hum1:    f.humidity_1 != null ? numParse(f.humidity_1) : null,
+        t0Temp2:   f.temp_2 != null ? numParse(f.temp_2) : null,
+        t0Hum2:    f.humidity_2 != null ? numParse(f.humidity_2) : null,
+        t0BatV:    f.battery_v != null ? numParse(f.battery_v) : null,
+        t0Rssi:    null,
+        t0Boot:    f.boot_count != null ? numParse(f.boot_count) : null,
+        t0Heap:    null,
+        // Sat-A
+        satABatV:      f.sat_a_battery_v != null ? numParse(f.sat_a_battery_v) : null,
+        satABatPct:    f.sat_a_battery_pct != null ? numParse(f.sat_a_battery_pct) : null,
+        satARssi:      null,
+        satASampleId:  null,
+        satASyncDrift: null,
+        satAFlashPct:  f.sat_a_flash_pct != null ? numParse(f.sat_a_flash_pct) : null,
+        satATemp1:     f.sat_a_temp_1 != null ? numParse(f.sat_a_temp_1) : null,
+        satAHum1:      f.sat_a_humidity_1 != null ? numParse(f.sat_a_humidity_1) : null,
+        satATemp2:     f.sat_a_temp_2 != null ? numParse(f.sat_a_temp_2) : null,
+        satAHum2:      f.sat_a_humidity_2 != null ? numParse(f.sat_a_humidity_2) : null,
+        // Sat-B
+        satBBatV:      f.sat_b_battery_v != null ? numParse(f.sat_b_battery_v) : null,
+        satBBatPct:    f.sat_b_battery_pct != null ? numParse(f.sat_b_battery_pct) : null,
+        satBRssi:      null,
+        satBSampleId:  null,
+        satBSyncDrift: null,
+        satBFlashPct:  f.sat_b_flash_pct != null ? numParse(f.sat_b_flash_pct) : null,
+        satBTemp1:     f.sat_b_temp_1 != null ? numParse(f.sat_b_temp_1) : null,
+        satBHum1:      f.sat_b_humidity_1 != null ? numParse(f.sat_b_humidity_1) : null,
+        satBTemp2:     f.sat_b_temp_2 != null ? numParse(f.sat_b_temp_2) : null,
+        satBHum2:      f.sat_b_humidity_2 != null ? numParse(f.sat_b_humidity_2) : null,
+        // System (no longer in v2 view — always null for new data)
+        sdFreeKB:   null,
+        csq:        null,
+        uploadOk:   null,
+        syncDrift:  null,
+        // Firmware
+        t0FwVersion:   f.fw_version != null ? String(f.fw_version) : null,
+        t0BuildDate:   f.fw_date != null ? String(f.fw_date) : null,
+        satAFwVersion: f.sat_a_fw_ver != null ? String(f.sat_a_fw_ver) : null,
+        satBFwVersion: f.sat_b_fw_ver != null ? String(f.sat_b_fw_ver) : null,
+      };
+    }
+
+    // ── Legacy field1-8 fallback (old exported JSON datasets) ──
     var t0Sensors = csvParse(f.field2);
     var t0Status  = csvParse(f.field3);
     var satAStat  = csvParse(f.field4);
     var satASens  = csvParse(f.field5);
     var satBStat  = csvParse(f.field6);
     var satBSens  = csvParse(f.field7);
-
-    // Split field8 at pipe: diag | config | fw
     var f8raw = f.field8 || '';
     var f8sections = f8raw.split('|');
     var f8diag = f8sections[0] || '';
     var sys = csvParse(f8diag);
 
-    // Extract firmware versions
     var satAFw = null, satBFw = null, t0Fw = null, t0BuildDate = null;
     if (f.field4) {
       var parts4 = f.field4.split(',');
@@ -1173,11 +1291,17 @@ function parseFeeds(rawFeeds) {
       t0Fw = fwParts[0] ? fwParts[0].trim() : null;
       t0BuildDate = fwParts[1] ? fwParts[1].trim() : null;
     }
+    var cfgCsv = csvParse((f8sections[1] || ''));
 
     return {
       timestamp: ts,
       entryId:   f.entry_id,
-      _rawField8: f8raw,
+      deployMode:         cfgCsv[0] != null ? numParse(cfgCsv[0]) : null,
+      samplePeriod_s:     cfgCsv[1] != null ? numParse(cfgCsv[1]) : null,
+      sleepEnable:        null,
+      espnowSyncPeriod_s: null,
+      satAInstalled:      cfgCsv[6] != null ? (numParse(cfgCsv[6]) === 1) : null,
+      satBInstalled:      cfgCsv[7] != null ? (numParse(cfgCsv[7]) === 1) : null,
       // T0
       t0BatPct:  numParse(f.field1),
       t0Temp1:   t0Sensors[0] != null ? t0Sensors[0] : null,
@@ -1245,13 +1369,10 @@ function handleNewData(data, sourceLabel, persistCache) {
   renderDashboard();
 
   if (persistCache !== false) {
-    try {
-      localStorage.setItem('seaweed_cache_' + TABLE_ID, JSON.stringify({
-        allEntries:  state.allEntries,
-        channelInfo: state.channelInfo,
-        savedAt:     Date.now()
-      }));
-    } catch (e) { console.warn('[Cache] localStorage save failed:', e); }
+    saveStationCache(TABLE_ID, state.allEntries, {
+      channelInfo: state.channelInfo,
+      source: sourceLabel && sourceLabel.toLowerCase().indexOf('live') >= 0 ? 'live' : 'cache'
+    });
   }
 }
 
@@ -1264,6 +1385,8 @@ async function fetchLiveData(silent) {
     var result = await fetchStationData(TABLE_ID);
     var data = { channel: state.channelInfo || { id: TABLE_ID, name: STATION.title }, feeds: result.feeds };
     handleNewData(data, 'Supabase live (' + new Date().toLocaleTimeString('en-GB') + ')');
+    await refreshSyncSessions(true);
+    notifyDashboardDataRefresh([TABLE_ID], 'station.fetchLiveData');
   } catch (err) {
     console.error('[Dashboard] Supabase fetch failed:', err);
     if (!silent) {
@@ -1274,6 +1397,48 @@ async function fetchLiveData(silent) {
     btn.disabled  = false;
   }
 }
+
+function refreshFromSharedCache(reason) {
+  try {
+    var raw = localStorage.getItem('seaweed_cache_' + TABLE_ID);
+    if (!raw) return;
+    var cached = JSON.parse(raw);
+    if (!cached || !Array.isArray(cached.allEntries) || !cached.allEntries.length) return;
+
+    var parsed = cached.allEntries.map(function(e) {
+      if (e && e.timestamp && !(e.timestamp instanceof Date)) e.timestamp = new Date(e.timestamp);
+      return e;
+    }).filter(function(e) {
+      return e && e.timestamp && !isNaN(e.timestamp.getTime());
+    });
+    if (!parsed.length) return;
+
+    state.allEntries = parsed.sort(function(a, b) { return a.timestamp - b.timestamp; });
+    state.channelInfo = cached.channelInfo || state.channelInfo || null;
+    state.dataSource = 'Shared cache sync (' + (reason || 'external refresh') + ')';
+    applyTimeRange();
+    renderDashboard();
+    console.log('[Dashboard] Synced from shared cache (' + TABLE_ID + '): ' + state.allEntries.length + ' entries');
+  } catch (e) {
+    console.warn('[Dashboard] Shared cache sync failed:', e);
+  }
+}
+
+window.addEventListener('storage', function(evt) {
+  if (!evt) return;
+  if (evt.key === 'seaweed_cache_' + TABLE_ID) {
+    refreshFromSharedCache('cache key updated');
+  }
+});
+
+onDashboardDataRefresh(function(msg) {
+  try {
+    var ids = Array.isArray(msg && msg.stationIds) ? msg.stationIds : [];
+    if (!ids.length || ids.indexOf(TABLE_ID) >= 0) {
+      refreshFromSharedCache('refresh event');
+    }
+  } catch (e) {}
+});
 
 function handleFileUpload(files) {
   Array.from(files).forEach(function (file) {
@@ -1513,6 +1678,7 @@ function updateSensorCards() {
   var e = state.filteredEntries.length ? state.filteredEntries : state.allEntries;
   if (!e.length) { el.innerHTML = ''; return; }
   var latest = e[e.length - 1];
+  var satBEnabled = isSatelliteInstalled(e, 'B');
 
   var sensors = [
     { num: 'S1', sub: 'T0.S1',  tempKey: 't0Temp1',   humKey: 't0Hum1',   color: COLORS.t0s1   },
@@ -1654,12 +1820,23 @@ function updateNetworkBar() {
   var satBText  = satBAge < 2 ? 'Syncing' : satBAge < 24 ? 'Stale' : (lastSatB ? 'Lost' : 'Never seen');
 
   var hasSensors = e.some(function (x) {
-    return x.t0Temp1 !== null || x.satATemp1 !== null || x.satBTemp1 !== null;
+    return x.t0Temp1 !== null || x.satATemp1 !== null || (satBEnabled && x.satBTemp1 !== null);
   });
   var sensorColor = hasSensors ? '#22c55e' : '#f59e0b';
   var sensorText  = hasSensors ? 'Data flowing' : 'All NC';
 
   function batStr(pct) { return pct != null ? pct.toFixed(0) + '%' : '--'; }
+
+  var satBChip = satBEnabled
+    ? '<div class="net-chip">' +
+      '<div class="chip-dot" style="background:' + satBColor + '"></div>' +
+      '<div>' +
+        '<div class="chip-label">Satellite B</div>' +
+        '<div class="chip-value">' + satBText + '</div>' +
+        '<div class="chip-detail">Bat: ' + batStr(lastSatB ? lastSatB.satBBatPct : null) + ' | ' + (lastSatB ? timeAgo(lastSatB.timestamp) : 'never') + '</div>' +
+      '</div>' +
+    '</div>'
+    : '';
 
   document.getElementById('networkBar').innerHTML =
     '<div class="net-chip">' +
@@ -1678,14 +1855,7 @@ function updateNetworkBar() {
         '<div class="chip-detail">Bat: ' + batStr(lastSatA ? lastSatA.satABatPct : null) + ' | ' + (lastSatA ? timeAgo(lastSatA.timestamp) : 'never') + '</div>' +
       '</div>' +
     '</div>' +
-    '<div class="net-chip">' +
-      '<div class="chip-dot" style="background:' + satBColor + '"></div>' +
-      '<div>' +
-        '<div class="chip-label">Satellite B</div>' +
-        '<div class="chip-value">' + satBText + '</div>' +
-        '<div class="chip-detail">Bat: ' + batStr(lastSatB ? lastSatB.satBBatPct : null) + ' | ' + (lastSatB ? timeAgo(lastSatB.timestamp) : 'never') + '</div>' +
-      '</div>' +
-    '</div>' +
+    satBChip +
     '<div class="net-chip">' +
       '<div class="chip-dot" style="background:' + sensorColor + '"></div>' +
       '<div>' +
@@ -1703,6 +1873,7 @@ function updateStatusCards() {
   var e = state.allEntries;
   if (!e.length) return;
   var latest = e[e.length - 1];
+  var satBEnabled = isSatelliteInstalled(e, 'B');
 
   // -- T0 --
   var t0Pct = latest.t0BatPct;
@@ -1754,30 +1925,34 @@ function updateStatusCards() {
   setCardStatus('cardSatA', 'satABadge', 'satADot', satAPct, satAHasSensors, lastSatA !== null);
 
   // -- Sat-B --
-  var lastSatB = findLastEntryWith(e, 'satBBatV');
-  var satBPct  = lastSatB ? lastSatB.satBBatPct : null;
-  document.getElementById('satBBatPct').textContent   = satBPct !== null ? satBPct.toFixed(1) + '%' : '--';
-  document.getElementById('satBBatV').textContent     = (lastSatB && lastSatB.satBBatV != null) ? lastSatB.satBBatV.toFixed(2) + 'V' : '--';
-  document.getElementById('satBRssi').textContent     = (lastSatB && lastSatB.satBRssi != null && lastSatB.satBRssi !== 0) ? lastSatB.satBRssi + ' dBm' : 'N/A';
-  var _satBDrift = lastSatB ? lastSatB.satBSyncDrift : null;
-  var _satBDriftEl = document.getElementById('satBSyncDrift');
-  _satBDriftEl.textContent = _satBDrift !== null ? (_satBDrift >= 0 ? '+' : '') + _satBDrift + 's' : '--';
-  _satBDriftEl.className = 'detail-value ' + (_satBDrift === null ? '' : Math.abs(_satBDrift) <= 5 ? 'ok-text' : Math.abs(_satBDrift) <= 20 ? 'warn-text' : 'error-text');
-  document.getElementById('satBSampleId').textContent = (lastSatB && lastSatB.satBSampleId != null) ? lastSatB.satBSampleId : '--';
+  var satBCardEl = document.getElementById('cardSatB');
+  if (satBCardEl) satBCardEl.style.display = satBEnabled ? '' : 'none';
+  if (satBEnabled) {
+    var lastSatB = findLastEntryWith(e, 'satBBatV');
+    var satBPct  = lastSatB ? lastSatB.satBBatPct : null;
+    document.getElementById('satBBatPct').textContent   = satBPct !== null ? satBPct.toFixed(1) + '%' : '--';
+    document.getElementById('satBBatV').textContent     = (lastSatB && lastSatB.satBBatV != null) ? lastSatB.satBBatV.toFixed(2) + 'V' : '--';
+    document.getElementById('satBRssi').textContent     = (lastSatB && lastSatB.satBRssi != null && lastSatB.satBRssi !== 0) ? lastSatB.satBRssi + ' dBm' : 'N/A';
+    var _satBDrift = lastSatB ? lastSatB.satBSyncDrift : null;
+    var _satBDriftEl = document.getElementById('satBSyncDrift');
+    _satBDriftEl.textContent = _satBDrift !== null ? (_satBDrift >= 0 ? '+' : '') + _satBDrift + 's' : '--';
+    _satBDriftEl.className = 'detail-value ' + (_satBDrift === null ? '' : Math.abs(_satBDrift) <= 5 ? 'ok-text' : Math.abs(_satBDrift) <= 20 ? 'warn-text' : 'error-text');
+    document.getElementById('satBSampleId').textContent = (lastSatB && lastSatB.satBSampleId != null) ? lastSatB.satBSampleId : '--';
 
-  var satBHasSensors = lastSatB ? (lastSatB.satBTemp1 !== null || lastSatB.satBTemp2 !== null) : false;
-  document.getElementById('satBSensors').textContent = satBHasSensors ? 'Connected' : 'NC';
-  document.getElementById('satBSensors').className   = 'detail-value ' + (satBHasSensors ? 'ok-text' : 'nc-text');
-  document.getElementById('satBFirmware').textContent = (lastSatB && lastSatB.satBFwVersion) ? 'v' + lastSatB.satBFwVersion : '--';
+    var satBHasSensors = lastSatB ? (lastSatB.satBTemp1 !== null || lastSatB.satBTemp2 !== null) : false;
+    document.getElementById('satBSensors').textContent = satBHasSensors ? 'Connected' : 'NC';
+    document.getElementById('satBSensors').className   = 'detail-value ' + (satBHasSensors ? 'ok-text' : 'nc-text');
+    document.getElementById('satBFirmware').textContent = (lastSatB && lastSatB.satBFwVersion) ? 'v' + lastSatB.satBFwVersion : '--';
 
-  var satBMissed24 = countRecentMissing(e, 'satBBatV', 24, 'satBSampleId', 3, 'satBInstalled');
-  var satBSyncPct  = satBMissed24.total > 0 ? ((satBMissed24.total - satBMissed24.missing) / satBMissed24.total * 100) : 0;
-  document.getElementById('satBSyncRate').textContent = satBMissed24.total > 0 ? satBSyncPct.toFixed(0) + '%' : '--';
-  document.getElementById('satBSyncRate').className   = 'detail-value ' + (satBSyncPct > 80 ? 'ok-text' : satBSyncPct > 50 ? 'warn-text' : 'error-text');
-  document.getElementById('satBMissed').textContent   = satBMissed24.total > 0 ? satBMissed24.missing + ' / ' + satBMissed24.total : '--';
-  document.getElementById('satBMissed').className     = 'detail-value ' + (satBMissed24.missing === 0 ? 'ok-text' : satBMissed24.missing < 5 ? 'warn-text' : 'error-text');
-  document.getElementById('satBLastSeen').textContent = lastSatB ? timeAgo(lastSatB.timestamp) : 'Never';
-  setCardStatus('cardSatB', 'satBBadge', 'satBDot', satBPct, satBHasSensors, lastSatB !== null);
+    var satBMissed24 = countRecentMissing(e, 'satBBatV', 24, 'satBSampleId', 3, 'satBInstalled');
+    var satBSyncPct  = satBMissed24.total > 0 ? ((satBMissed24.total - satBMissed24.missing) / satBMissed24.total * 100) : 0;
+    document.getElementById('satBSyncRate').textContent = satBMissed24.total > 0 ? satBSyncPct.toFixed(0) + '%' : '--';
+    document.getElementById('satBSyncRate').className   = 'detail-value ' + (satBSyncPct > 80 ? 'ok-text' : satBSyncPct > 50 ? 'warn-text' : 'error-text');
+    document.getElementById('satBMissed').textContent   = satBMissed24.total > 0 ? satBMissed24.missing + ' / ' + satBMissed24.total : '--';
+    document.getElementById('satBMissed').className     = 'detail-value ' + (satBMissed24.missing === 0 ? 'ok-text' : satBMissed24.missing < 5 ? 'warn-text' : 'error-text');
+    document.getElementById('satBLastSeen').textContent = lastSatB ? timeAgo(lastSatB.timestamp) : 'Never';
+    setCardStatus('cardSatB', 'satBBadge', 'satBDot', satBPct, satBHasSensors, lastSatB !== null);
+  }
 
   // -- System --
   document.getElementById('sysSDFree').textContent      = fmtBytes(latest.sdFreeKB);
@@ -2336,6 +2511,7 @@ function baseChartOptions(yLabel, yMin, yMax) {
 
 function createOrUpdateCharts() {
   var e = state.filteredEntries;
+  var satBEnabled = isSatelliteInstalled(state.allEntries, 'B');
   var _wxMin = e.length ? e[0].timestamp.getTime() : -Infinity;
   var _wxMax = e.length ? e[e.length - 1].timestamp.getTime() : Infinity;
   var _wxOverlayTemp = [], _wxOverlayHum = [];
@@ -2362,9 +2538,11 @@ function createOrUpdateCharts() {
     makeDataset(e, 't0Temp2', 'T0 Sensor 2', COLORS.t0s2, true),
     makeDataset(e, 'satATemp1', 'Sat-A Sensor 1', COLORS.satAs1, false),
     makeDataset(e, 'satATemp2', 'Sat-A Sensor 2', COLORS.satAs2, true),
-    makeDataset(e, 'satBTemp1', 'Sat-B Sensor 1', COLORS.satBs1, false),
-    makeDataset(e, 'satBTemp2', 'Sat-B Sensor 2', COLORS.satBs2, true),
   ];
+  if (satBEnabled) {
+    tempDS.push(makeDataset(e, 'satBTemp1', 'Sat-B Sensor 1', COLORS.satBs1, false));
+    tempDS.push(makeDataset(e, 'satBTemp2', 'Sat-B Sensor 2', COLORS.satBs2, true));
+  }
   var hasTempData = tempDS.some(function (ds) { return ds.data.length > 0; });
   document.getElementById('tempEmpty').style.display = hasTempData ? 'none' : 'flex';
   if ((window._sensorOpts || {}).wx && _wxOverlayTemp.length) {
@@ -2388,9 +2566,11 @@ function createOrUpdateCharts() {
     makeDataset(e, 't0Hum2', 'T0 Sensor 2', COLORS.t0s2, true),
     makeDataset(e, 'satAHum1', 'Sat-A Sensor 1', COLORS.satAs1, false),
     makeDataset(e, 'satAHum2', 'Sat-A Sensor 2', COLORS.satAs2, true),
-    makeDataset(e, 'satBHum1', 'Sat-B Sensor 1', COLORS.satBs1, false),
-    makeDataset(e, 'satBHum2', 'Sat-B Sensor 2', COLORS.satBs2, true),
   ];
+  if (satBEnabled) {
+    humDS.push(makeDataset(e, 'satBHum1', 'Sat-B Sensor 1', COLORS.satBs1, false));
+    humDS.push(makeDataset(e, 'satBHum2', 'Sat-B Sensor 2', COLORS.satBs2, true));
+  }
   var hasHumData = humDS.some(function (ds) { return ds.data.length > 0; });
   document.getElementById('humEmpty').style.display = hasHumData ? 'none' : 'flex';
   if ((window._sensorOpts || {}).wx && _wxOverlayHum.length) {
@@ -2437,6 +2617,7 @@ function setSyncGroup(g) {
 function createOrUpdateSyncChart() {
   var allData = state.allEntries;
   if (!allData.length) return;
+  var satBEnabled = isSatelliteInstalled(allData, 'B');
 
   var groupBy = state.syncGroupBy;
   var byBucket = {}, bucketKeys = [], labels = [];
@@ -2459,7 +2640,7 @@ function createOrUpdateSyncChart() {
       if (idx < 0 || idx > 23) return;
       byBucket[idx].total++;
       if (entry.satABatV !== null) byBucket[idx].satA++;
-      if (entry.satBBatV !== null) byBucket[idx].satB++;
+      if (satBEnabled && entry.satBBatV !== null) byBucket[idx].satB++;
     });
   } else {
     var allDays = {};
@@ -2469,7 +2650,7 @@ function createOrUpdateSyncChart() {
       if (!allDays[key]) allDays[key] = { total: 0, satA: 0, satB: 0 };
       allDays[key].total++;
       if (entry.satABatV !== null) allDays[key].satA++;
-      if (entry.satBBatV !== null) allDays[key].satB++;
+      if (satBEnabled && entry.satBBatV !== null) allDays[key].satB++;
     });
     var sortedDays = Object.keys(allDays).sort();
     var sevenDays  = sortedDays.slice(-7);
@@ -2489,18 +2670,24 @@ function createOrUpdateSyncChart() {
     if (groupBy === 'day') {
       var ws = new Date(windowStart), we = new Date(windowStart + 24 * 3600000);
       var fmtShort = function(d) { return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + String(d.getHours()).padStart(2, '0') + ':00'; };
-      subEl.textContent = 'Last 24 h (local time): ' + fmtShort(ws) + ' \u2013 ' + fmtShort(we) + ' \u2014 Sat-A and Sat-B stacked';
+      subEl.textContent = satBEnabled
+        ? 'Last 24 h (local time): ' + fmtShort(ws) + ' \u2013 ' + fmtShort(we) + ' \u2014 Sat-A and Sat-B stacked'
+        : 'Last 24 h (local time): ' + fmtShort(ws) + ' \u2013 ' + fmtShort(we) + ' \u2014 Sat-A stacked';
     } else {
-      subEl.textContent = 'Last 7 days \u2014 Sat-A and Sat-B stacked (green/blue = synced, red/orange = missed)';
+      subEl.textContent = satBEnabled
+        ? 'Last 7 days \u2014 Sat-A and Sat-B stacked (green/blue = synced, red/orange = missed)'
+        : 'Last 7 days \u2014 Sat-A stacked (green = synced, red = missed)';
     }
   }
 
   var datasets = [
     { label: 'Sat-A Synced', data: bucketKeys.map(function(k) { return byBucket[k].satA; }), backgroundColor: '#22c55e99', stack: 'a' },
     { label: 'Sat-A Missed', data: bucketKeys.map(function(k) { return byBucket[k].total - byBucket[k].satA; }), backgroundColor: '#ef444466', stack: 'a' },
-    { label: 'Sat-B Synced', data: bucketKeys.map(function(k) { return byBucket[k].satB; }), backgroundColor: '#3b82f699', stack: 'b' },
-    { label: 'Sat-B Missed', data: bucketKeys.map(function(k) { return byBucket[k].total - byBucket[k].satB; }), backgroundColor: '#f59e0b66', stack: 'b' },
   ];
+  if (satBEnabled) {
+    datasets.push({ label: 'Sat-B Synced', data: bucketKeys.map(function(k) { return byBucket[k].satB; }), backgroundColor: '#3b82f699', stack: 'b' });
+    datasets.push({ label: 'Sat-B Missed', data: bucketKeys.map(function(k) { return byBucket[k].total - byBucket[k].satB; }), backgroundColor: '#f59e0b66', stack: 'b' });
+  }
 
   if (state.charts.sync) {
     state.charts.sync.data.labels = labels; state.charts.sync.data.datasets = datasets; state.charts.sync.update('none');
@@ -2532,7 +2719,10 @@ function createOrUpdateSyncChart() {
               if (!ctx.length) return '';
               var k = (state._syncBucketKeys || [])[ctx[0].dataIndex];
               var b = (state._syncBuckets || {})[k]; if (!b) return '';
-              return 'Sat-A: ' + (b.total > 0 ? (b.satA / b.total * 100).toFixed(0) : '0') + '%  |  Sat-B: ' + (b.total > 0 ? (b.satB / b.total * 100).toFixed(0) : '0') + '%  |  Total: ' + b.total;
+              var satAPct = (b.total > 0 ? (b.satA / b.total * 100).toFixed(0) : '0') + '%';
+              if (!satBEnabled) return 'Sat-A: ' + satAPct + '  |  Total: ' + b.total;
+              var satBPct = (b.total > 0 ? (b.satB / b.total * 100).toFixed(0) : '0') + '%';
+              return 'Sat-A: ' + satAPct + '  |  Sat-B: ' + satBPct + '  |  Total: ' + b.total;
             }
           } }
         },
@@ -2551,26 +2741,58 @@ function createOrUpdateSyncChart() {
 function createOrUpdateDriftChart() {
   var e = state.filteredEntries;
   if (!e.length) return;
+  var satBEnabled = isSatelliteInstalled(state.allEntries, 'B');
+  var rangeStartMs = e[0].timestamp.getTime();
+  var rangeEndMs = e[e.length - 1].timestamp.getTime();
+  var syncRows = (state.syncSessions || []).filter(function(r) {
+    var ts = new Date(ensureUTC(r && r.sync_started_at)).getTime();
+    return !isNaN(ts) && ts >= rangeStartMs && ts <= rangeEndMs;
+  });
 
   var satADrift = [], satBDrift = [], sysDrift = [];
   var satARssiArr = [], satBRssiArr = [];
-  var lastSatASampleId = null, lastSatBSampleId = null;
-  e.forEach(function(entry) {
-    var t = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
-    var satAHasSampleId = entry.satASampleId != null;
-    var satBHasSampleId = entry.satBSampleId != null;
-    var satANewSync = satAHasSampleId ? (entry.satASampleId !== lastSatASampleId) : true;
-    var satBNewSync = satBHasSampleId ? (entry.satBSampleId !== lastSatBSampleId) : true;
+  if (syncRows.length) {
+    syncRows.forEach(function(row) {
+      var t = new Date(ensureUTC(row.sync_started_at));
+      if (isNaN(t.getTime())) return;
+      var node = (row.node_id || '').toUpperCase();
+      var drift = row.sat_drift_s;
+      var rssi = row.sat_rssi_avg;
+      if (node === 'A') {
+        if (drift !== null && drift !== undefined) satADrift.push({ x: t, y: drift });
+        if (rssi !== null && rssi !== undefined && rssi !== 0) satARssiArr.push({ x: t, y: rssi });
+      } else if (node === 'B' && satBEnabled) {
+        if (drift !== null && drift !== undefined) satBDrift.push({ x: t, y: drift });
+        if (rssi !== null && rssi !== undefined && rssi !== 0) satBRssiArr.push({ x: t, y: rssi });
+      }
+    });
 
-    if (satAHasSampleId) lastSatASampleId = entry.satASampleId;
-    if (satBHasSampleId) lastSatBSampleId = entry.satBSampleId;
+    // Keep system drift from upload rows if present in entries.
+    e.forEach(function(entry) {
+      if (entry.syncDrift != null) {
+        var t = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
+        sysDrift.push({ x: t, y: entry.syncDrift });
+      }
+    });
+  } else {
+    var lastSatASampleId = null, lastSatBSampleId = null;
+    e.forEach(function(entry) {
+      var t = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
+      var satAHasSampleId = entry.satASampleId != null;
+      var satBHasSampleId = satBEnabled && entry.satBSampleId != null;
+      var satANewSync = satAHasSampleId ? (entry.satASampleId !== lastSatASampleId) : true;
+      var satBNewSync = satBHasSampleId ? (entry.satBSampleId !== lastSatBSampleId) : true;
 
-    if (satANewSync && entry.satASyncDrift != null) satADrift.push({ x: t, y: entry.satASyncDrift });
-    if (satBNewSync && entry.satBSyncDrift != null) satBDrift.push({ x: t, y: entry.satBSyncDrift });
-    if (entry.syncDrift != null)     sysDrift.push({ x: t, y: entry.syncDrift });
-    if (satANewSync && entry.satARssi != null && entry.satARssi !== 0) satARssiArr.push({ x: t, y: entry.satARssi });
-    if (satBNewSync && entry.satBRssi != null && entry.satBRssi !== 0) satBRssiArr.push({ x: t, y: entry.satBRssi });
-  });
+      if (satAHasSampleId) lastSatASampleId = entry.satASampleId;
+      if (satBHasSampleId) lastSatBSampleId = entry.satBSampleId;
+
+      if (satANewSync && entry.satASyncDrift != null) satADrift.push({ x: t, y: entry.satASyncDrift });
+      if (satBEnabled && satBNewSync && entry.satBSyncDrift != null) satBDrift.push({ x: t, y: entry.satBSyncDrift });
+      if (entry.syncDrift != null) sysDrift.push({ x: t, y: entry.syncDrift });
+      if (satANewSync && entry.satARssi != null && entry.satARssi !== 0) satARssiArr.push({ x: t, y: entry.satARssi });
+      if (satBEnabled && satBNewSync && entry.satBRssi != null && entry.satBRssi !== 0) satBRssiArr.push({ x: t, y: entry.satBRssi });
+    });
+  }
 
   var subEl = document.getElementById('driftSubhead');
   if (subEl) {
@@ -2592,9 +2814,8 @@ function createOrUpdateDriftChart() {
     state.charts.drift = new Chart(document.getElementById('driftChart'), {
       type: 'line', data: { datasets: [
         { label: 'Sat-A Drift', data: satADrift, borderColor: '#22c55e', backgroundColor: '#22c55e22', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
-        { label: 'Sat-B Drift', data: satBDrift, borderColor: '#3b82f6', backgroundColor: '#3b82f622', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
         { label: 'System Drift', data: sysDrift, borderColor: '#f59e0b', backgroundColor: '#f59e0b22', borderWidth: 1.5, pointRadius: 1, pointHoverRadius: 4, tension: 0.2, fill: false, borderDash: [4,3] },
-      ] }, options: dOpts,
+      ].concat(satBEnabled ? [{ label: 'Sat-B Drift', data: satBDrift, borderColor: '#3b82f6', backgroundColor: '#3b82f622', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false }] : []) }, options: dOpts,
     });
   }
 
@@ -2608,8 +2829,7 @@ function createOrUpdateDriftChart() {
     state.charts.rssi = new Chart(document.getElementById('rssiChart'), {
       type: 'line', data: { datasets: [
         { label: 'Sat-A RSSI', data: satARssiArr, borderColor: '#22c55e', backgroundColor: '#22c55e22', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
-        { label: 'Sat-B RSSI', data: satBRssiArr, borderColor: '#3b82f6', backgroundColor: '#3b82f622', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false },
-      ] }, options: rOpts,
+      ].concat(satBEnabled ? [{ label: 'Sat-B RSSI', data: satBRssiArr, borderColor: '#3b82f6', backgroundColor: '#3b82f622', borderWidth: 1.5, pointRadius: 2, pointHoverRadius: 5, tension: 0.2, fill: false }] : []) }, options: rOpts,
     });
   } else { rssiWrap.style.display = 'none'; }
 }
@@ -2856,21 +3076,56 @@ document.addEventListener('DOMContentLoaded', function () {
   // Restore saved date range preference
   restoreViewPrefs();
 
+  // Load cached sync-session timeline immediately, then refresh from Supabase.
+  state.syncSessions = loadSyncSessionsFromCache();
+  refreshSyncSessions(true);
+
+  // Prefer shared cache so all dashboard pages show the same station snapshot.
+  var _cacheLoaded = false;
+  try {
+    var _cacheRawInitial = localStorage.getItem('seaweed_cache_' + TABLE_ID);
+    if (_cacheRawInitial) {
+      var _cacheInitial = JSON.parse(_cacheRawInitial);
+      if (_cacheInitial && Array.isArray(_cacheInitial.allEntries) && _cacheInitial.allEntries.length) {
+        state.allEntries = _cacheInitial.allEntries.map(function(e) {
+          if (e && e.timestamp && !(e.timestamp instanceof Date)) e.timestamp = new Date(e.timestamp);
+          return e;
+        }).filter(function(e) {
+          return e && e.timestamp && !isNaN(e.timestamp.getTime());
+        }).sort(function(a, b) {
+          return a.timestamp - b.timestamp;
+        });
+
+        if (state.allEntries.length) {
+          state.channelInfo = _cacheInitial.channelInfo || state.channelInfo || null;
+          state.dataSource = 'Shared cache';
+          applyTimeRange();
+          renderDashboard();
+          _cacheLoaded = true;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Cache] Initial cache load failed:', e);
+  }
+
   // Auto-load merged_data.js if present
   // Accept both legacy THINGSPEAK_DATA and current STATION_DATA variable names
   var _autoData = window.STATION_DATA || window.THINGSPEAK_DATA;
   var _localLoaded = false;
-  if (_autoData) {
+  if (_autoData && !_cacheLoaded) {
     console.log('[Dashboard] Auto-loaded merged_data.js (' +
       (window.STATION_DATA ? 'STATION_DATA' : 'THINGSPEAK_DATA') + ', ' +
       (_autoData.feeds ? _autoData.feeds.length : 0) + ' feeds)');
     handleNewData(_autoData, 'Local file (' + STATION.dataFolder + '/merged_data.js)', false);
     _localLoaded = true;
-  } else {
+  } else if (!_cacheLoaded) {
     console.warn('[Dashboard] merged_data.js loaded but neither window.STATION_DATA nor window.THINGSPEAK_DATA found — check download_data.ps1 output');
   }
 
-  // Always attempt cache merge (whether local file was loaded or not)
+  // If shared cache was already loaded above, skip merge to avoid source drift.
+  // Otherwise, attempt cache merge after local file load.
+  if (!_cacheLoaded) {
   try {
     var _raw = localStorage.getItem('seaweed_cache_' + TABLE_ID);
     if (_raw) {
@@ -2916,6 +3171,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }
   } catch (e) { console.warn('[Cache] Merge failed:', e); }
+  }
 
   // Setup auto-refresh
   setupAutoRefresh();

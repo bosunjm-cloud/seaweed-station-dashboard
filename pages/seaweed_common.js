@@ -86,6 +86,63 @@ function formatKB(kb) {
 var SUPABASE_URL_DEFAULT  = 'https://qjtjmczixgjxxwmyabmk.supabase.co';   // TODO: replace with https://<project-id>.supabase.co
 /** Default Supabase anon key (override via localStorage) */
 var SUPABASE_ANON_KEY_DEFAULT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqdGptY3ppeGdqeHh3bXlhYm1rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2MjUzMzEsImV4cCI6MjA4ODIwMTMzMX0.K7NdFhCiHJdDpwwiERhH_GVH-AMqaMizPYegaiP2tqg';  // TODO: replace with your project's anon/public key
+/** Reset mode: only WROOM is allowed as a data source. */
+var WROOM_ONLY_MODE = false;
+var WROOM_ONLY_STATION_IDS = { wroom: true };
+/** Fresh-slate cutoff for non-WROOM stations (UTC). Older records are ignored. */
+var RESET_CUTOFF_UTC_DEFAULT = '2026-03-16T00:00:00Z';
+var RESET_CUTOFF_STORAGE_KEY = 'seaweed_reset_cutoff_utc';
+var RESET_CUTOFF_ENABLED = false;
+
+function isStationAllowed(stationId) {
+  if (!WROOM_ONLY_MODE) return true;
+  return !!WROOM_ONLY_STATION_IDS[String(stationId || '').toLowerCase()];
+}
+
+function clearNonWroomCaches() {
+  if (!WROOM_ONLY_MODE || typeof localStorage === 'undefined') return;
+  ['perth', 'shangani', 'funzi', 'spare'].forEach(function(id) {
+    try { localStorage.removeItem('seaweed_cache_' + id); } catch (e) {}
+  });
+}
+
+clearNonWroomCaches();
+
+function getResetCutoffMs(stationId) {
+  if (!RESET_CUTOFF_ENABLED) return null;
+  var sid = String(stationId || '').toLowerCase();
+  if (sid === 'wroom') return null;
+  var cutoffUtc = RESET_CUTOFF_UTC_DEFAULT;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      cutoffUtc = localStorage.getItem(RESET_CUTOFF_STORAGE_KEY) || '';
+      if (!cutoffUtc) {
+        cutoffUtc = RESET_CUTOFF_UTC_DEFAULT;
+        localStorage.setItem(RESET_CUTOFF_STORAGE_KEY, cutoffUtc);
+      }
+    }
+  } catch (e) {}
+  var ms = Date.parse(cutoffUtc || RESET_CUTOFF_UTC_DEFAULT);
+  return isNaN(ms) ? null : ms;
+}
+
+function isAfterResetWindow(stationId, timestampValue) {
+  var cutoff = getResetCutoffMs(stationId);
+  if (!cutoff) return true;
+  var d = timestampValue instanceof Date ? timestampValue : new Date(timestampValue);
+  if (!d || isNaN(d.getTime())) return false;
+  return d.getTime() >= cutoff;
+}
+
+function filterFeedArrayByResetWindow(stationId, feeds) {
+  if (!Array.isArray(feeds)) return [];
+  return feeds.filter(function(f) { return isAfterResetWindow(stationId, f && f.created_at); });
+}
+
+function filterEntryArrayByResetWindow(stationId, entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries.filter(function(e) { return isAfterResetWindow(stationId, e && e.timestamp); });
+}
 
 /**
  * Get Supabase credentials from localStorage config (set by settings.html)
@@ -135,34 +192,53 @@ function ensureUTC(ts) {
 }
 
 /**
- * Convert a Supabase sensor_readings row into a legacy feed
- * object with field1–field8.  This allows existing parseFeeds / parseStationData
- * functions to consume Supabase data without modification.
+ * Convert a Supabase sensor_readings VIEW row into a structured feed object.
+ * No more ThingSpeak field1-8 CSV encoding — properties are named directly.
  *
- * @param {Object} row - A row from the sensor_readings table.
- * @returns {Object}   - { created_at, entry_id, field1..field8 }
+ * @param {Object} row - A row from the sensor_readings VIEW.
+ * @returns {Object}   - Structured feed with named properties.
  */
 function supabaseRowToFeed(row) {
-  function v(x) { return (x != null) ? String(x) : ''; }
+  function n(x) { return x != null ? x : null; }
   return {
     created_at: ensureUTC(row.recorded_at),
     entry_id:   row.id,
-    field1: v(row.battery_pct),
-    field2: [v(row.temp_1), v(row.humidity_1), v(row.temp_2), v(row.humidity_2)].join(','),
-    field3: [v(row.battery_v), v(row.rssi), v(row.boot_count), v(row.free_heap)].join(','),
-    field4: [v(row.sat_a_battery_v), v(row.sat_a_battery_pct), v(row.sat_a_rssi),
-             v(row.sat_a_sample_id), v(row.sat_a_flash_pct), v(row.sat_a_sync_drift),
-             v(row.sat_a_fw_ver)].join(','),
-    field5: [v(row.sat_a_temp_1), v(row.sat_a_humidity_1),
-             v(row.sat_a_temp_2), v(row.sat_a_humidity_2)].join(','),
-    field6: [v(row.sat_b_battery_v), v(row.sat_b_battery_pct), v(row.sat_b_rssi),
-             v(row.sat_b_sample_id), v(row.sat_b_flash_pct), v(row.sat_b_sync_drift),
-             v(row.sat_b_fw_ver)].join(','),
-    field7: [v(row.sat_b_temp_1), v(row.sat_b_humidity_1),
-             v(row.sat_b_temp_2), v(row.sat_b_humidity_2)].join(','),
-    field8: '|' + [v(row.deploy_mode), v(row.sample_period_s),
-                   v(row.bulk_interval_s), v(row.bulk_freq_hours)].join(',')
-               + '|' + [v(row.fw_version), v(row.fw_date)].join(','),
+    // T0
+    battery_pct:    n(row.battery_pct),
+    battery_v:      n(row.battery_v),
+    boot_count:     n(row.boot_count),
+    temp_1:         n(row.temp_1),
+    humidity_1:     n(row.humidity_1),
+    temp_2:         n(row.temp_2),
+    humidity_2:     n(row.humidity_2),
+    // Sat-A
+    sat_a_battery_v:   n(row.sat_a_battery_v),
+    sat_a_battery_pct: n(row.sat_a_battery_pct),
+    sat_a_flash_pct:   n(row.sat_a_flash_pct),
+    sat_a_temp_1:      n(row.sat_a_temp_1),
+    sat_a_humidity_1:  n(row.sat_a_humidity_1),
+    sat_a_temp_2:      n(row.sat_a_temp_2),
+    sat_a_humidity_2:  n(row.sat_a_humidity_2),
+    // Sat-B
+    sat_b_battery_v:   n(row.sat_b_battery_v),
+    sat_b_battery_pct: n(row.sat_b_battery_pct),
+    sat_b_flash_pct:   n(row.sat_b_flash_pct),
+    sat_b_temp_1:      n(row.sat_b_temp_1),
+    sat_b_humidity_1:  n(row.sat_b_humidity_1),
+    sat_b_temp_2:      n(row.sat_b_temp_2),
+    sat_b_humidity_2:  n(row.sat_b_humidity_2),
+    // Config
+    deploy_mode:          n(row.deploy_mode),
+    sample_period_s:      n(row.sample_period_s),
+    sleep_enable:         n(row.sleep_enable),
+    espnow_sync_period_s: n(row.espnow_sync_period_s),
+    sat_a_installed:      n(row.sat_a_installed),
+    sat_b_installed:      n(row.sat_b_installed),
+    // Firmware
+    fw_version:     n(row.fw_version),
+    fw_date:        n(row.fw_date),
+    sat_a_fw_ver:   n(row.sat_a_fw_ver),
+    sat_b_fw_ver:   n(row.sat_b_fw_ver),
   };
 }
 
@@ -294,8 +370,8 @@ function triggerCIDownload() {
 // =====================================================================
 
 /**
- * Fetch sensor_readings for one station from Supabase.
- * Returns rows as ThingSpeak-compatible feed objects via supabaseRowToFeed().
+ * Fetch sensor_readings (v2 VIEW over samples_raw) for one station from Supabase.
+ * Returns rows as structured feed objects via supabaseRowToFeed().
  *
  * @param {string} stationId - Device ID (e.g. 'perth', 'shangani', 'funzi')
  * @param {Object} [opts]
@@ -305,8 +381,13 @@ function triggerCIDownload() {
  *          Resolves with feed array + metadata.  Rejects on network/auth error.
  */
 async function fetchStationData(stationId, opts) {
+  if (!isStationAllowed(stationId)) {
+    throw new Error('WROOM-only reset mode: station disabled (' + stationId + ')');
+  }
   opts = opts || {};
   var limit = opts.limit || 8000;
+  var cutoffMs = getResetCutoffMs(stationId);
+  var cutoffIso = cutoffMs ? new Date(cutoffMs).toISOString() : null;
   var supaCfg = getSupabaseConfig();
   if (!supaCfg.url || !supaCfg.key ||
       supaCfg.url === 'YOUR_SUPABASE_URL' || supaCfg.key === 'YOUR_SUPABASE_ANON_KEY') {
@@ -316,12 +397,13 @@ async function fetchStationData(stationId, opts) {
   var allRows = [];
   var pageSize = 1000;
   var offset = 0;
-  // Paginate to collect up to `limit` rows
+  // Paginate to collect up to `limit` rows (newest first)
   while (offset < limit) {
     var batchLimit = Math.min(pageSize, limit - offset);
     var url = supaCfg.url + '/rest/v1/sensor_readings' +
               '?device_id=eq.' + encodeURIComponent(stationId) +
-              '&order=recorded_at.asc' +
+              (cutoffIso ? '&recorded_at=gte.' + encodeURIComponent(cutoffIso) : '') +
+              '&order=recorded_at.desc' +
               '&limit=' + batchLimit +
               '&offset=' + offset;
     var res = await fetchWithTimeout(url, opts.timeoutMs || 30000, { headers: hdrs });
@@ -332,9 +414,110 @@ async function fetchStationData(stationId, opts) {
     if (batch.length < batchLimit) break; // last page
     offset += batch.length;
   }
-  // Convert to ThingSpeak-compatible feed format
-  var feeds = allRows.map(supabaseRowToFeed);
-  return { feeds: feeds, source: 'live', rows: allRows.length, rawRows: allRows };
+  // Convert to structured feed format in chronological order
+  var filteredRows = allRows.filter(function(r) { return isAfterResetWindow(stationId, ensureUTC(r.recorded_at)); });
+  filteredRows.sort(function(a, b) {
+    return new Date(ensureUTC(a.recorded_at)).getTime() - new Date(ensureUTC(b.recorded_at)).getTime();
+  });
+  var feeds = filteredRows.map(supabaseRowToFeed);
+  return { feeds: feeds, source: 'live', rows: feeds.length, rawRows: filteredRows };
+}
+
+// =====================================================================
+// v2 DIAGNOSTIC DATA FETCHES (upload_sessions + sync_sessions)
+// =====================================================================
+
+/**
+ * Fetch the most recent upload session for a station.
+ * Returns CSQ, free_heap, sd_free_kb, satellite_max_drift_s, etc.
+ *
+ * @param {string} stationId
+ * @returns {Promise<Object|null>} Latest upload_sessions row or null.
+ */
+async function fetchLatestUploadSession(stationId) {
+  var supaCfg = getSupabaseConfig();
+  var hdrs = supabaseHeaders(supaCfg.key);
+  var url = supaCfg.url + '/rest/v1/upload_sessions' +
+            '?device_id=eq.' + encodeURIComponent(stationId) +
+            '&order=upload_started_at.desc' +
+            '&limit=1';
+  var res = await fetchWithTimeout(url, 15000, { headers: hdrs });
+  if (!res.ok) return null;
+  var rows = await res.json();
+  return rows.length ? rows[0] : null;
+}
+
+/**
+ * Fetch the most recent sync sessions (one per satellite node) for a station.
+ * Returns RSSI, drift, fw_ver per node from sync_sessions.
+ *
+ * @param {string} stationId
+ * @returns {Promise<Object>} { A: <row>, B: <row> } — latest sync_sessions row per node.
+ */
+async function fetchLatestSyncSessions(stationId) {
+  var supaCfg = getSupabaseConfig();
+  var hdrs = supabaseHeaders(supaCfg.key);
+  var url = supaCfg.url + '/rest/v1/sync_sessions' +
+            '?device_id=eq.' + encodeURIComponent(stationId) +
+            '&order=sync_started_at.desc' +
+            '&limit=10';
+  var res = await fetchWithTimeout(url, 15000, { headers: hdrs });
+  if (!res.ok) return {};
+  var rows = await res.json();
+  var latest = {};
+  for (var i = 0; i < rows.length; i++) {
+    var node = rows[i].node_id;
+    if (!latest[node]) latest[node] = rows[i];
+  }
+  return latest;
+}
+
+/**
+ * Fetch sync_sessions timeline rows for a station.
+ * Used by station drift/RSSI charts now that these fields moved out of sensor_readings.
+ *
+ * @param {string} stationId
+ * @param {Object} [opts]
+ * @param {number} [opts.limit=2000]
+ * @param {number} [opts.timeoutMs=30000]
+ * @returns {Promise<Object[]>} Rows sorted by sync_started_at ascending.
+ */
+async function fetchSyncSessions(stationId, opts) {
+  opts = opts || {};
+  var limit = opts.limit || 2000;
+  var supaCfg = getSupabaseConfig();
+  if (!supaCfg.url || !supaCfg.key ||
+      supaCfg.url === 'YOUR_SUPABASE_URL' || supaCfg.key === 'YOUR_SUPABASE_ANON_KEY') {
+    throw new Error('Supabase not configured');
+  }
+  var hdrs = supabaseHeaders(supaCfg.key);
+  var rows = [];
+  var pageSize = 1000;
+  var offset = 0;
+
+  while (offset < limit) {
+    var batchLimit = Math.min(pageSize, limit - offset);
+    var url = supaCfg.url + '/rest/v1/sync_sessions' +
+              '?device_id=eq.' + encodeURIComponent(stationId) +
+              '&order=sync_started_at.desc' +
+              '&limit=' + batchLimit +
+              '&offset=' + offset;
+    var res = await fetchWithTimeout(url, opts.timeoutMs || 30000, { headers: hdrs });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var batch = await res.json();
+    if (!batch.length) break;
+    rows = rows.concat(batch);
+    if (batch.length < batchLimit) break;
+    offset += batch.length;
+  }
+
+  rows = rows.filter(function(r) {
+    return isAfterResetWindow(stationId, ensureUTC(r && r.sync_started_at));
+  });
+  rows.sort(function(a, b) {
+    return new Date(ensureUTC(a.sync_started_at)).getTime() - new Date(ensureUTC(b.sync_started_at)).getTime();
+  });
+  return rows;
 }
 
 /**
@@ -350,6 +533,9 @@ async function fetchStationData(stationId, opts) {
  * @returns {Promise<{feeds: Object[], source: string, rows: number}>}
  */
 async function loadStationData(stationId, opts) {
+  if (!isStationAllowed(stationId)) {
+    throw new Error('WROOM-only reset mode: station disabled (' + stationId + ')');
+  }
   opts = opts || {};
   var cacheKey = opts.cacheKey || ('seaweed_cache_' + stationId);
   var status = opts.onStatus || function () {};
@@ -380,6 +566,7 @@ async function loadStationData(stationId, opts) {
     if (cached) {
       var data = JSON.parse(cached);
       var feeds = data.allEntries || data;  // handle {allEntries:...} or raw [...] format
+      feeds = filterFeedArrayByResetWindow(stationId, feeds);
       if (Array.isArray(feeds) && feeds.length) {
         var ts = data.savedAt ? new Date(data.savedAt).toISOString() : 'unknown';
         status('Using cached data (' + feeds.length + ' entries, saved ' + ts + ')');
@@ -404,4 +591,104 @@ async function loadStationData(stationId, opts) {
   }
 
   throw new Error('No data source available for ' + stationId);
+}
+
+// =====================================================================
+// SHARED CACHE + CROSS-WINDOW SYNC
+// =====================================================================
+
+/**
+ * Persist parsed station entries in shared localStorage cache.
+ *
+ * @param {string} stationId
+ * @param {Object[]} entries - Parsed entries (same shape used by station.html / station_health.html)
+ * @param {Object} [meta]    - Optional metadata (source, channelInfo)
+ */
+function saveStationCache(stationId, entries, meta) {
+  if (!stationId || !Array.isArray(entries)) return;
+  meta = meta || {};
+  try {
+    localStorage.setItem('seaweed_cache_' + stationId, JSON.stringify({
+      allEntries: entries,
+      channelInfo: meta.channelInfo || null,
+      source: meta.source || 'live',
+      savedAt: Date.now()
+    }));
+  } catch (e) {
+    console.warn('[Cache] Could not save station cache for ' + stationId + ':', e.message);
+  }
+}
+
+/**
+ * Broadcast a dashboard-wide refresh event across browser windows/tabs.
+ *
+ * @param {string[]} stationIds
+ * @param {string} [source]
+ */
+function notifyDashboardDataRefresh(stationIds, source) {
+  var ids = Array.isArray(stationIds) ? stationIds.filter(Boolean) : [];
+  var payload = {
+    stationIds: ids,
+    source: source || 'unknown',
+    ts: Date.now(),
+    nonce: Math.random().toString(36).slice(2)
+  };
+  try {
+    localStorage.setItem('seaweed_data_refresh', JSON.stringify(payload));
+  } catch (e) {
+    console.warn('[Sync] Could not publish refresh event:', e.message);
+  }
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      var bc = new BroadcastChannel('seaweed_data_refresh');
+      bc.postMessage(payload);
+      bc.close();
+    }
+  } catch (e2) {
+    console.warn('[Sync] Could not publish BroadcastChannel refresh event:', e2.message);
+  }
+}
+
+/**
+ * Subscribe to dashboard refresh messages from both localStorage and BroadcastChannel.
+ * Returns an unsubscribe function.
+ *
+ * @param {function(Object):void} handler
+ * @returns {function():void}
+ */
+function onDashboardDataRefresh(handler) {
+  if (typeof handler !== 'function') return function() {};
+
+  var onStorage = function(evt) {
+    if (!evt || evt.key !== 'seaweed_data_refresh' || !evt.newValue) return;
+    try {
+      var msg = JSON.parse(evt.newValue);
+      handler(msg);
+    } catch (e) {}
+  };
+  window.addEventListener('storage', onStorage);
+
+  var bc = null;
+  var onBC = null;
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      bc = new BroadcastChannel('seaweed_data_refresh');
+      onBC = function(evt) {
+        var msg = evt && evt.data ? evt.data : null;
+        if (!msg) return;
+        handler(msg);
+      };
+      bc.addEventListener('message', onBC);
+    }
+  } catch (e2) {}
+
+  return function unsubscribeDashboardDataRefresh() {
+    window.removeEventListener('storage', onStorage);
+    if (bc && onBC) {
+      try {
+        bc.removeEventListener('message', onBC);
+        bc.close();
+      } catch (e3) {}
+    }
+  };
 }

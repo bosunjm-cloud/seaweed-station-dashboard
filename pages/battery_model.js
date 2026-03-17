@@ -348,6 +348,77 @@ window.BatteryModel = (function () {
   }
 
   // ========================================================================
+  // NONLINEAR VOLTAGE MODEL
+  // ========================================================================
+  // Maps state-of-charge (%) to open-circuit voltage (V) with a Li-ion style
+  // knee at low SOC and a flatter mid-SOC plateau.
+  function socToVoltage(socPct, options) {
+    options = options || {};
+    var fullV   = options.fullV != null ? options.fullV : 4.2;
+    var cutoffV = options.cutoffV != null ? options.cutoffV : 3.3;
+    var plateauV = options.plateauV != null ? options.plateauV : 3.62;
+
+    var soc = Math.max(0, Math.min(100, socPct || 0));
+    var v;
+
+    if (soc >= 90) {
+      // Top 10% rises quickly toward full voltage.
+      v = (fullV - 0.14) + ((soc - 90) / 10.0) * 0.14;
+    } else if (soc >= 20) {
+      // Mid plateau curve.
+      var xMid = (soc - 20) / 70.0;
+      v = plateauV + 0.44 * Math.pow(xMid, 0.55);
+    } else {
+      // Low-SOC knee.
+      var xLow = soc / 20.0;
+      v = cutoffV + 0.32 * Math.pow(xLow, 1.3);
+    }
+    return Math.max(cutoffV, Math.min(fullV, v));
+  }
+
+  // Estimate dynamic sag under load for projected line overlays.
+  function estimateSagVoltage(dailyMah, usableMah, boardKind, options) {
+    options = options || {};
+    var baseSag;
+    if (options.sagV != null) {
+      baseSag = options.sagV;
+    } else {
+      baseSag = (boardKind === 'te' || boardKind === 'tenergy') ? 0.030 : 0.045;
+    }
+
+    var useMah = Math.max(1, usableMah || 1);
+    var stress = Math.max(0, (dailyMah || 0) / useMah - 0.03);
+    var stressSag = Math.min(0.040, stress * 0.50);
+    return Math.max(0, baseSag + stressSag);
+  }
+
+  // Project battery voltage over time using projected SOC and nonlinear OCV map.
+  // Returns: [ { time: Date, pct: number, ocv: number, voltage: number }, ... ]
+  function projectVoltageCurve(startPct, startTime, dailyMah, battCap, derating, options) {
+    options = options || {};
+    var cutoffV = options.cutoffV != null ? options.cutoffV : 3.3;
+    var usableMah = (battCap || 0) * (derating || 0.85);
+    var pctCurve = projectCurve(startPct, startTime, dailyMah, battCap, derating, options.maxDays);
+    if (!pctCurve.length) return [];
+
+    var sagV = estimateSagVoltage(dailyMah, usableMah, options.boardKind || 't0', options);
+    var out = [];
+    for (var i = 0; i < pctCurve.length; i++) {
+      var p = pctCurve[i];
+      var ocv = socToVoltage(p.pct, options);
+      var v = Math.max(cutoffV, ocv - sagV);
+      out.push({
+        time: p.time,
+        pct: p.pct,
+        ocv: ocv,
+        voltage: v,
+      });
+      if (v <= cutoffV + 1e-6 || p.pct <= 0) break;
+    }
+    return out;
+  }
+
+  // ========================================================================
   // CONFIG PARSER: Extract device config from field8 pipe-delimited block
   // ========================================================================
   // field8 format: "sdFreeKB,csq,uploadOk,drift|dm,sl,sp,bi,bf,es,sA,sB|fwVer,buildDate"
@@ -427,6 +498,9 @@ window.BatteryModel = (function () {
     calcT0Daily:              calcT0Daily,
     calcTEDaily:              calcTEDaily,
     projectCurve:             projectCurve,
+    socToVoltage:             socToVoltage,
+    estimateSagVoltage:       estimateSagVoltage,
+    projectVoltageCurve:      projectVoltageCurve,
     parseField8Config:        parseField8Config,
     configChanged:            configChanged,
     configSummary:            configSummary,
