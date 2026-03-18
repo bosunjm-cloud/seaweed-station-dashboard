@@ -36,6 +36,11 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .station-header h2{font-size:1.1rem;font-weight:600;display:flex;align-items:center;gap:8px}
 .station-header .freshness{font-size:.75rem;padding:3px 10px;border-radius:12px}
 .fresh-ok{background:#dff5eb;color:#1f9d6c}.fresh-stale{background:#fff1dd;color:#d0892d}.fresh-old{background:#ffe4e8;color:#d04f5f}
+.next-check-chip{font-size:.72rem;padding:2px 9px;border-radius:11px;border:1px solid transparent}
+.next-check-good{background:#dff5eb;color:#1f9d6c;border-color:#1f9d6c}
+.next-check-warn{background:#fff1dd;color:#d0892d;border-color:#d0892d}
+.next-check-late{background:#ffe4e8;color:#d04f5f;border-color:#d04f5f}
+.next-check-unknown{background:var(--bg);color:var(--text-muted);border-color:var(--border)}
 .station-body{padding:14px 18px}
 .chevron{font-size:.7rem;transition:transform .3s;color:var(--text-muted)}
 
@@ -307,6 +312,16 @@ function lttbDownsample(data, maxPts) {
 var stationData = {}; // { stationId: { entries: [], raw: {} } }
 var _stationDiag = {}; // v2: { stationId: { upload: <row>, sync: { A: <row>, B: <row> } } }
 var _stationSyncTimeline = {}; // { stationId: sync_sessions[] }
+var _deviceStatusById = {}; // { stationId: { nextCheckInAt, ... } }
+
+async function refreshDeviceStatusMap() {
+  try {
+    var ids = STATIONS.map(function(st) { return st.id; });
+    _deviceStatusById = await fetchDeviceStatusMap(ids);
+  } catch (e) {
+    console.warn('[Health] device_status fetch failed:', e.message || e);
+  }
+}
 
 async function loadStationDiagnostics(stationId) {
   try {
@@ -559,11 +574,112 @@ function switchForecastStation(id) {
   BatteryForecast.init({ allEntries: stationData[id].entries });
 }
 
+function fmtEtaMinutes(mins) {
+  var abs = Math.max(0, Math.round(Math.abs(mins)));
+  if (abs < 60) return abs + 'm';
+  var h = Math.floor(abs / 60);
+  var m = abs % 60;
+  return m ? (h + 'h ' + m + 'm') : (h + 'h');
+}
+
+var NEXT_CHECK_PIPELINE_BUFFER_MIN = 12;
+
+function estimateStationNextCheckIn(entries, stationId) {
+  var statusRow = stationId ? _deviceStatusById[stationId] : null;
+  var nextFromStatus = statusRow && statusRow.nextCheckInAt ? statusRow.nextCheckInAt : null;
+  if (nextFromStatus && !isNaN(nextFromStatus.getTime())) {
+    var statusDeltaMin = Math.round((nextFromStatus.getTime() - Date.now()) / 60000);
+    var statusCls = 'next-check-good';
+    var statusWhen;
+    if (statusDeltaMin >= 0) {
+      statusCls = 'next-check-good';
+      statusWhen = 'in ' + fmtEtaMinutes(statusDeltaMin);
+    } else if (Math.abs(statusDeltaMin) <= NEXT_CHECK_PIPELINE_BUFFER_MIN) {
+      statusCls = 'next-check-warn';
+      statusWhen = 'pending ingest';
+    } else {
+      statusCls = 'next-check-late';
+      statusWhen = 'overdue by ' + fmtEtaMinutes(Math.abs(statusDeltaMin) - NEXT_CHECK_PIPELINE_BUFFER_MIN);
+    }
+    var statusAbs = nextFromStatus.toLocaleString('en-GB', {
+      day: '2-digit', month: 'short',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: 'UTC'
+    });
+    return {
+      text: 'Next: ' + statusWhen + ' (' + statusAbs + ' UTC)',
+      summaryText: 'Next check in: ' + statusWhen + ' (' + statusAbs + ' UTC)',
+      cls: statusCls
+    };
+  }
+
+  if (!entries || entries.length < 2) {
+    return {
+      text: 'Next check in: --',
+      summaryText: 'Next check in: --',
+      cls: 'next-check-unknown'
+    };
+  }
+  var latest = entries[entries.length - 1].timestamp;
+  if (!latest || isNaN(latest.getTime())) {
+    return {
+      text: 'Next check in: --',
+      summaryText: 'Next check in: --',
+      cls: 'next-check-unknown'
+    };
+  }
+
+  var diffs = [];
+  var start = Math.max(1, entries.length - 40);
+  for (var i = start; i < entries.length; i++) {
+    var prevTs = entries[i - 1].timestamp;
+    var curTs = entries[i].timestamp;
+    if (!prevTs || !curTs) continue;
+    var d = curTs.getTime() - prevTs.getTime();
+    if (d > 0 && d <= 12 * 3600000) diffs.push(d);
+  }
+  if (!diffs.length) {
+    return {
+      text: 'Next check in: --',
+      summaryText: 'Next check in: --',
+      cls: 'next-check-unknown'
+    };
+  }
+
+  diffs.sort(function(a, b) { return a - b; });
+  var cadenceMs = diffs[Math.floor(diffs.length / 2)];
+  var nextAt = new Date(latest.getTime() + cadenceMs);
+  var deltaMin = Math.round((nextAt.getTime() - Date.now()) / 60000);
+  var cls = 'next-check-good';
+  var when;
+  if (deltaMin >= 0) {
+    cls = 'next-check-good';
+    when = 'in ' + fmtEtaMinutes(deltaMin);
+  } else if (Math.abs(deltaMin) <= NEXT_CHECK_PIPELINE_BUFFER_MIN) {
+    cls = 'next-check-warn';
+    when = 'pending ingest';
+  } else {
+    cls = 'next-check-late';
+    when = 'overdue by ' + fmtEtaMinutes(Math.abs(deltaMin) - NEXT_CHECK_PIPELINE_BUFFER_MIN);
+  }
+  var nextAbs = nextAt.toLocaleString('en-GB', {
+    day: '2-digit', month: 'short',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'UTC'
+  });
+  return {
+    text: 'Next: ' + when + ' (' + nextAbs + ' UTC)',
+    summaryText: 'Next check in: ' + when + ' (' + nextAbs + ' UTC)',
+    cls: cls
+  };
+}
+
 function renderStationSection(station, data) {
   var sec = document.createElement('div');
   sec.className = 'station-section';
   var e = data.entries;
   var hasData = e.length > 0;
+  var nextCheck = hasData ? estimateStationNextCheckIn(e, station.id) : { text: 'Next: --', summaryText: 'Next check in: --', cls: 'next-check-unknown' };
 
   // Freshness bands: online <=24h, stale 24-48h, offline >48h.
   var freshnessClass = 'fresh-old', freshnessText = 'No data';
@@ -593,7 +709,8 @@ function renderStationSection(station, data) {
 
   sec.innerHTML =
     '<div class="station-header" onclick="toggleStation(\'' + stationId + '\')">' +
-      '<h2>' + station.name + ' <span class="freshness ' + freshnessClass + '">' + freshnessText + '</span>' + srcBadgeHtml +
+      '<h2>' + station.name + ' <span class="freshness ' + freshnessClass + '">' + freshnessText + '</span>' +
+        ' <span class="next-check-chip ' + nextCheck.cls + '">' + nextCheck.text + '</span>' + srcBadgeHtml +
         (hasData ? ' <span style="font-size:.75rem;color:var(--text-muted)">' + e.length.toLocaleString() + ' entries</span>' : '') +
         ' <span style="font-size:.68rem;color:var(--text-muted);opacity:.7">' + stationTzShort(stationId) + '</span>' +
       '</h2>' +
@@ -733,6 +850,7 @@ function renderSummaryCards(container, entries, stationId) {
   var latest = e[e.length - 1];
   var satAEnabled = isSatelliteInstalled(e, 'A');
   var satBEnabled = isSatelliteInstalled(e, 'B');
+  var nextCheck = estimateStationNextCheckIn(e, stationId);
 
   function lastWith(key) {
     for (var i = e.length - 1; i >= 0; i--) { if (e[i][key] !== null) return e[i]; }
@@ -871,6 +989,7 @@ function renderSummaryCards(container, entries, stationId) {
       '<div class="sum-sub">Upload: ' + (ulSess ? (ulSess.status === 'ok' ? '\u2705' : '\u274C') + ' ' + (ulSess.transport || '') : '--') + '</div>' +
       '<div class="sum-sub">Entries: ' + e.length.toLocaleString() + '</div>' +
       '<div class="sum-sub">Last upload: ' + timeAgo(latest.timestamp) + ' ago</div>' +
+      '<div class="sum-sub"><span class="' + nextCheck.cls + '">' + nextCheck.summaryText + '</span></div>' +
     '</div>';
 
   container.appendChild(row);
@@ -1709,6 +1828,8 @@ async function fetchLiveAll() {
   var errors   = [];
   var totalNew = 0;
 
+  await refreshDeviceStatusMap();
+
   for (var i = 0; i < STATIONS.length; i++) {
     var station = STATIONS[i];
     status.textContent = 'Fetching ' + station.name + ' (' + (i+1) + '/' + STATIONS.length + ')...';
@@ -1849,6 +1970,7 @@ onDashboardDataRefresh(function(msg) {
 // ============================================================
 (function() {
   var idx = 0;
+  refreshDeviceStatusMap();
   function loadNext() {
     if (idx >= STATIONS.length) return;
     var station = STATIONS[idx];

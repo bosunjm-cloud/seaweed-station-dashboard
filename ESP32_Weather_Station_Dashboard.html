@@ -100,6 +100,11 @@ a:hover { text-decoration: underline; }
 .table-card-header .location { font-size: 0.78rem; color: var(--text-sec); }
 .table-card-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .status-time { font-size: 0.78rem; color: var(--text-sec); }
+.next-check { font-weight: 600; }
+.next-check-good { color: var(--success); }
+.next-check-warn { color: var(--warning); }
+.next-check-late { color: var(--danger); }
+.next-check-unknown { color: var(--text-muted); }
 .station-metrics { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
 .table-badge {
   display: inline-block; padding: 3px 10px; border-radius: 12px;
@@ -439,6 +444,74 @@ function formatStatusTime(updateInfo) {
   return updateInfo.value + ' (' + updateInfo.hoursSince.toFixed(1) + 'h)';
 }
 
+function formatEtaMinutes(mins) {
+  var abs = Math.max(0, Math.round(Math.abs(mins)));
+  if (abs < 60) return abs + 'm';
+  var h = Math.floor(abs / 60);
+  var m = abs % 60;
+  return m ? (h + 'h ' + m + 'm') : (h + 'h');
+}
+
+var NEXT_CHECK_PIPELINE_BUFFER_MIN = 12;
+
+function formatNextCheckIn(tableId, lastUpdate, dataHealth) {
+  var statusRow = _deviceStatusById && _deviceStatusById[tableId] ? _deviceStatusById[tableId] : null;
+  var nextFromStatus = statusRow && statusRow.nextCheckInAt ? statusRow.nextCheckInAt : null;
+  if (nextFromStatus && !isNaN(nextFromStatus.getTime())) {
+    var authDeltaMin = Math.round((nextFromStatus.getTime() - Date.now()) / 60000);
+    var authState = 'good';
+    var authWhen;
+    if (authDeltaMin >= 0) {
+      authState = 'good';
+      authWhen = 'in ' + formatEtaMinutes(authDeltaMin);
+    } else if (Math.abs(authDeltaMin) <= NEXT_CHECK_PIPELINE_BUFFER_MIN) {
+      authState = 'warn';
+      authWhen = 'pending ingest';
+    } else {
+      authState = 'late';
+      authWhen = 'overdue by ' + formatEtaMinutes(Math.abs(authDeltaMin) - NEXT_CHECK_PIPELINE_BUFFER_MIN);
+    }
+    var authAbs = nextFromStatus.toLocaleString('en-GB', {
+      hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: 'UTC'
+    });
+    var authCls = authState === 'good' ? 'next-check-good' : (authState === 'warn' ? 'next-check-warn' : 'next-check-late');
+    var authText = 'Next check in: ' + authWhen + ' (' + authAbs + ' UTC)';
+    return { html: '<span class="next-check ' + authCls + '">' + authText + '</span>', text: authText };
+  }
+
+  if (!lastUpdate || !dataHealth || !dataHealth.expected) {
+    return { html: '<span class="next-check next-check-unknown">Next check in: --</span>', text: 'Next check in: --' };
+  }
+  var last = lastUpdate instanceof Date ? lastUpdate : new Date(lastUpdate);
+  if (isNaN(last.getTime())) {
+    return { html: '<span class="next-check next-check-unknown">Next check in: --</span>', text: 'Next check in: --' };
+  }
+
+  var cadenceMin = Math.max(1, Math.round((24 * 60) / dataHealth.expected));
+  var nextAt = new Date(last.getTime() + cadenceMin * 60000);
+  var deltaMin = Math.round((nextAt.getTime() - Date.now()) / 60000);
+  var state = 'good';
+  var when;
+  if (deltaMin >= 0) {
+    state = 'good';
+    when = 'in ' + formatEtaMinutes(deltaMin);
+  } else if (Math.abs(deltaMin) <= NEXT_CHECK_PIPELINE_BUFFER_MIN) {
+    state = 'warn';
+    when = 'pending ingest';
+  } else {
+    state = 'late';
+    when = 'overdue by ' + formatEtaMinutes(Math.abs(deltaMin) - NEXT_CHECK_PIPELINE_BUFFER_MIN);
+  }
+  var nextAbs = nextAt.toLocaleString('en-GB', {
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'UTC'
+  });
+  var cls = state === 'good' ? 'next-check-good' : (state === 'warn' ? 'next-check-warn' : 'next-check-late');
+  var text = 'Next check in: ' + when + ' (' + nextAbs + ' UTC)';
+  return { html: '<span class="next-check ' + cls + '">' + text + '</span>', text: text };
+}
+
 // =====================================================================
 // COMPUTE SUMMARY for a table
 // =====================================================================
@@ -697,13 +770,14 @@ function renderWroomCard(table, summary) {
     (summary.dataHealth.actual + '/' + summary.dataHealth.expected + ' samples (24h)') :
     'No samples in last 24h';
   var updateInfo = formatDatasetUpdate(summary.lastUpdate);
+  var nextCheck = formatNextCheckIn(table.id, summary.lastUpdate, summary.dataHealth);
 
   card.innerHTML =
     '<div class="table-card-header">' +
       '<div><h2>' + table.name + '</h2><div class="location">' + table.location + '</div></div>' +
       '<div class="table-card-right">' +
         '<span class="table-badge ' + badgeClass + '">' + badgeText + '</span>' +
-        '<span class="status-time">' + formatStatusTime(updateInfo) + '</span>' +
+        '<span class="status-time">' + formatStatusTime(updateInfo) + ' | ' + nextCheck.html + '</span>' +
       '</div>' +
     '</div>' +
     '<div class="station-metrics">' +
@@ -886,6 +960,7 @@ function renderTableCard(table, summary) {
     (summary.dataHealth.actual + '/' + summary.dataHealth.expected + ' samples (24h)') :
     'No samples in last 24h';
   var updateInfo = formatDatasetUpdate(summary.lastUpdate);
+  var nextCheck = formatNextCheckIn(table.id, summary.lastUpdate, summary.dataHealth);
 
   var metrics =
     metricBox('T0 Batt', summary.t0 && summary.t0.bat != null ? Math.round(summary.t0.bat) + '%': '--', '', batteryToneClass(summary.t0 && summary.t0.bat != null ? summary.t0.bat : null)) +
@@ -905,7 +980,7 @@ function renderTableCard(table, summary) {
       '<div><h2>' + table.name + '</h2><div class="location">' + table.location + '</div></div>' +
       '<div class="table-card-right">' +
         '<span class="table-badge ' + badgeClass + '">' + badgeText + '</span>' +
-        '<span class="status-time">' + formatStatusTime(updateInfo) + '</span>' +
+        '<span class="status-time">' + formatStatusTime(updateInfo) + ' | ' + nextCheck.html + '</span>' +
       '</div>' +
     '</div>' +
     '<div class="station-metrics">' + metrics + '</div>';
@@ -1171,6 +1246,16 @@ function loadTableData(table) {
 
 var _dataSource = {};  // tableId -> 'live' | 'cache' | 'file'
 var _autoRefreshTimer = null;
+var _deviceStatusById = {}; // tableId -> device_status row summary
+
+async function refreshDeviceStatusMap() {
+  try {
+    var ids = TABLES.map(function(t) { return t.id; }).filter(function(id) { return id !== 'wroom'; });
+    _deviceStatusById = await fetchDeviceStatusMap(ids);
+  } catch (e) {
+    console.warn('[Overview] device_status fetch failed:', e.message || e);
+  }
+}
 
 async function fetchAllLive() {
   var btn = document.getElementById('btnFetchAll');
@@ -1181,6 +1266,7 @@ async function fetchAllLive() {
 
   var fetched = 0, errors = [];
   try {
+    await refreshDeviceStatusMap();
     var liveTables = TABLES.filter(function(table) { return !table.legacy; });
     statusEl.textContent = 'Fetching ' + liveTables.length + ' stations...';
 
@@ -1276,6 +1362,8 @@ async function init() {
   var grid = document.getElementById('tableGrid');
   grid.innerHTML = '<div class="loading-text"><span class="spinner"></span> Loading table data...</div>';
 
+  await refreshDeviceStatusMap();
+
   var loadTasks = TABLES.map(function(table) {
     return loadTableData(table);
   });
@@ -1328,7 +1416,9 @@ onDashboardDataRefresh(function(msg) {
       _dataSource[id] = cached.source || 'cache';
       changed = true;
     });
-    if (changed) renderAllCards();
+    if (changed) {
+      refreshDeviceStatusMap().then(function() { renderAllCards(); }).catch(function() { renderAllCards(); });
+    }
   } catch (e) {}
 });
 </script>

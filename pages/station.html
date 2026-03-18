@@ -149,6 +149,17 @@ body {
 .freshness-banner.fresh { background: var(--success-dim); border: 1px solid var(--success); }
 .freshness-banner.stale { background: var(--warning-dim); border: 1px solid var(--warning); }
 .freshness-banner.old   { background: var(--danger-dim);  border: 1px solid var(--danger); }
+.next-check-pill {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  margin-left: 6px;
+}
+.next-check-pill.good { background: var(--success-dim); color: var(--success); border-color: var(--success); }
+.next-check-pill.warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
+.next-check-pill.late { background: var(--danger-dim); color: var(--danger); border-color: var(--danger); }
+.next-check-pill.unknown { background: var(--bg); color: var(--text-muted); border-color: var(--border); }
 
 /* -- Date range bar ------------------------------------------------ */
 .date-range-bar {
@@ -455,6 +466,7 @@ body {
   <div class="freshness-banner" id="freshnessBanner">
     <span id="freshnessIcon"></span>
     <span id="freshnessText"></span>
+    <span class="next-check-pill unknown" id="nextCheckLabel">Next check in: --</span>
     <span style="margin-left:auto;font-size:0.75rem" id="autoRefreshLabel"></span>
   </div>
 
@@ -815,6 +827,7 @@ var state = {
   allEntries:       [],
   filteredEntries:  [],
   syncSessions:     [],
+  deviceStatus:     null,
   timeRange:        'week',
   dateStart:        null,
   dateEnd:          null,
@@ -860,6 +873,17 @@ async function refreshSyncSessions(renderAfter) {
   }
   if (renderAfter && state.filteredEntries && state.filteredEntries.length) {
     renderDashboard();
+  }
+}
+
+async function refreshDeviceStatus(renderAfter) {
+  try {
+    state.deviceStatus = await fetchDeviceStatus(TABLE_ID);
+  } catch (e) {
+    console.warn('[Dashboard] device_status fetch failed:', e.message || e);
+  }
+  if (renderAfter && state.allEntries && state.allEntries.length) {
+    updateFreshnessBanner();
   }
 }
 
@@ -1417,6 +1441,7 @@ async function fetchLiveData(silent) {
     var result = await fetchStationData(TABLE_ID);
     var data = { channel: state.channelInfo || { id: TABLE_ID, name: STATION.title }, feeds: result.feeds };
     handleNewData(data, 'Supabase live (' + new Date().toLocaleTimeString('en-GB') + ')');
+    await refreshDeviceStatus(false);
     await refreshSyncSessions(true);
     notifyDashboardDataRefresh([TABLE_ID], 'station.fetchLiveData');
   } catch (err) {
@@ -1823,6 +1848,85 @@ function updateHeaderInfo() {
   }
 }
 
+function formatEtaFromMinutes(mins) {
+  var abs = Math.max(0, Math.round(Math.abs(mins)));
+  if (abs < 60) return abs + 'm';
+  var h = Math.floor(abs / 60);
+  var m = abs % 60;
+  return m ? (h + 'h ' + m + 'm') : (h + 'h');
+}
+
+var NEXT_CHECK_PIPELINE_BUFFER_MIN = 12;
+
+function estimateNextCheckIn(entries, preferredNextAt) {
+  if (preferredNextAt && !isNaN(preferredNextAt.getTime())) {
+    var statusDeltaMin = Math.round((preferredNextAt.getTime() - Date.now()) / 60000);
+    var statusState = 'good';
+    var statusWhen;
+    if (statusDeltaMin >= 0) {
+      statusState = 'good';
+      statusWhen = 'in ' + formatEtaFromMinutes(statusDeltaMin);
+    } else if (Math.abs(statusDeltaMin) <= NEXT_CHECK_PIPELINE_BUFFER_MIN) {
+      statusState = 'warn';
+      statusWhen = 'pending ingest';
+    } else {
+      statusState = 'late';
+      statusWhen = 'overdue by ' + formatEtaFromMinutes(Math.abs(statusDeltaMin) - NEXT_CHECK_PIPELINE_BUFFER_MIN);
+    }
+    var statusAbs = preferredNextAt.toLocaleString('en-GB', {
+      day: '2-digit', month: 'short',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: 'UTC'
+    });
+    return { text: 'Next check in: ' + statusWhen + ' (' + statusAbs + ' UTC)', state: statusState };
+  }
+
+  if (!entries || entries.length < 2) {
+    return { text: 'Next check in: --', state: 'unknown' };
+  }
+
+  var latest = entries[entries.length - 1].timestamp;
+  if (!latest || isNaN(latest.getTime())) {
+    return { text: 'Next check in: --', state: 'unknown' };
+  }
+
+  var diffs = [];
+  var start = Math.max(1, entries.length - 40);
+  for (var i = start; i < entries.length; i++) {
+    var prevTs = entries[i - 1].timestamp;
+    var curTs = entries[i].timestamp;
+    if (!prevTs || !curTs) continue;
+    var d = curTs.getTime() - prevTs.getTime();
+    if (d > 0 && d <= 12 * 3600000) diffs.push(d);
+  }
+  if (!diffs.length) {
+    return { text: 'Next check in: --', state: 'unknown' };
+  }
+
+  diffs.sort(function(a, b) { return a - b; });
+  var cadenceMs = diffs[Math.floor(diffs.length / 2)];
+  var nextAt = new Date(latest.getTime() + cadenceMs);
+  var deltaMin = Math.round((nextAt.getTime() - Date.now()) / 60000);
+  var state = 'good';
+  var when;
+  if (deltaMin >= 0) {
+    state = 'good';
+    when = 'in ' + formatEtaFromMinutes(deltaMin);
+  } else if (Math.abs(deltaMin) <= NEXT_CHECK_PIPELINE_BUFFER_MIN) {
+    state = 'warn';
+    when = 'pending ingest';
+  } else {
+    state = 'late';
+    when = 'overdue by ' + formatEtaFromMinutes(Math.abs(deltaMin) - NEXT_CHECK_PIPELINE_BUFFER_MIN);
+  }
+  var nextAbs = nextAt.toLocaleString('en-GB', {
+    day: '2-digit', month: 'short',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: 'UTC'
+  });
+  return { text: 'Next check in: ' + when + ' (' + nextAbs + ' UTC)', state: state };
+}
+
 // =====================================================================
 // RENDER: FRESHNESS BANNER
 // =====================================================================
@@ -1832,12 +1936,19 @@ function updateFreshnessBanner() {
 
   var latest = state.allEntries[state.allEntries.length - 1].timestamp;
   var ageHrs = (Date.now() - latest.getTime()) / 3600000;
+  var nextAt = state.deviceStatus && state.deviceStatus.nextCheckInAt ? state.deviceStatus.nextCheckInAt : null;
+  var nextCheck = estimateNextCheckIn(state.allEntries, nextAt);
 
   banner.classList.add('show');
   banner.classList.remove('fresh', 'stale', 'old');
 
   var icon = document.getElementById('freshnessIcon');
   var text = document.getElementById('freshnessText');
+  var nextCheckLabel = document.getElementById('nextCheckLabel');
+  if (nextCheckLabel) {
+    nextCheckLabel.textContent = nextCheck.text;
+    nextCheckLabel.className = 'next-check-pill ' + (nextCheck.state || 'unknown');
+  }
 
   if (ageHrs < 2) {
     banner.classList.add('fresh');
@@ -3174,6 +3285,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // Load cached sync-session timeline immediately, then refresh from Supabase.
   state.syncSessions = loadSyncSessionsFromCache();
   refreshSyncSessions(true);
+  refreshDeviceStatus(true);
 
   // Prefer shared cache so all dashboard pages show the same station snapshot.
   var _cacheLoaded = false;

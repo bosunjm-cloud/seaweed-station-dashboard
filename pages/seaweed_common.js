@@ -523,6 +523,74 @@ async function fetchSyncSessions(stationId, opts) {
 }
 
 /**
+ * Parse device_status.next_check_in safely.
+ * Accepts ISO-like timestamps with or without seconds and timezone suffix.
+ *
+ * @param {string|null} value
+ * @returns {Date|null}
+ */
+function parseNextCheckInValue(value) {
+  if (value == null) return null;
+  var s = String(value).trim();
+  if (!s) return null;
+
+  // Normalize minute-only UTC strings like "2026-03-17T12:03Z" to include seconds.
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/i.test(s)) s = s.replace(/Z$/i, ':00Z');
+  // Normalize minute-only offset strings like "2026-03-17T12:03+00:00".
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}[+-]\d{2}:\d{2}$/.test(s)) s = s.replace(/([+-]\d{2}:\d{2})$/, ':00$1');
+
+  var d = new Date(ensureUTC(s));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Fetch device_status rows for station IDs.
+ *
+ * @param {string[]} stationIds
+ * @returns {Promise<Object>} Map: { [deviceId]: { nextCheckInAt, lastSeenAt, lastUploadAt, raw } }
+ */
+async function fetchDeviceStatusMap(stationIds) {
+  stationIds = Array.isArray(stationIds) ? stationIds.filter(Boolean) : [];
+  if (!stationIds.length) return {};
+
+  var supaCfg = getSupabaseConfig();
+  var hdrs = supabaseHeaders(supaCfg.key);
+  var idList = stationIds.map(function(id) { return String(id).replace(/,/g, ''); }).join(',');
+  var url = supaCfg.url + '/rest/v1/device_status' +
+            '?select=device_id,next_check_in,last_seen,last_upload_at' +
+            '&device_id=in.(' + encodeURIComponent(idList) + ')';
+
+  var res = await fetchWithTimeout(url, 15000, { headers: hdrs });
+  if (!res.ok) throw new Error('device_status HTTP ' + res.status);
+
+  var rows = await res.json();
+  var out = {};
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i] || {};
+    if (!r.device_id) continue;
+    out[r.device_id] = {
+      nextCheckInAt: parseNextCheckInValue(r.next_check_in),
+      lastSeenAt: r.last_seen ? new Date(ensureUTC(r.last_seen)) : null,
+      lastUploadAt: r.last_upload_at ? new Date(ensureUTC(r.last_upload_at)) : null,
+      raw: r
+    };
+  }
+  return out;
+}
+
+/**
+ * Fetch one station's device_status row.
+ *
+ * @param {string} stationId
+ * @returns {Promise<Object|null>}
+ */
+async function fetchDeviceStatus(stationId) {
+  if (!stationId) return null;
+  var map = await fetchDeviceStatusMap([stationId]);
+  return map[stationId] || null;
+}
+
+/**
  * Load station data with priority chain: Supabase → localStorage cache → static file.
  *
  * @param {string} stationId    - Device ID (e.g. 'perth', 'shangani', 'funzi')
