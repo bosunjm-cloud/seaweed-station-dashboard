@@ -125,6 +125,8 @@ body {
 .btn-primary:hover { background: var(--accent); }
 .btn-green { background: #166534; border-color: #22c55e; }
 .btn-green:hover { background: #22c55e; color: #000; }
+.btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn-danger:hover { background: #b83a4a; border-color: #b83a4a; }
 .btn-sm { padding: 4px 12px; font-size: 0.75rem; }
 .btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -450,7 +452,7 @@ body {
       <span class="date-range-sep">to</span>
       <input type="date" id="dateEnd" title="End date">
       <button class="btn btn-sm" onclick="applyDateRange()">Apply</button>
-      <button class="btn btn-sm" onclick="clearDateRange()">Clear</button>
+      <button class="btn btn-sm" id="btnClearDate" onclick="clearDateRange()">Clear</button>
     </section>
 
     <!-- Sensor Placement Map (collapsible) -->
@@ -1249,12 +1251,15 @@ function clearDateRange() {
 
 function updateDateRangeIndicator() {
   var bar = document.querySelector('.date-range-bar');
+  var clearBtn = document.getElementById('btnClearDate');
   if (state.dateStart || state.dateEnd) {
-    bar.style.borderColor = 'var(--accent)';
-    bar.style.boxShadow = '0 0 0 1px var(--accent)';
+    bar.style.borderColor = 'var(--danger)';
+    bar.style.boxShadow = '0 0 0 1px var(--danger)';
+    clearBtn.classList.add('btn-danger');
   } else {
     bar.style.borderColor = '';
     bar.style.boxShadow = '';
+    clearBtn.classList.remove('btn-danger');
   }
 }
 

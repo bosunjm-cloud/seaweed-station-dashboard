@@ -564,9 +564,6 @@ body {
   <div class="header-actions">
     <a class="btn btn-sm" href="../ESP32_Weather_Station_Dashboard.html" title="All tables overview">&#9664; Overview</a>
     <button class="btn btn-primary" id="btnFetch" onclick="fetchLiveData()">Fetch Live</button>
-    <button class="btn" id="btnLoadFile" onclick="document.getElementById('fileInput').click()">Load JSON</button>
-    <input type="file" id="fileInput" multiple accept=".json" style="display:none"
-           onchange="handleFileUpload(this.files)">
     <button class="btn" id="btnExportCSV" onclick="exportCSV()" title="Export processed data as CSV" style="display:none">Export CSV</button>
     <a class="btn btn-sm" href="settings.html" data-feature="settings">&#9881; Settings</a>
     <a class="btn btn-sm" href="station_health.html" title="Battery, Sync, Data Health" data-feature="stationHealth">&#128267; Station Health</a>
@@ -596,9 +593,7 @@ body {
   <!-- Empty state (shown when no data loaded) -->
   <div class="empty-state" id="emptyState">
     <h2>No Data Loaded</h2>
-    <p>Click <strong>Fetch Live</strong> to download directly from ThingSpeak,
-       <strong>Load JSON</strong> to load a downloaded file, or run
-       <code>download_data.ps1</code> to set up automatic data loading.</p>
+    <p>Click <strong>Fetch Live</strong> to pull data from Supabase.</p>
     <button class="btn btn-primary" onclick="fetchLiveData()" style="margin-top:10px">Fetch Live Now</button>
   </div>
 
@@ -1738,7 +1733,7 @@ async function fetchLiveData(silent) {
   } catch (err) {
     console.error('[Dashboard] Supabase fetch failed:', err);
     if (!silent) {
-      alert('Fetch failed: ' + err.message + '\n\nCheck Supabase URL/Key in Settings.\nIf using file:// protocol, try "Load JSON" instead.');
+      alert('Fetch failed: ' + err.message + '\n\nCheck Supabase URL/Key in Settings.');
     }
   } finally {
     btn.innerHTML = 'Fetch Live';
@@ -1784,21 +1779,7 @@ onDashboardDataRefresh(function(msg) {
   } catch (e) {}
 });
 
-function handleFileUpload(files) {
-  Array.from(files).forEach(function (file) {
-    var reader = new FileReader();
-    reader.onload = function (ev) {
-      try {
-        var data = JSON.parse(ev.target.result);
-        handleNewData(data, 'File: ' + file.name);
-      } catch (err) {
-        alert('Error parsing ' + file.name + ': ' + err.message);
-      }
-    };
-    reader.readAsText(file);
-  });
-  document.getElementById('fileInput').value = '';
-}
+
 
 // =====================================================================
 // CSV EXPORT

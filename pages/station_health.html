@@ -147,6 +147,13 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 
 /* ======================== FETCH BUTTON ======================== */
 .chart-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-bottom:20px}
+.forecast-panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;user-select:none;margin-bottom:10px}
+.forecast-panel-head h3{font-size:1rem;font-weight:600;display:flex;align-items:center;gap:8px;margin:0}
+.beta-badge{display:inline-flex;align-items:center;justify-content:center;padding:2px 8px;border-radius:999px;font-size:.64rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:#fff1dd;color:#d0892d;border:1px solid rgba(208,137,45,.35)}
+.forecast-panel-head .chevron{font-size:.78rem;transition:transform .2s ease;color:var(--text-muted)}
+.forecast-panel-collapsed .forecast-panel-head .chevron{transform:rotate(-90deg)}
+.forecast-panel-collapsed #forecastPanelBody{display:none}
+.forecast-panel-collapsed{padding-bottom:12px}
 .chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px}
 .chart-header h3{font-size:1rem;font-weight:600}
 .chart-subhead{font-size:.75rem;color:var(--text-muted);margin-bottom:12px}
@@ -204,10 +211,23 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
   <div id="stationsContainer" style="display:none"></div>
 
   <!-- ===== BATTERY FORECAST PANEL ===== -->
-  <section class="chart-panel" id="forecastPanel" style="display:none">
+  <section class="chart-panel forecast-panel-collapsed" id="forecastPanel" style="display:none">
+    <div
+      class="forecast-panel-head"
+      id="forecastPanelHead"
+      role="button"
+      tabindex="0"
+      aria-controls="forecastPanelBody"
+      aria-expanded="false"
+    >
+      <h3>&#128267; Battery Forecast <span class="beta-badge">Beta</span></h3>
+      <button class="btn btn-sm" id="forecastPanelToggleBtn" type="button" aria-label="Expand Battery Forecast" title="Expand">
+        <span class="chevron" id="forecastPanelChevron">&#9662;</span>
+      </button>
+    </div>
+    <div id="forecastPanelBody">
     <div class="chart-header">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <h3>&#128267; Battery Forecast</h3>
         <span style="font-size:11px;color:var(--text-muted);">Station:</span>
         <select id="fcStationSelect" onchange="switchForecastStation(this.value)" style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text-sec);font-size:11px;padding:3px 8px;cursor:pointer;">
           <option value="perth">Perth TT</option>
@@ -240,6 +260,7 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
     </div>
     <div id="fcInfoCards"></div>
     <div id="fcTrendStatus" style="margin-top:8px;padding:8px 12px;background:var(--bg-card-alt);border-radius:6px;font-size:.72rem;color:#64748b;min-height:24px;display:none"></div>
+    </div>
 
   </section>
 </main>
@@ -744,6 +765,7 @@ function saveCacheData(stationId, entries) {
 // RENDERING
 // ============================================================
 function onAllLoaded() {
+  bindForecastPanelToggle();
   document.getElementById('loadingMsg').style.display = 'none';
   document.getElementById('stationsContainer').style.display = '';
   var container = document.getElementById('stationsContainer');
@@ -786,6 +808,50 @@ function switchForecastStation(id) {
   if (!window.BatteryForecast || !stationData[id] || !stationData[id].entries.length) return;
   BatteryForecast.reset();
   BatteryForecast.init({ allEntries: stationData[id].entries });
+}
+
+function toggleForecastPanel(forceExpand) {
+  var panel = document.getElementById('forecastPanel');
+  var head = document.getElementById('forecastPanelHead');
+  var toggleBtn = document.getElementById('forecastPanelToggleBtn');
+  if (!panel || !head) return;
+
+  var collapsed = panel.classList.contains('forecast-panel-collapsed');
+  var shouldExpand = typeof forceExpand === 'boolean' ? forceExpand : collapsed;
+
+  panel.classList.toggle('forecast-panel-collapsed', !shouldExpand);
+  head.setAttribute('aria-expanded', shouldExpand ? 'true' : 'false');
+  if (toggleBtn) {
+    toggleBtn.setAttribute('aria-label', shouldExpand ? 'Collapse Battery Forecast' : 'Expand Battery Forecast');
+    toggleBtn.title = shouldExpand ? 'Collapse' : 'Expand';
+  }
+}
+
+function bindForecastPanelToggle() {
+  var head = document.getElementById('forecastPanelHead');
+  var toggleBtn = document.getElementById('forecastPanelToggleBtn');
+  if (!head || !toggleBtn || head._forecastToggleBound) return;
+
+  toggleBtn.addEventListener('click', function(ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    toggleForecastPanel();
+  });
+
+  head.addEventListener('click', function(ev) {
+    var t = ev.target;
+    if (t && t.closest && t.closest('button,a,input,select,textarea,label')) return;
+    toggleForecastPanel();
+  });
+
+  head.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Enter' || ev.key === ' ') {
+      ev.preventDefault();
+      toggleForecastPanel();
+    }
+  });
+
+  head._forecastToggleBound = true;
 }
 
 function fmtEtaMinutes(mins) {
