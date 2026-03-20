@@ -5,10 +5,27 @@
 <script>if(sessionStorage.getItem('sw_auth')!=='ok'){location.replace('../login.html?r='+encodeURIComponent(location.href));}</script>
 <script>
 (function () {
-  var SETTINGS_PW = 'changeme';
+  // Role-based settings guard: only admin role (or legacy mode) can access
+  var role = sessionStorage.getItem('sw_role');
   var SETTINGS_KEY = 'sw_settings_auth';
-  if (sessionStorage.getItem(SETTINGS_KEY) === 'ok') return;
 
+  // If role system is active, check for settings permission
+  if (role) {
+    try {
+      var features = JSON.parse(sessionStorage.getItem('sw_features') || '{}');
+      if (features.settings === false) {
+        alert('You do not have access to Settings.');
+        location.replace('../ESP32_Weather_Station_Dashboard.html');
+        return;
+      }
+    } catch (e) {}
+    sessionStorage.setItem(SETTINGS_KEY, 'ok');
+    return;
+  }
+
+  // Legacy fallback: prompt-based password (when no role system is configured)
+  var SETTINGS_PW = 'changeme';
+  if (sessionStorage.getItem(SETTINGS_KEY) === 'ok') return;
   var input = window.prompt('Enter settings password:');
   if (input !== SETTINGS_PW) {
     alert('Incorrect settings password.');
@@ -301,6 +318,99 @@ input.wide { max-width: none; }
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+
+.device-profiles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.device-profile-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(150px, 1fr) minmax(140px, 0.8fr) minmax(220px, 1.2fr);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+}
+.device-profile-id {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.device-profile-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.device-profile-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+.device-profile-check label {
+  font-size: 0.82rem;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+@media (max-width: 760px) {
+  .device-profile-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Access Roles editor */
+.access-role-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--bg);
+  margin-bottom: 10px;
+}
+.access-role-card .role-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.access-role-card .role-header input {
+  max-width: 180px;
+}
+.access-role-card .role-stations,
+.access-role-card .role-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 6px;
+}
+.access-role-card .role-stations label,
+.access-role-card .role-features label {
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.access-role-card .role-stations input[type="checkbox"],
+.access-role-card .role-features input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+}
+.role-remove-btn {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
 </style>
 </head>
 <body>
@@ -315,12 +425,35 @@ input.wide { max-width: none; }
     </div>
   </div>
   <div style="display:flex;gap:8px;align-items:center">
+    <button class="btn btn-primary" onclick="saveSettings()">&#10003; Save to Browser</button>
+    <div class="save-status" id="saveStatusTop">&#10003; Settings saved!</div>
     <a class="btn" href="../ESP32_Weather_Station_Dashboard.html">&#8592; Back to Overview</a>
   </div>
 </header>
 
 <!-- ═══════════════════════════════════════════════════ MAIN ══════ -->
 <main class="main">
+
+  <!-- ─────────────────────────────────────── Save / Apply (Top) ───── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#128190;</span>
+      <h2>Save &amp; Apply Settings</h2>
+      <span class="section-desc">Save browser settings now. JSON export is optional and at the bottom.</span>
+    </div>
+    <div class="section-body">
+      <div class="info-box info">
+        <div class="info-title">Save is required</div>
+        After changing any fields on this page, click <strong>Save to Browser</strong>.
+        This stores settings in localStorage and applies them across dashboard pages.
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary btn-lg" onclick="saveSettings()">&#10003; Save to Browser</button>
+        <div class="save-status" id="saveStatus">&#10003; Settings saved!</div>
+      </div>
+    </div>
+  </div>
 
   <!-- ─────────────────────────────────────── Supabase Connection ── -->
   <div class="section">
@@ -350,6 +483,16 @@ input.wide { max-width: none; }
           <input type="password" id="supabaseAnonKey" placeholder="eyJhbGciOiJIUzI1NiIs..." autocomplete="off" style="font-family:monospace;font-size:0.8rem">
           <div class="field-hint">The <code>anon</code> key (public). Never paste the <code>service_role</code> key here.</div>
         </div>
+      </div>
+
+      <div class="field">
+        <label>Active Devices &amp; Install Date</label>
+        <div class="field-hint">Choose which devices appear in Overview/Station/Health. Data before install date is ignored.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">
+          <button class="btn" onclick="refreshDeviceProfilesFromSupabase()">&#128260; Refresh from Supabase</button>
+          <span id="deviceDiscoveryStatus" style="font-size:0.78rem;color:var(--text-muted)">Not refreshed yet.</span>
+        </div>
+        <div id="deviceProfileList" class="device-profiles" style="margin-top:10px"></div>
       </div>
 
     </div>
@@ -511,28 +654,28 @@ input.wide { max-width: none; }
     </div>
   </div>
 
-  <!-- ─────────────────────────────────────── Save / Generate ───── -->
-  <div class="section">
+  <!-- ─────────────────────────────────────── Access Roles ─────── -->
+  <div class="section" id="accessRolesSection">
     <div class="section-header">
-      <span class="section-icon">&#128190;</span>
-      <h2>Save &amp; Apply Settings</h2>
-      <span class="section-desc">Save locally and generate the config file for download scripts</span>
+      <span class="section-icon">&#128274;</span>
+      <h2>Access Roles</h2>
+      <span class="section-desc">Control who sees which stations and features. Pushed to Supabase so every browser sees the same rules.</span>
     </div>
     <div class="section-body">
 
       <div class="info-box info">
-        <div class="info-title">How settings are applied</div>
-        Settings you save here are stored in your browser (localStorage) and used by the dashboard automatically.
-        To use them with <strong>download_data.ps1</strong> on your local machine, click
-        <strong>Download config.json</strong> and save the file next to <strong>download_data.ps1</strong> in the repo folder.
-        GitHub Actions does not read config.json &mdash; it uses the channel defaults built into the script.
+        <div class="info-title">How it works</div>
+        Each role has a password and a set of allowed stations/features.<br>
+        When someone logs in, the dashboard checks their password against these roles and
+        restricts navigation accordingly. This is a <strong>convenience gate</strong>, not a security boundary.
       </div>
 
-      <!-- Buttons -->
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <button class="btn btn-primary btn-lg" onclick="saveSettings()">&#10003; Save to Browser</button>
-        <button class="btn btn-success btn-lg" onclick="downloadConfigJson()">&#8595; Download config.json</button>
-        <div class="save-status" id="saveStatus">&#10003; Settings saved!</div>
+      <div id="accessRolesList"></div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px">
+        <button class="btn" onclick="addAccessRole()">&#43; Add Role</button>
+        <button class="btn btn-primary" onclick="pushAccessRolesNow()">&#9650; Push Roles to Supabase</button>
+        <span id="rolesPushStatus" style="font-size:0.78rem;color:var(--text-muted)"></span>
       </div>
 
     </div>
@@ -548,11 +691,13 @@ input.wide { max-width: none; }
     <div class="section-body">
 
       <div class="info-box info">
-        <div class="info-title">config.json is still used for local runs</div>
-        When running <strong>download_data_supabase.ps1</strong> directly on your PC, it reads <strong>config.json</strong>
-        from the same folder. Use <strong>Save to Browser</strong> then <strong>Download config.json</strong>
-        below, and save the file next to <strong>download_data_supabase.ps1</strong> in the repo folder.
-        GitHub Actions uses repository secrets instead of this file.
+        <div class="info-title">Optional JSON export for local script runs</div>
+        Only needed when running <strong>download_data_supabase.ps1</strong> manually on your PC.
+        Save your settings first, then export <strong>config.json</strong> and place it next to the script.
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-success" onclick="downloadConfigJson()">&#8595; Download config.json (Optional)</button>
       </div>
 
       <div class="info-box">
@@ -563,24 +708,6 @@ input.wide { max-width: none; }
         <code style="display:block;margin-top:4px;color:#a5f3fc">.\download_data_supabase.ps1 -ScheduleType hourly -MaxResults 8000</code>
       </div>
 
-    </div>
-  </div>
-  <!-- ─────────────────────────────────────── Current Config Preview -->
-  <div class="section">
-    <div class="section-header">
-      <span class="section-icon">&#128220;</span>
-      <h2>config.json Preview</h2>
-      <span class="section-desc">This file must sit next to download_data.ps1 for the scripts to use your settings</span>
-    </div>
-    <div class="section-body">
-      <div>
-        <div class="code-block-header">
-          <span class="code-label">config.json (generated from current settings)</span>
-          <button class="copy-btn" onclick="copyCode('configPreview', this)">Copy</button>
-        </div>
-        <div class="code-block" id="configPreview">Loading...</div>
-      </div>
-    </div>
   </div>
 
 </main>
@@ -592,6 +719,7 @@ input.wide { max-width: none; }
 <!-- =================================================================
      JAVASCRIPT
      ================================================================= -->
+<script src="seaweed_common.js?v=20260318"></script>
 <script>
 "use strict";
 
@@ -599,6 +727,217 @@ function ensureSettingsUnlocked() {
   if (sessionStorage.getItem('sw_settings_auth') === 'ok') return true;
   alert('Settings are locked. Reload and enter the settings password.');
   return false;
+}
+
+var DEVICE_PROFILE_DEFAULTS = [
+  { id: 'perth', name: 'Perth Test', enabled: true, dataFolder: 'data_3262071_TT', channelId: '3262071', apiKey: 'VVHUX39KINYPLCVI', mapLat: -31.87, mapLon: 115.90 },
+  { id: 'shangani', name: 'Shangani', enabled: true, dataFolder: 'data_Shangani', channelId: '', apiKey: '', mapLat: -4.55, mapLon: 39.50 },
+  { id: 'funzi', name: 'Funzi', enabled: true, dataFolder: 'data_Funzi', channelId: '', apiKey: '', mapLat: -4.581429, mapLon: 39.437527 },
+  { id: 'spare', name: 'Spare', enabled: true, dataFolder: 'data_spare', channelId: '', apiKey: '', mapLat: null, mapLon: null },
+  { id: 'wroom', name: 'Perth WROOM', enabled: true, dataFolder: 'data_WROOM_PTT', channelId: '3246116', apiKey: '7K00B1Y8DNOTEIM0', mapLat: null, mapLon: null }
+];
+
+function titleCaseDeviceId(id) {
+  return String(id || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+}
+
+function normalizeInstallDateForInput(value) {
+  if (!value) return '';
+  var s = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  var d = new Date(ensureUTC(s));
+  if (isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
+}
+
+function normalizeInstallDateUtc(value) {
+  if (!value) return null;
+  var s = String(value).trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s + 'T00:00:00Z';
+  var d = new Date(ensureUTC(s));
+  if (isNaN(d.getTime())) return null;
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0)).toISOString();
+}
+
+function normalizeMapCoord(value) {
+  if (value === null || value === undefined) return null;
+  var s = String(value).trim();
+  if (!s) return null;
+  var n = Number(s);
+  return isFinite(n) ? n : null;
+}
+
+function mapById(arr) {
+  var out = {};
+  (arr || []).forEach(function(item) {
+    if (!item || !item.id) return;
+    out[String(item.id).toLowerCase()] = item;
+  });
+  return out;
+}
+
+function getDefaultDeviceProfiles() {
+  return DEVICE_PROFILE_DEFAULTS.map(function(p) { return Object.assign({}, p); });
+}
+
+function getRenderedDeviceProfiles() {
+  var root = document.getElementById('deviceProfileList');
+  if (!root) return [];
+  var nodes = root.querySelectorAll('.device-profile-row');
+  var out = [];
+  for (var i = 0; i < nodes.length; i++) {
+    var row = nodes[i];
+    var id = row.getAttribute('data-id');
+    if (!id) continue;
+    var enabledEl = row.querySelector('input[data-role="enabled"]');
+    var dateEl = row.querySelector('input[data-role="installDate"]');
+    var latEl = row.querySelector('input[data-role="mapLat"]');
+    var lonEl = row.querySelector('input[data-role="mapLon"]');
+    var p = {
+      id: id,
+      name: row.getAttribute('data-name') || titleCaseDeviceId(id),
+      enabled: enabledEl ? !!enabledEl.checked : true,
+      installDateUtc: normalizeInstallDateUtc(dateEl ? dateEl.value : ''),
+      dataFolder: row.getAttribute('data-folder') || ('data_' + id),
+      channelId: row.getAttribute('data-channel-id') || '',
+      apiKey: row.getAttribute('data-api-key') || '',
+      mapLat: normalizeMapCoord(latEl ? latEl.value : null),
+      mapLon: normalizeMapCoord(lonEl ? lonEl.value : null)
+    };
+    out.push(p);
+  }
+  out.sort(function(a, b) { return a.id.localeCompare(b.id); });
+  return out;
+}
+
+function renderDeviceProfiles(profiles) {
+  var root = document.getElementById('deviceProfileList');
+  if (!root) return;
+  if (!profiles || !profiles.length) {
+    root.innerHTML = '<div class="info-box">No devices found yet. Click <strong>Refresh from Supabase</strong>.</div>';
+    return;
+  }
+  root.innerHTML = '';
+  profiles.forEach(function(p) {
+    var id = String(p.id || '').trim().toLowerCase();
+    if (!id) return;
+    var row = document.createElement('div');
+    row.className = 'device-profile-row';
+    row.setAttribute('data-id', id);
+    row.setAttribute('data-name', String(p.name || titleCaseDeviceId(id)));
+    row.setAttribute('data-folder', p.dataFolder || ('data_' + id));
+    row.setAttribute('data-channel-id', p.channelId || '');
+    row.setAttribute('data-api-key', p.apiKey || '');
+    row.setAttribute('data-map-lat', p.mapLat != null ? String(p.mapLat) : '');
+    row.setAttribute('data-map-lon', p.mapLon != null ? String(p.mapLon) : '');
+    row.innerHTML =
+      '<div>' +
+        '<div class="device-profile-check">' +
+          '<input type="checkbox" data-role="enabled" id="dp_en_' + id + '" ' + (p.enabled !== false ? 'checked' : '') + '>' +
+          '<label for="dp_en_' + id + '">' + String(p.name || titleCaseDeviceId(id)) + '</label>' +
+        '</div>' +
+        '<div class="device-profile-id">device_id: ' + id + '</div>' +
+      '</div>' +
+      '<div class="field" style="gap:3px">' +
+        '<label style="font-size:0.68rem">Install Date (UTC)</label>' +
+        '<input type="date" data-role="installDate" value="' + normalizeInstallDateForInput(p.installDateUtc) + '">' +
+      '</div>' +
+      '<div style="font-size:0.72rem;color:var(--text-muted)">Data folder: <strong style="color:var(--text-sec)">' + (p.dataFolder || ('data_' + id)) + '</strong></div>' +
+      '<div class="field" style="gap:3px">' +
+        '<label style="font-size:0.68rem">Coordinates (lat, lon)</label>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
+          '<input type="text" data-role="mapLat" placeholder="-4.581429" value="' + (p.mapLat != null ? String(p.mapLat) : '') + '">' +
+          '<input type="text" data-role="mapLon" placeholder="39.437527" value="' + (p.mapLon != null ? String(p.mapLon) : '') + '">' +
+        '</div>' +
+      '</div>';
+    root.appendChild(row);
+
+    var enabledEl = row.querySelector('input[data-role="enabled"]');
+    var dateEl = row.querySelector('input[data-role="installDate"]');
+    var latEl = row.querySelector('input[data-role="mapLat"]');
+    var lonEl = row.querySelector('input[data-role="mapLon"]');
+    if (enabledEl) enabledEl.addEventListener('change', updatePreviews);
+    if (dateEl) dateEl.addEventListener('change', updatePreviews);
+    if (latEl) latEl.addEventListener('change', updatePreviews);
+    if (lonEl) lonEl.addEventListener('change', updatePreviews);
+  });
+}
+
+function mergeProfilesForRender(baseProfiles, discoveredIds) {
+  var map = mapById(getDefaultDeviceProfiles());
+  Object.keys(mapById(baseProfiles)).forEach(function(id) {
+    map[id] = Object.assign({}, map[id] || { id: id, name: titleCaseDeviceId(id), enabled: true, dataFolder: 'data_' + id, channelId: '', apiKey: '' }, mapById(baseProfiles)[id]);
+  });
+  (discoveredIds || []).forEach(function(idRaw) {
+    var id = String(idRaw || '').trim().toLowerCase();
+    if (!id) return;
+    if (!map[id]) {
+      map[id] = { id: id, name: titleCaseDeviceId(id), enabled: true, dataFolder: 'data_' + id, channelId: '', apiKey: '', mapLat: null, mapLon: null };
+    }
+  });
+
+  var out = Object.keys(map).map(function(id) {
+    var p = map[id] || {};
+    return {
+      id: id,
+      name: String(p.name || titleCaseDeviceId(id)),
+      enabled: p.enabled !== false,
+      installDateUtc: normalizeInstallDateUtc(p.installDateUtc),
+      dataFolder: p.dataFolder || ('data_' + id),
+      channelId: p.channelId || '',
+      apiKey: p.apiKey || '',
+      mapLat: normalizeMapCoord(p.mapLat),
+      mapLon: normalizeMapCoord(p.mapLon)
+    };
+  });
+  out.sort(function(a, b) { return a.id.localeCompare(b.id); });
+  return out;
+}
+
+async function refreshDeviceProfilesFromSupabase() {
+  var status = document.getElementById('deviceDiscoveryStatus');
+  if (status) status.textContent = 'Refreshing devices from Supabase...';
+
+  try {
+    var urlInput = (document.getElementById('supabaseUrl').value || '').trim();
+    var keyInput = (document.getElementById('supabaseAnonKey').value || '').trim();
+    var supa = getSupabaseConfig();
+    var baseUrl = (urlInput || supa.url || '').replace(/\/+$/, '');
+    var anonKey = keyInput || supa.key || '';
+    if (!baseUrl || !anonKey) throw new Error('Set Supabase URL and anon key first.');
+
+    var res = await fetchWithTimeout(
+      baseUrl + '/rest/v1/device_status?select=device_id&order=device_id.asc',
+      15000,
+      { headers: { apikey: anonKey, Authorization: 'Bearer ' + anonKey } }
+    );
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var rows = await res.json();
+    var ids = [];
+    var seen = {};
+    (rows || []).forEach(function(r) {
+      var id = String(r && r.device_id || '').trim().toLowerCase();
+      if (!id || seen[id]) return;
+      seen[id] = true;
+      ids.push(id);
+    });
+
+    var existing = getRenderedDeviceProfiles();
+    if (!existing.length) {
+      try {
+        var savedCfg = JSON.parse(localStorage.getItem('seaweed_dashboard_config') || '{}');
+        existing = Array.isArray(savedCfg.deviceProfiles) ? savedCfg.deviceProfiles : getDefaultDeviceProfiles();
+      } catch (e) {
+        existing = getDefaultDeviceProfiles();
+      }
+    }
+    renderDeviceProfiles(mergeProfilesForRender(existing, ids));
+    updatePreviews();
+    if (status) status.textContent = ids.length ? ('Found ' + ids.length + ' devices.') : 'No devices returned from device_status.';
+  } catch (err) {
+    if (status) status.textContent = 'Refresh failed: ' + (err && err.message ? err.message : 'Unknown error');
+  }
 }
 
 //  Get current form values as a config object 
@@ -612,59 +951,67 @@ function getFormConfig() {
   var shanganiId   = (document.getElementById('ch_shangani_id').value   || '').trim();
   var funziId      = (document.getElementById('ch_funzi_id').value      || '').trim();
   var wroomId     = (document.getElementById('ch_wroom_id').value     || '').trim();
+  var deviceProfiles = getRenderedDeviceProfiles();
+  var profileMap = mapById(deviceProfiles);
+
+  function withProfileFallback(id, defaultFolder, channelId, apiKey, name) {
+    var p = profileMap[id] || {};
+    return {
+      id: id,
+      name: name,
+      channelId: p.channelId != null ? p.channelId : channelId,
+      apiKey: p.apiKey != null ? p.apiKey : apiKey,
+      dataFolder: p.dataFolder || defaultFolder
+    };
+  }
+
+  var channels = [
+    withProfileFallback('perth', getDataFolder(perthId, 'TT'), perthId, (document.getElementById('ch_perth_key').value || '').trim(), 'Perth Test Table'),
+    withProfileFallback('shangani', getDataFolder(shanganiId, 'Shangani'), shanganiId, (document.getElementById('ch_shangani_key').value || '').trim(), 'Shangani Aramani'),
+    withProfileFallback('funzi', getDataFolder(funziId, 'Funzi'), funziId, (document.getElementById('ch_funzi_key').value || '').trim(), 'Funzi Island'),
+    withProfileFallback('wroom', getDataFolder(wroomId, 'WROOM_PTT'), wroomId, (document.getElementById('ch_wroom_key').value || '').trim(), 'Perth WROOM')
+  ];
+
+  deviceProfiles.forEach(function(p) {
+    if (!p || !p.id) return;
+    if (channels.some(function(c) { return c.id === p.id; })) return;
+    channels.push({
+      id: p.id,
+      name: p.name || titleCaseDeviceId(p.id),
+      channelId: p.channelId || '',
+      apiKey: p.apiKey || '',
+      dataFolder: p.dataFolder || ('data_' + p.id)
+    });
+  });
+
   return {
     supabaseUrl:     (document.getElementById('supabaseUrl').value     || '').trim(),
     supabaseAnonKey: (document.getElementById('supabaseAnonKey').value || '').trim(),
-    channels: [
-      {
-        id: 'perth',
-        name: 'Perth Test Table',
-        channelId:  perthId,
-        apiKey:     (document.getElementById('ch_perth_key').value    || '').trim(),
-        dataFolder: getDataFolder(perthId, 'TT'),
-      },
-      {
-        id: 'shangani',
-        name: 'Shangani Aramani',
-        channelId:  shanganiId,
-        apiKey:     (document.getElementById('ch_shangani_key').value || '').trim(),
-        dataFolder: getDataFolder(shanganiId, 'Shangani'),
-      },
-      {
-        id: 'funzi',
-        name: 'Funzi Island',
-        channelId:  funziId,
-        apiKey:     (document.getElementById('ch_funzi_key').value    || '').trim(),
-        dataFolder: getDataFolder(funziId, 'Funzi'),
-      },
-      {
-        id: 'wroom',
-        name: 'Perth WROOM',
-        channelId:    wroomId,
-        apiKey:       (document.getElementById('ch_wroom_key').value  || '').trim(),
-        dataFolder:   getDataFolder(wroomId, 'WROOM_PTT'),
-      },
-    ],
-    stations: [
-      { id: 'perth',    name: 'Perth Test Table',  dataFolder: getDataFolder(perthId, 'TT') },
-      { id: 'shangani', name: 'Shangani Aramani',   dataFolder: getDataFolder(shanganiId, 'Shangani') },
-      { id: 'funzi',    name: 'Funzi Island',       dataFolder: getDataFolder(funziId, 'Funzi') },
-    ],
+    channels: channels,
+    stations: deviceProfiles.filter(function(p) { return p.enabled !== false && p.id !== 'wroom'; }).map(function(p) {
+      return {
+        id: p.id,
+        name: p.name || titleCaseDeviceId(p.id),
+        dataFolder: p.dataFolder || ('data_' + p.id),
+        mapLat: normalizeMapCoord(p.mapLat),
+        mapLon: normalizeMapCoord(p.mapLon)
+      };
+    }),
+    deviceProfiles: deviceProfiles,
     autoRefreshMin: parseInt(document.getElementById('autoRefreshMin').value) || 15,
     maxResults:     parseInt(document.getElementById('maxResults').value)     || 8000,
     retentionDays:  90,
   };
 }
 
-//  Build the config.json preview string 
+//  Build config.json text for optional local-script download 
 function buildConfigJson(cfg) {
   return JSON.stringify(cfg, null, 2);
 }
 
-//  Update both preview panels 
+//  Recompute config after form edits (kept for future UI hooks)
 function updatePreviews() {
-  var cfg = getFormConfig();
-  document.getElementById('configPreview').textContent = buildConfigJson(cfg);
+  return getFormConfig();
 }
 
 //  Live update previews as user types 
@@ -679,17 +1026,35 @@ function updatePreviews() {
   }
 });
 
-//  Save to localStorage 
+//  Save to localStorage + push shared config to Supabase 
 function saveSettings() {
   if (!ensureSettingsUnlocked()) return;
   var cfg = getFormConfig();
+
+  // Include access roles in the config
+  cfg.accessControl = getRenderedAccessRoles();
+
   localStorage.setItem('seaweed_dashboard_config', JSON.stringify(cfg));
 
-  var status = document.getElementById('saveStatus');
-  status.classList.add('show');
-  setTimeout(function () { status.classList.remove('show'); }, 3000);
+  var statuses = document.querySelectorAll('.save-status');
+  for (var i = 0; i < statuses.length; i++) {
+    statuses[i].classList.add('show');
+  }
+  setTimeout(function () {
+    for (var j = 0; j < statuses.length; j++) {
+      statuses[j].classList.remove('show');
+    }
+  }, 3000);
 
   updatePreviews();
+
+  // Push shared config to Supabase in the background
+  pushAccessControlToSupabase(cfg.accessControl).catch(function(e) {
+    console.warn('[settings] access_control push failed:', e);
+  });
+  pushDeviceProfilesToSupabase(cfg.deviceProfiles).catch(function(e) {
+    console.warn('[settings] device_profiles push failed:', e);
+  });
 }
 
 //  Download config.json 
@@ -704,26 +1069,6 @@ function downloadConfigJson() {
   a.download = 'config.json';
   a.click();
   URL.revokeObjectURL(url);
-}
-
-//  Copy code block to clipboard 
-function copyCode(elId, btn) {
-  var text = document.getElementById(elId).textContent;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(function () {
-      btn.textContent = 'Copied!';
-      btn.classList.add('copied');
-      setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
-    });
-  } else {
-    var ta = document.createElement('textarea');
-    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    btn.textContent = 'Copied!'; btn.classList.add('copied');
-    setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
-  }
 }
 
 //  GitHub PAT (stored separately — sensitive) 
@@ -806,17 +1151,239 @@ function loadSavedConfig() {
   document.getElementById('autoRefreshMin').value = String(saved.autoRefreshMin != null ? saved.autoRefreshMin : 15);
   document.getElementById('maxResults').value     = saved.maxResults || 8000;
 
+  var initialProfiles = Array.isArray(saved.deviceProfiles) && saved.deviceProfiles.length
+    ? saved.deviceProfiles
+    : getDefaultDeviceProfiles();
+  renderDeviceProfiles(mergeProfilesForRender(initialProfiles, []));
+
   // Restore GitHub PAT (masked — just show that one is saved)
   var savedPat = localStorage.getItem('seaweed_github_pat');
   if (savedPat) {
     document.getElementById('githubPat').value = savedPat;
   }
+
+  // Load access roles: prefer Supabase, fall back to saved config
+  loadAccessRolesFromConfig(saved);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ACCESS ROLES EDITOR
+// ══════════════════════════════════════════════════════════════════
+
+function getAllKnownStationIds() {
+  // Combine device profile defaults + rendered device profiles to get station IDs
+  var ids = {};
+  DEVICE_PROFILE_DEFAULTS.forEach(function(p) { ids[p.id] = p.name || titleCaseDeviceId(p.id); });
+  getRenderedDeviceProfiles().forEach(function(p) { ids[p.id] = p.name || titleCaseDeviceId(p.id); });
+  return ids;
+}
+
+var FEATURE_OPTIONS = [
+  { key: 'settings', label: 'Settings Page' },
+  { key: 'battery', label: 'Battery Estimator' },
+  { key: 'stationHealth', label: 'Station Health' }
+];
+
+function renderAccessRoles(roles) {
+  var root = document.getElementById('accessRolesList');
+  if (!root) return;
+  root.innerHTML = '';
+  if (!roles || !roles.length) {
+    root.innerHTML = '<div class="info-box">No roles defined. Click <strong>+ Add Role</strong> to create one.</div>';
+    return;
+  }
+  var stationMap = getAllKnownStationIds();
+  var stationIds = Object.keys(stationMap).sort();
+
+  roles.forEach(function(role, idx) {
+    var card = document.createElement('div');
+    card.className = 'access-role-card';
+    card.setAttribute('data-role-index', idx);
+
+    var allowAll = Array.isArray(role.allowedStations) && role.allowedStations.length === 1 && role.allowedStations[0] === '*';
+    var allowSet = {};
+    if (!allowAll && Array.isArray(role.allowedStations)) {
+      role.allowedStations.forEach(function(s) { allowSet[s] = true; });
+    }
+
+    var featureFlags = {};
+    if (role.features && typeof role.features === 'object') {
+      featureFlags = role.features;
+    } else {
+      // Legacy format: canViewSettings, canViewBattery, canViewStationHealth
+      featureFlags = {
+        settings: role.canViewSettings !== false,
+        battery: role.canViewBattery !== false,
+        stationHealth: role.canViewStationHealth !== false
+      };
+    }
+
+    // Header row: role name + password + remove button
+    var headerHtml =
+      '<div class="role-header">' +
+        '<div class="field" style="gap:2px;flex:0 0 auto">' +
+          '<label style="font-size:0.68rem">Role Name</label>' +
+          '<input type="text" data-role-field="roleId" value="' + escHtml(role.roleId || '') + '" placeholder="e.g. admin" style="width:150px">' +
+        '</div>' +
+        '<div class="field" style="gap:2px;flex:0 0 auto">' +
+          '<label style="font-size:0.68rem">Password</label>' +
+          '<input type="text" data-role-field="password" value="' + escHtml(role.password || '') + '" placeholder="password" style="width:150px">' +
+        '</div>' +
+        '<button class="role-remove-btn" onclick="removeAccessRole(' + idx + ')">&#10005; Remove</button>' +
+      '</div>';
+
+    // Station checkboxes
+    var stationsHtml =
+      '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px"><strong>Allowed Stations:</strong></div>' +
+      '<div class="role-stations">' +
+        '<label><input type="checkbox" data-role-field="allStations" ' + (allowAll ? 'checked' : '') + '> All stations (*)</label>';
+    stationIds.forEach(function(sid) {
+      stationsHtml += '<label><input type="checkbox" data-role-field="station" data-station-id="' + escHtml(sid) + '" ' +
+        (allowAll || allowSet[sid] ? 'checked' : '') + '> ' + escHtml(stationMap[sid]) + '</label>';
+    });
+    stationsHtml += '</div>';
+
+    // Feature toggles
+    var featuresHtml =
+      '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:8px"><strong>Features:</strong></div>' +
+      '<div class="role-features">';
+    FEATURE_OPTIONS.forEach(function(f) {
+      featuresHtml += '<label><input type="checkbox" data-role-field="feature" data-feature-key="' + f.key + '" ' +
+        (featureFlags[f.key] !== false ? 'checked' : '') + '> ' + f.label + '</label>';
+    });
+    featuresHtml += '</div>';
+
+    card.innerHTML = headerHtml + stationsHtml + featuresHtml;
+
+    // Wire "All stations" toggle
+    var allCb = card.querySelector('input[data-role-field="allStations"]');
+    if (allCb) {
+      allCb.addEventListener('change', function() {
+        var cbs = card.querySelectorAll('input[data-role-field="station"]');
+        for (var i = 0; i < cbs.length; i++) {
+          cbs[i].checked = this.checked;
+          cbs[i].disabled = this.checked;
+        }
+      });
+      // Apply initial state
+      if (allowAll) {
+        var cbs = card.querySelectorAll('input[data-role-field="station"]');
+        for (var j = 0; j < cbs.length; j++) { cbs[j].disabled = true; }
+      }
+    }
+
+    root.appendChild(card);
+  });
+}
+
+function escHtml(str) {
+  var d = document.createElement('div');
+  d.appendChild(document.createTextNode(str));
+  return d.innerHTML;
+}
+
+function getRenderedAccessRoles() {
+  var root = document.getElementById('accessRolesList');
+  if (!root) return [];
+  var cards = root.querySelectorAll('.access-role-card');
+  var out = [];
+  for (var i = 0; i < cards.length; i++) {
+    var card = cards[i];
+    var roleId = (card.querySelector('input[data-role-field="roleId"]') || {}).value || '';
+    var password = (card.querySelector('input[data-role-field="password"]') || {}).value || '';
+    var allCb = card.querySelector('input[data-role-field="allStations"]');
+    var allowedStations;
+    if (allCb && allCb.checked) {
+      allowedStations = ['*'];
+    } else {
+      allowedStations = [];
+      var sCbs = card.querySelectorAll('input[data-role-field="station"]');
+      for (var j = 0; j < sCbs.length; j++) {
+        if (sCbs[j].checked) allowedStations.push(sCbs[j].getAttribute('data-station-id'));
+      }
+    }
+    var features = {};
+    var fCbs = card.querySelectorAll('input[data-role-field="feature"]');
+    for (var k = 0; k < fCbs.length; k++) {
+      features[fCbs[k].getAttribute('data-feature-key')] = fCbs[k].checked;
+    }
+    out.push({
+      roleId: roleId.trim(),
+      password: password,
+      allowedStations: allowedStations,
+      features: features
+    });
+  }
+  return out;
+}
+
+function addAccessRole() {
+  var existing = getRenderedAccessRoles();
+  existing.push({
+    roleId: '',
+    password: '',
+    allowedStations: ['*'],
+    features: { settings: true, battery: true, stationHealth: true }
+  });
+  renderAccessRoles(existing);
+}
+
+function removeAccessRole(idx) {
+  var existing = getRenderedAccessRoles();
+  if (idx >= 0 && idx < existing.length) {
+    existing.splice(idx, 1);
+  }
+  renderAccessRoles(existing);
+}
+
+async function pushAccessRolesNow() {
+  var status = document.getElementById('rolesPushStatus');
+  if (status) status.textContent = 'Pushing roles to Supabase...';
+  try {
+    var roles = getRenderedAccessRoles();
+    await pushAccessControlToSupabase(roles);
+    if (status) status.innerHTML = '<span style="color:var(--success)">&#10003; Roles pushed to Supabase.</span>';
+    setTimeout(function() { if (status) status.textContent = ''; }, 4000);
+  } catch (err) {
+    if (status) status.innerHTML = '<span style="color:var(--danger)">&#10005; Push failed: ' + (err && err.message || 'Unknown') + '</span>';
+  }
+}
+
+function loadAccessRolesFromConfig(savedCfg) {
+  // Try fetching from Supabase first; fall back to localStorage config
+  fetchAccessControl().then(function(roles) {
+    if (roles && roles.length) {
+      renderAccessRoles(roles);
+    } else if (Array.isArray(savedCfg.accessControl) && savedCfg.accessControl.length) {
+      renderAccessRoles(savedCfg.accessControl);
+    } else {
+      // Default: single admin role
+      renderAccessRoles([{
+        roleId: 'admin',
+        password: 'mwani',
+        allowedStations: ['*'],
+        features: { settings: true, battery: true, stationHealth: true }
+      }]);
+    }
+  }).catch(function() {
+    if (Array.isArray(savedCfg.accessControl) && savedCfg.accessControl.length) {
+      renderAccessRoles(savedCfg.accessControl);
+    } else {
+      renderAccessRoles([{
+        roleId: 'admin',
+        password: 'mwani',
+        allowedStations: ['*'],
+        features: { settings: true, battery: true, stationHealth: true }
+      }]);
+    }
+  });
 }
 
 //  Init 
 document.addEventListener('DOMContentLoaded', function () {
   loadSavedConfig();
   updatePreviews();
+  refreshDeviceProfilesFromSupabase();
 });
 </script>
 </body>

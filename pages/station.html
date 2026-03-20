@@ -10,6 +10,10 @@
 <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2/dist/chartjs-plugin-zoom.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
 /* ===================================================================
@@ -188,10 +192,76 @@ body {
 .sensor-map-chevron.open { transform: rotate(180deg); }
 .sensor-map-body { border-top: 1px solid var(--border); }
 .sensor-map-inner { padding: 14px 20px 18px; }
+.sensor-map-layout { display: grid; grid-template-columns: minmax(420px, 1fr) 320px; gap: 14px; align-items: start; }
+.sensor-map-figure { min-width: 0; }
 .rack-svg { width: 100%; max-width: 760px; display: block; margin: 0 auto 14px; }
 .sensor-map-legend { display: flex; flex-wrap: wrap; gap: 10px 22px; justify-content: center; }
 .sml-item { display: flex; align-items: center; gap: 7px; font-size: 0.8rem; font-weight: 600; }
 .sml-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.sensor-mini-map-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card-alt);
+  padding: 8px;
+}
+.sensor-mini-map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.sensor-mini-map-title { font-size: 0.76rem; color: var(--text-sec); font-weight: 600; }
+.sensor-mini-map-expand {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  width: 24px;
+  height: 24px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.sensor-mini-map-expand:hover { color: var(--accent); border-color: var(--accent); }
+.sensor-mini-map { height: 220px; border-radius: 7px; overflow: hidden; border: 1px solid var(--border); }
+.sensor-mini-map-note { font-size: 0.72rem; color: var(--text-muted); margin-top: 6px; }
+
+.sensor-map-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: 9200;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.sensor-map-modal {
+  width: min(1000px, calc(100vw - 40px));
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+.sensor-map-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.sensor-map-modal-title { font-size: 0.95rem; color: var(--text); font-weight: 600; }
+.sensor-map-modal-close {
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.sensor-map-modal-close:hover { background: var(--bg-hover); color: var(--text); }
+.sensor-map-modal-canvas { height: min(70vh, 560px); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 
 /* -- Status cards grid --------------------------------------------- */
 .status-grid {
@@ -278,7 +348,58 @@ body {
 .chart-header h3 { font-size: 1rem; font-weight: 600; }
 .chart-subhead { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px; }
 .time-btns { display: flex; gap: 4px; }
+.shared-range-controls {
+  margin-left: auto;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.chart-header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chart-card-expand-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.chart-card-expand-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--bg-hover); }
 .chart-wrap { position: relative; height: 320px; }
+.chart-expand-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+  z-index: 2;
+}
+.chart-wrap:hover .chart-expand-btn { opacity: 1; }
+.chart-expand-btn:hover { color: var(--accent); border-color: var(--accent); }
 .chart-empty {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
@@ -379,6 +500,8 @@ body {
   .chart-wrap { height: 260px; }
   .big-number { font-size: 1.8rem; }
   .network-bar { flex-direction: column; }
+  .sensor-map-layout { grid-template-columns: 1fr; }
+  .sensor-mini-map { height: 200px; }
 }
 
 /* -- Tides & Moon Phase -------------------------------------------- */
@@ -413,7 +536,7 @@ body {
 .collapsible-toggle{width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:1rem;font-weight:600;padding:10px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .2s}
 .collapsible-toggle:hover{background:var(--bg-hover)}
 .collapsible-chevron{font-size:.7rem;transition:transform .3s}
-.collapsible-body{padding-top:10px}
+.collapsible-body{padding-top:6px}
 .stack-gap{margin-bottom:12px}
 
 /* -- Daily summary highlight classes ------------------------------ */
@@ -432,7 +555,7 @@ body {
      =================================================================== -->
 <header class="header">
   <div class="header-left">
-    <span class="wave">&#127754;</span>
+    <span class="wave">&#127807;</span>
     <div>
       <h1 id="stationTitle">Station</h1>
       <div class="sub" id="stationSubtitle">Seaweed Table T/H Monitoring</div>
@@ -445,8 +568,8 @@ body {
     <input type="file" id="fileInput" multiple accept=".json" style="display:none"
            onchange="handleFileUpload(this.files)">
     <button class="btn" id="btnExportCSV" onclick="exportCSV()" title="Export processed data as CSV" style="display:none">Export CSV</button>
-    <a class="btn btn-sm" href="settings.html">&#9881; Settings</a>
-    <a class="btn btn-sm" href="station_health.html" title="Battery, Sync, Data Health">&#128267; Station Health</a>
+    <a class="btn btn-sm" href="settings.html" data-feature="settings">&#9881; Settings</a>
+    <a class="btn btn-sm" href="station_health.html" title="Battery, Sync, Data Health" data-feature="stationHealth">&#128267; Station Health</a>
   </div>
   <div class="header-meta">
     <span><span class="label">Source:</span> <span id="dataSourceLabel">No data loaded</span></span>
@@ -509,7 +632,7 @@ body {
     <section class="status-grid" id="sensorCards" style="margin-bottom:16px"></section>
 
     <!-- Sensor Chart Overlay Controls -->
-    <div style="display:flex;align-items:center;gap:16px;padding:8px 14px;margin-bottom:8px;background:var(--bg-card-alt);border-radius:8px;border:1px solid var(--border);flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:16px;padding:8px 14px;margin-bottom:8px;background:var(--bg-card);border-radius:8px;border:1px solid var(--border);flex-wrap:wrap">
       <span style="color:var(--text-muted);font-size:0.75rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">Chart overlays:</span>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
         <input type="checkbox" id="ovNight" checked style="accent-color:#94a3b8;width:14px;height:14px" onchange="onSensorOptsChange()">
@@ -529,16 +652,17 @@ body {
     <section class="chart-panel">
       <div class="chart-header">
         <h3>Temperature (&#176;C)</h3>
-        <div class="time-btns">
-          <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
-          <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
-          <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
-          <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
+        <div class="chart-header-right">
+          <div class="time-btns shared-range-controls">
+            <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
+            <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
+            <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
+            <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
+          </div>
+          <button class="chart-card-expand-btn" onclick="openSensorChartModal('temp')" title="Expand chart">&#10530;</button>
         </div>
       </div>
-      <div class="chart-subhead" id="tempSubhead">
-        Sensor 1 = Water / Table probe &nbsp;|&nbsp; Sensor 2 = Air / Ambient probe &nbsp;|&nbsp; Showing: All data
-      </div>
+      <div class="chart-subhead" id="tempSubhead">Showing: All data</div>
       <div class="chart-wrap">
         <canvas id="tempChart"></canvas>
         <div class="chart-empty" id="tempEmpty">No temperature sensor data yet -- probes may not be connected</div>
@@ -549,11 +673,14 @@ body {
     <section class="chart-panel stack-gap">
       <div class="chart-header">
         <h3>Humidity (%RH)</h3>
-        <div class="time-btns">
-          <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
-          <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
-          <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
-          <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
+        <div class="chart-header-right">
+          <div class="time-btns">
+            <button class="btn btn-sm" data-range="day" onclick="setTimeRange('day')">Day</button>
+            <button class="btn btn-sm active" data-range="week" onclick="setTimeRange('week')">Week</button>
+            <button class="btn btn-sm" data-range="month" onclick="setTimeRange('month')">Month</button>
+            <button class="btn btn-sm" data-range="all" onclick="setTimeRange('all')">All</button>
+          </div>
+          <button class="chart-card-expand-btn" onclick="openSensorChartModal('hum')" title="Expand chart">&#10530;</button>
         </div>
       </div>
       <div class="chart-subhead" id="humSubhead">Showing: All data</div>
@@ -587,16 +714,13 @@ body {
     <div class="collapsible-body" style="display:none">
     <section class="chart-panel" id="weatherSection" style="display:block">
       <div class="chart-header">
-        <h3>&#127326; Local Weather (Open-Meteo)</h3>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span class="chart-subhead" id="weatherLocation" style="margin:0"></span>
-          <div class="time-btns">
-            <button class="btn btn-sm" data-wxrange="day" onclick="setWeatherTimeRange('day')">Day</button>
-            <button class="btn btn-sm active" data-wxrange="week" onclick="setWeatherTimeRange('week')">Week</button>
-            <button class="btn btn-sm" data-wxrange="month" onclick="setWeatherTimeRange('month')">Month</button>
-            <button class="btn btn-sm" data-wxrange="all" onclick="setWeatherTimeRange('all')">All</button>
-            <button class="btn btn-sm" data-wxrange="forecast" onclick="setWeatherTimeRange('forecast')">7-Day &#x2197;</button>
-          </div>
+        <span class="chart-subhead" id="weatherLocation" style="margin:0"></span>
+        <div class="time-btns">
+          <button class="btn btn-sm" data-wxrange="day" onclick="setWeatherTimeRange('day')">Day</button>
+          <button class="btn btn-sm active" data-wxrange="week" onclick="setWeatherTimeRange('week')">Week</button>
+          <button class="btn btn-sm" data-wxrange="month" onclick="setWeatherTimeRange('month')">Month</button>
+          <button class="btn btn-sm" data-wxrange="all" onclick="setWeatherTimeRange('all')">All</button>
+          <button class="btn btn-sm" data-wxrange="forecast" onclick="setWeatherTimeRange('forecast')">7-Day &#x2197;</button>
         </div>
       </div>
       <div class="chart-subhead" id="weatherSubhead">Hourly weather from Open-Meteo</div>
@@ -629,7 +753,6 @@ body {
     <div class="collapsible-body" id="tidesCollapsibleBody" style="display:none">
     <section class="chart-panel" id="tidesSection" style="display:block">
       <div class="chart-header">
-        <h3>&#127754; Local Tides</h3>
         <span class="chart-subhead" id="tideStation" style="margin:0"></span>
       </div>
 
@@ -690,6 +813,50 @@ body {
 
 </main>
 
+<div id="sensorChartModalOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9000;display:none;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;width:calc(100vw - 40px);max-width:1400px;display:flex;flex-direction:column;gap:10px;box-shadow:0 24px 64px rgba(0,0,0,.7)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <h3 id="sensorChartModalTitle" style="font-size:1rem;font-weight:600">Expanded Chart</h3>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-sm" data-scmrange="day" onclick="setSensorModalRange('day')">Day</button>
+        <button class="btn btn-sm active" data-scmrange="week" onclick="setSensorModalRange('week')">Week</button>
+        <button class="btn btn-sm" data-scmrange="month" onclick="setSensorModalRange('month')">Month</button>
+        <button class="btn btn-sm" data-scmrange="all" onclick="setSensorModalRange('all')">All</button>
+        <button class="btn btn-sm" onclick="closeSensorChartModal()">Close</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px">
+      <span style="color:var(--text-muted);font-size:0.72rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase">Chart overlays:</span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="scmOvNight" checked style="accent-color:#94a3b8;width:14px;height:14px" onchange="onSensorModalOptsChange()">
+        <span style="color:var(--text-sec);font-size:0.82rem">&#127769; Night/Day</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="scmOvHarvest" checked style="accent-color:#22c55e;width:14px;height:14px" onchange="onSensorModalOptsChange()">
+        <span style="color:#22c55e;font-size:0.82rem">&#127807; Harvest Windows</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="scmOvWx" style="accent-color:#f59e0b;width:14px;height:14px" onchange="onSensorModalOptsChange()">
+        <span style="color:#f59e0b;font-size:0.82rem">&#9729; Open-Meteo overlay</span>
+      </label>
+    </div>
+    <div style="font-size:.72rem;color:var(--text-muted)">Scroll: zoom, drag: pan, double-click: reset zoom</div>
+    <div style="position:relative;height:calc(100vh - 220px);max-height:580px;min-height:300px">
+      <canvas id="sensorChartModalCanvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="sensor-map-modal-overlay" id="sensorMapModalOverlay" onclick="closeSensorMapModal(event)">
+  <div class="sensor-map-modal">
+    <div class="sensor-map-modal-head">
+      <span class="sensor-map-modal-title" id="sensorMapModalTitle">Station Location</span>
+      <button class="sensor-map-modal-close" onclick="closeSensorMapModal(event)">Close</button>
+    </div>
+    <div class="sensor-map-modal-canvas" id="sensorMapModalCanvas"></div>
+  </div>
+</div>
+
 <footer class="footer">
   <span id="footerName">Station</span> &mdash; ThingSpeak Channel
   <span id="footerChannel">--</span>
@@ -707,7 +874,7 @@ body {
   window.__TABLE_ID = tableId;
 
   // Station definitions (per-table config)
-  var STATIONS = {
+  var STATIONS_DEFAULT = {
     perth: {
       id: 'perth',
       title: 'Perth Test Table',
@@ -715,6 +882,8 @@ body {
       channelId: '3262071',
       apiKey: 'VVHUX39KINYPLCVI',
       dataFolder: 'data_3262071_TT',
+      mapLat: -31.87,
+      mapLon: 115.90,
       weather: { name: 'Perth / Noranda', lat: -31.87, lon: 115.90 },
       tideStation: 'perth',
       satellites: 2,
@@ -727,6 +896,8 @@ body {
       channelId: '',
       apiKey: '',
       dataFolder: 'data_Shangani',
+      mapLat: -4.55,
+      mapLon: 39.50,
       weather: { name: 'Shangani Aramani, Kenya', lat: -4.55, lon: 39.50 },
       tideStation: 'kenya',
       satellites: 2,
@@ -739,7 +910,9 @@ body {
       channelId: '',
       apiKey: '',
       dataFolder: 'data_Funzi',
-      weather: { name: 'Funzi Island, Kenya', lat: -4.55, lon: 39.45 },
+      mapLat: -4.581429,
+      mapLon: 39.437527,
+      weather: { name: 'Funzi Island, Kenya', lat: -4.581429, lon: 39.437527 },
       tideStation: 'kenya',
       satellites: 2,
       sensorMap: 'funzi',
@@ -751,29 +924,127 @@ body {
       channelId: '',
       apiKey: '',
       dataFolder: 'data_spare',
+      mapLat: null,
+      mapLon: null,
       weather: { name: 'Spare Station', lat: 0, lon: 0 },
       tideStation: 'kenya',
       satellites: 2,
       sensorMap: 'funzi',
     },
   };
+
+  function titleCaseDeviceId(id) {
+    return String(id || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+  }
+
+  function buildStationsFromConfig() {
+    var out = {};
+    var configured = null;
+    var channels = [];
+    try {
+      var s = JSON.parse(localStorage.getItem('seaweed_dashboard_config') || '{}');
+      configured = Array.isArray(s.deviceProfiles) ? s.deviceProfiles : null;
+      channels = Array.isArray(s.channels) ? s.channels : [];
+    } catch(e) {}
+
+    if (configured && configured.length) {
+      configured.forEach(function(p) {
+        if (!p || !p.id || p.enabled === false) return;
+        var id = String(p.id).trim().toLowerCase();
+        if (!id || id === 'wroom') return;
+        var base = STATIONS_DEFAULT[id] || {
+          id: id,
+          title: titleCaseDeviceId(id),
+          subtitle: titleCaseDeviceId(id) + ' -- Seaweed Table T/H Monitoring',
+          channelId: '',
+          apiKey: '',
+          dataFolder: 'data_' + id,
+          mapLat: null,
+          mapLon: null,
+          weather: { name: titleCaseDeviceId(id), lat: 0, lon: 0 },
+          tideStation: 'kenya',
+          satellites: 2,
+          sensorMap: 'funzi'
+        };
+        var merged = Object.assign({}, base);
+        if (p.name) {
+          merged.title = p.name;
+          merged.subtitle = p.name + ' -- Seaweed Table T/H Monitoring';
+          if (!base.weather || !base.weather.name) {
+            merged.weather = merged.weather || { lat: 0, lon: 0 };
+            merged.weather.name = p.name;
+          }
+        }
+        if (p.channelId != null) merged.channelId = String(p.channelId).trim();
+        if (p.apiKey != null) merged.apiKey = String(p.apiKey).trim();
+        if (p.dataFolder) merged.dataFolder = String(p.dataFolder);
+        if (Object.prototype.hasOwnProperty.call(p, 'mapLat')) {
+          var rawLat = (p.mapLat === null || p.mapLat === undefined) ? '' : String(p.mapLat).trim();
+          var cfgLat = Number(rawLat);
+          merged.mapLat = (rawLat !== '' && isFinite(cfgLat)) ? cfgLat : null;
+        }
+        if (Object.prototype.hasOwnProperty.call(p, 'mapLon')) {
+          var rawLon = (p.mapLon === null || p.mapLon === undefined) ? '' : String(p.mapLon).trim();
+          var cfgLon = Number(rawLon);
+          merged.mapLon = (rawLon !== '' && isFinite(cfgLon)) ? cfgLon : null;
+        }
+        out[id] = merged;
+      });
+    }
+
+    if (!Object.keys(out).length) {
+      Object.keys(STATIONS_DEFAULT).forEach(function(id) {
+        out[id] = Object.assign({}, STATIONS_DEFAULT[id]);
+      });
+    }
+
+    channels.forEach(function(ch) {
+      if (!ch || !ch.id) return;
+      var id = String(ch.id).trim().toLowerCase();
+      if (!out[id]) return;
+      if (ch.channelId) out[id].channelId = ch.channelId;
+      if (ch.apiKey) out[id].apiKey = ch.apiKey;
+      if (ch.dataFolder) out[id].dataFolder = ch.dataFolder;
+    });
+
+    return out;
+  }
+
+  var STATIONS = buildStationsFromConfig();
+
+  // Role-based station filtering: remove stations the current role cannot see
+  if (typeof filterStationsForRole === 'function') {
+    var allowedIds = filterStationsForRole(Object.keys(STATIONS).map(function(id) { return { id: id }; })).map(function(s) { return s.id; });
+    Object.keys(STATIONS).forEach(function(id) {
+      if (allowedIds.indexOf(id) === -1) delete STATIONS[id];
+    });
+  }
+
+  var stationIds = Object.keys(STATIONS);
+  if (!STATIONS[tableId]) {
+    var fallbackId = stationIds.length ? stationIds[0] : 'perth';
+    tableId = fallbackId;
+    window.__TABLE_ID = fallbackId;
+  }
+  var cfg = STATIONS[tableId] || STATIONS_DEFAULT.perth;
+
   window.__STATIONS = STATIONS;
-  var cfg = STATIONS[tableId];
-  if (!cfg) { cfg = STATIONS.perth; window.__TABLE_ID = 'perth'; }
   window.__STATION = cfg;
 
-  // Override from localStorage settings if available
-  try {
-    var s = JSON.parse(localStorage.getItem('seaweed_dashboard_config') || '{}');
-    if (s.channels) {
-      var ch = s.channels.find(function(c) { return c.id === tableId; });
-      if (ch) {
-        if (ch.channelId) cfg.channelId = ch.channelId;
-        if (ch.apiKey)    cfg.apiKey = ch.apiKey;
-        if (ch.dataFolder) cfg.dataFolder = ch.dataFolder;
+  // Backward-compatible override for legacy channel fields when no deviceProfiles exist.
+  if (cfg) {
+    try {
+      var legacy = JSON.parse(localStorage.getItem('seaweed_dashboard_config') || '{}');
+      if (legacy.channels) {
+        var ch = legacy.channels.find(function(c) { return c.id === tableId; });
+        if (ch) {
+          if (ch.channelId) cfg.channelId = ch.channelId;
+          if (ch.apiKey) cfg.apiKey = ch.apiKey;
+          if (ch.dataFolder) cfg.dataFolder = ch.dataFolder;
+        }
       }
-    }
-  } catch(e) {}
+    } catch(e) {}
+  }
 
   // Inject merged_data.js
   var df = cfg.dataFolder;
@@ -1140,6 +1411,11 @@ function toggleSensorMap() {
   body.style.display = open ? 'block' : 'none';
   chevron.classList.toggle('open', open);
   toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) {
+    setTimeout(function() {
+      if (_sensorMiniMap) _sensorMiniMap.invalidateSize();
+    }, 80);
+  }
 }
 
 function toggleCollapsible(id) {
@@ -1166,7 +1442,14 @@ function toggleCollapsible(id) {
 
 function findLastEntryWith(entries, key) {
   for (var i = entries.length - 1; i >= 0; i--) {
-    if (entries[i][key] !== null) return entries[i];
+    if (entries[i][key] !== null && entries[i][key] !== undefined) return entries[i];
+  }
+  return null;
+}
+
+function findLastEntryWhere(entries, predicate) {
+  for (var i = entries.length - 1; i >= 0; i--) {
+    if (predicate(entries[i])) return entries[i];
   }
   return null;
 }
@@ -1226,7 +1509,7 @@ function isSatelliteInstalled(entries, node) {
 // Legacy field1-8 CSV is still accepted as fallback for old exported datasets.
 //
 function parseFeeds(rawFeeds) {
-  return rawFeeds.map(function (f) {
+  var out = rawFeeds.map(function (f) {
     var ts = new Date(f.created_at);
 
     // ── Detect format: structured (new) vs legacy field1-8 ──
@@ -1373,6 +1656,11 @@ function parseFeeds(rawFeeds) {
     };
   }).filter(function (e) { return !isNaN(e.timestamp.getTime()); })
     .sort(function (a, b) { return a.timestamp - b.timestamp; });
+
+  if (typeof filterEntryArrayByResetWindow === 'function') {
+    return filterEntryArrayByResetWindow(TABLE_ID, out);
+  }
+  return out;
 }
 
 // =====================================================================
@@ -1429,6 +1717,9 @@ function normalizeCachedEntries(rawEntries) {
   });
 
   out.sort(function(a, b) { return a.timestamp - b.timestamp; });
+  if (typeof filterEntryArrayByResetWindow === 'function') {
+    return filterEntryArrayByResetWindow(TABLE_ID, out);
+  }
   return out;
 }
 
@@ -1488,6 +1779,7 @@ onDashboardDataRefresh(function(msg) {
     var ids = Array.isArray(msg && msg.stationIds) ? msg.stationIds : [];
     if (!ids.length || ids.indexOf(TABLE_ID) >= 0) {
       refreshFromSharedCache('refresh event');
+      refreshDeviceStatus(true);
     }
   } catch (e) {}
 });
@@ -1673,6 +1965,28 @@ function getTimeAxisConfig() {
   }
 }
 
+function getEntriesBounds(entries) {
+  if (!entries || !entries.length) return null;
+  var min = entries[0].timestamp instanceof Date ? entries[0].timestamp.getTime() : new Date(entries[0].timestamp).getTime();
+  var max = entries[entries.length - 1].timestamp instanceof Date ? entries[entries.length - 1].timestamp.getTime() : new Date(entries[entries.length - 1].timestamp).getTime();
+  if (!isFinite(min) || !isFinite(max) || max < min) return null;
+  return { min: min, max: max };
+}
+
+function getWindowForRange(bounds, range) {
+  if (!bounds || !isFinite(bounds.min) || !isFinite(bounds.max)) {
+    return { min: undefined, max: undefined };
+  }
+  if (range === 'all' || range === 'custom') {
+    return { min: bounds.min, max: bounds.max };
+  }
+  var days = range === 'day' ? 1 : (range === 'week' ? 7 : 30);
+  var spanMs = days * 86400000;
+  var max = bounds.max;
+  var min = Math.max(bounds.min, max - spanMs);
+  return { min: min, max: max };
+}
+
 function updateTimeButtons() {
   document.querySelectorAll('.time-btns .btn-sm').forEach(function (btn) {
     var isActive = btn.dataset.range === state.timeRange;
@@ -1684,7 +1998,7 @@ function updateTimeButtons() {
 function updateChartSubheads() {
   var label = timeRangeLabel();
   var el = document.getElementById('tempSubhead');
-  if (el) el.innerHTML = 'Sensor 1 = Water / Table probe &nbsp;|&nbsp; Sensor 2 = Air / Ambient probe &nbsp;|&nbsp; ' + label;
+  if (el) el.textContent = label;
   var humSub = document.getElementById('humSubhead');
   if (humSub) humSub.textContent = label;
   var batSub = document.getElementById('batSubhead');
@@ -2046,9 +2360,21 @@ function updateStatusCards() {
   var satBEnabled = isSatelliteInstalled(e, 'B');
 
   // -- T0 --
-  var t0Pct = latest.t0BatPct;
+  var t0LivePct = (latest.t0BatPct !== null && latest.t0BatPct !== undefined) ? Number(latest.t0BatPct) : null;
+  var t0Pct = t0LivePct;
+  if (state.deviceStatus && state.deviceStatus.batteryPct != null && isFinite(state.deviceStatus.batteryPct)) {
+    t0Pct = state.deviceStatus.batteryPct >= 0 ? Number(state.deviceStatus.batteryPct) : null;
+  }
+  var latestT0BatV = (latest.t0BatV !== null && latest.t0BatV !== undefined) ? Number(latest.t0BatV) : null;
+  var lastValidT0V = findLastEntryWhere(e, function(row) {
+    return row && row.t0BatV !== null && row.t0BatV !== undefined && isFinite(row.t0BatV) && Number(row.t0BatV) > 0;
+  });
+  var t0BatV = (latestT0BatV !== null && isFinite(latestT0BatV) && latestT0BatV > 0)
+    ? latestT0BatV
+    : (lastValidT0V ? Number(lastValidT0V.t0BatV) : null);
+
   document.getElementById('t0BatPct').textContent = t0Pct !== null ? t0Pct.toFixed(1) + '%' : '--';
-  document.getElementById('t0BatV').textContent   = latest.t0BatV !== null ? latest.t0BatV.toFixed(2) + 'V' : '--';
+  document.getElementById('t0BatV').textContent   = t0BatV !== null ? t0BatV.toFixed(2) + 'V' : '--';
   document.getElementById('t0Rssi').textContent   = (latest.t0Rssi !== null && latest.t0Rssi !== 0) ? latest.t0Rssi + ' dBm' : 'N/A';
   document.getElementById('t0Boot').textContent   = latest.t0Boot !== null ? latest.t0Boot.toLocaleString() : '--';
   document.getElementById('t0Heap').textContent   = latest.t0Heap !== null ? (latest.t0Heap / 1024).toFixed(0) + ' KB' : '--';
@@ -2673,6 +2999,47 @@ function onSensorOptsChange() {
   var w = document.getElementById('ovWx');
   window._sensorOpts = { night: n ? n.checked : true, harvest: h ? h.checked : true, wx: w ? w.checked : false };
   createOrUpdateCharts();
+  syncSensorModalOverlayChecks();
+}
+
+function getSensorOptsState() {
+  var s = window._sensorOpts || {};
+  return {
+    night: s.night !== false,
+    harvest: s.harvest !== false,
+    wx: s.wx === true
+  };
+}
+
+function syncSensorModalOverlayChecks() {
+  var s = getSensorOptsState();
+  var n = document.getElementById('scmOvNight');
+  var h = document.getElementById('scmOvHarvest');
+  var w = document.getElementById('scmOvWx');
+  if (n) n.checked = !!s.night;
+  if (h) h.checked = !!s.harvest;
+  if (w) w.checked = !!s.wx;
+}
+
+function onSensorModalOptsChange() {
+  var n = document.getElementById('scmOvNight');
+  var h = document.getElementById('scmOvHarvest');
+  var w = document.getElementById('scmOvWx');
+  window._sensorOpts = {
+    night: n ? n.checked : true,
+    harvest: h ? h.checked : true,
+    wx: w ? w.checked : false
+  };
+
+  var ovNight = document.getElementById('ovNight');
+  var ovHarvest = document.getElementById('ovHarvest');
+  var ovWx = document.getElementById('ovWx');
+  if (ovNight) ovNight.checked = window._sensorOpts.night;
+  if (ovHarvest) ovHarvest.checked = window._sensorOpts.harvest;
+  if (ovWx) ovWx.checked = window._sensorOpts.wx;
+
+  createOrUpdateCharts();
+  if (_sensorModalSourceKey) openSensorChartModal(_sensorModalSourceKey);
 }
 
 function baseChartOptions(yLabel, yMin, yMax) {
@@ -2695,21 +3062,26 @@ function baseChartOptions(yLabel, yMin, yMax) {
           },
           label: function (ctx) { var v = ctx.parsed.y; return ' ' + ctx.dataset.label.split(' (')[0] + ': ' + (v !== null ? v.toFixed(2) : 'NC'); },
         },
-      },
+      }
     },
     scales: {
-      x: { type: 'time', grid: { color: '#1e293b', lineWidth: 0.5 }, ticks: { color: '#64748b', maxTicksLimit: 12, font: { size: 10 } }, time: getTimeAxisConfig() },
-      y: { title: { display: true, text: yLabel, color: '#94a3b8', font: { size: 11 } }, grid: { color: '#1e293b', lineWidth: 0.5 }, ticks: { color: '#64748b', font: { size: 10 } }, min: yMin, max: yMax },
+      x: { type: 'time', grid: { color: '#d6e3df', lineWidth: 0.7 }, ticks: { color: '#64748b', maxTicksLimit: 12, font: { size: 10 } }, time: getTimeAxisConfig() },
+      y: { title: { display: true, text: yLabel, color: '#94a3b8', font: { size: 11 } }, grid: { color: '#d6e3df', lineWidth: 0.7 }, ticks: { color: '#64748b', font: { size: 10 } }, min: yMin, max: yMax },
     },
   };
 }
 
 function createOrUpdateCharts() {
   var e = state.filteredEntries;
+  var chartEntries = state.timeRange === 'custom' ? state.filteredEntries : state.allEntries;
+  if (!chartEntries || !chartEntries.length) chartEntries = state.filteredEntries;
+  if (!chartEntries || !chartEntries.length) return;
+  var chartBounds = getEntriesBounds(chartEntries);
+  var chartWindow = getWindowForRange(chartBounds, state.timeRange);
   var satBEnabled = isSatelliteInstalled(state.allEntries, 'B');
   var sensorColors = resolveSensorColors();
-  var _wxMin = e.length ? e[0].timestamp.getTime() : -Infinity;
-  var _wxMax = e.length ? e[e.length - 1].timestamp.getTime() : Infinity;
+  var _wxMin = chartBounds ? chartBounds.min : -Infinity;
+  var _wxMax = chartBounds ? chartBounds.max : Infinity;
   var _wxOverlayTemp = [], _wxOverlayHum = [];
   if ((window._sensorOpts || {}).wx && weatherState.data && weatherState.data.time) {
     var _wd = weatherState.data;
@@ -2730,15 +3102,15 @@ function createOrUpdateCharts() {
 
   // -- Temperature --
   var tempDS = [
-    makeDataset(e, 't0Temp1', 'Sensor 1', sensorColors.t0s1, false),
-    makeDataset(e, 't0Temp2', 'Sensor 2', sensorColors.t0s2, true),
-    makeDataset(e, 't0Temp3', 'Sensor 3', sensorColors.t0s3, false),
-    makeDataset(e, 'satATemp1', 'Sensor 4', sensorColors.satAs1, false),
-    makeDataset(e, 'satATemp2', 'Sensor 5', sensorColors.satAs2, true),
+    makeDataset(chartEntries, 't0Temp1', 'Sensor 1', sensorColors.t0s1, false),
+    makeDataset(chartEntries, 't0Temp2', 'Sensor 2', sensorColors.t0s2, true),
+    makeDataset(chartEntries, 't0Temp3', 'Sensor 3', sensorColors.t0s3, false),
+    makeDataset(chartEntries, 'satATemp1', 'Sensor 4', sensorColors.satAs1, false),
+    makeDataset(chartEntries, 'satATemp2', 'Sensor 5', sensorColors.satAs2, true),
   ];
   if (satBEnabled) {
-    tempDS.push(makeDataset(e, 'satBTemp1', 'Sensor 6', sensorColors.satBs1, false));
-    tempDS.push(makeDataset(e, 'satBTemp2', 'Sat-B Sensor 2', sensorColors.satBs2, true));
+    tempDS.push(makeDataset(chartEntries, 'satBTemp1', 'Sensor 6', sensorColors.satBs1, false));
+    tempDS.push(makeDataset(chartEntries, 'satBTemp2', 'Sat-B Sensor 2', sensorColors.satBs2, true));
   }
   var hasTempData = tempDS.some(function (ds) { return ds.data.length > 0; });
   document.getElementById('tempEmpty').style.display = hasTempData ? 'none' : 'flex';
@@ -2748,10 +3120,19 @@ function createOrUpdateCharts() {
       borderDash: [6, 4], pointRadius: 0, tension: 0.3, fill: false });
   }
 
-  if (state.charts.temp) { state.charts.temp.data.datasets = tempDS; state.charts.temp.update(); }
+  if (state.charts.temp) {
+    state.charts.temp.data.datasets = tempDS;
+    if (state.charts.temp.options && state.charts.temp.options.scales && state.charts.temp.options.scales.x) {
+      state.charts.temp.options.scales.x.min = chartWindow.min;
+      state.charts.temp.options.scales.x.max = chartWindow.max;
+    }
+    state.charts.temp.update('none');
+  }
   else {
     var _tOpts = baseChartOptions('Temperature (\u00B0C)');
     _tOpts.plugins.legend.position = 'left';
+    _tOpts.scales.x.min = chartWindow.min;
+    _tOpts.scales.x.max = chartWindow.max;
     state.charts.temp = new Chart(document.getElementById('tempChart'), {
       type: 'line', data: { datasets: tempDS }, options: _tOpts, plugins: [sensorBandsPlugin, dailyMinMaxPlugin],
     });
@@ -2759,15 +3140,15 @@ function createOrUpdateCharts() {
 
   // -- Humidity --
   var humDS = [
-    makeDataset(e, 't0Hum1', 'Sensor 1', sensorColors.t0s1, false),
-    makeDataset(e, 't0Hum2', 'Sensor 2', sensorColors.t0s2, true),
-    makeDataset(e, 't0Hum3', 'Sensor 3', sensorColors.t0s3, false),
-    makeDataset(e, 'satAHum1', 'Sensor 4', sensorColors.satAs1, false),
-    makeDataset(e, 'satAHum2', 'Sensor 5', sensorColors.satAs2, true),
+    makeDataset(chartEntries, 't0Hum1', 'Sensor 1', sensorColors.t0s1, false),
+    makeDataset(chartEntries, 't0Hum2', 'Sensor 2', sensorColors.t0s2, true),
+    makeDataset(chartEntries, 't0Hum3', 'Sensor 3', sensorColors.t0s3, false),
+    makeDataset(chartEntries, 'satAHum1', 'Sensor 4', sensorColors.satAs1, false),
+    makeDataset(chartEntries, 'satAHum2', 'Sensor 5', sensorColors.satAs2, true),
   ];
   if (satBEnabled) {
-    humDS.push(makeDataset(e, 'satBHum1', 'Sensor 6', sensorColors.satBs1, false));
-    humDS.push(makeDataset(e, 'satBHum2', 'Sat-B Sensor 2', sensorColors.satBs2, true));
+    humDS.push(makeDataset(chartEntries, 'satBHum1', 'Sensor 6', sensorColors.satBs1, false));
+    humDS.push(makeDataset(chartEntries, 'satBHum2', 'Sat-B Sensor 2', sensorColors.satBs2, true));
   }
   var hasHumData = humDS.some(function (ds) { return ds.data.length > 0; });
   document.getElementById('humEmpty').style.display = hasHumData ? 'none' : 'flex';
@@ -2777,10 +3158,19 @@ function createOrUpdateCharts() {
       borderDash: [6, 4], pointRadius: 0, tension: 0.3, fill: false });
   }
 
-  if (state.charts.hum) { state.charts.hum.data.datasets = humDS; state.charts.hum.update(); }
+  if (state.charts.hum) {
+    state.charts.hum.data.datasets = humDS;
+    if (state.charts.hum.options && state.charts.hum.options.scales && state.charts.hum.options.scales.x) {
+      state.charts.hum.options.scales.x.min = chartWindow.min;
+      state.charts.hum.options.scales.x.max = chartWindow.max;
+    }
+    state.charts.hum.update('none');
+  }
   else {
     var _hOpts2 = baseChartOptions('Humidity (%RH)', 0, 100);
     _hOpts2.plugins.legend.position = 'left';
+    _hOpts2.scales.x.min = chartWindow.min;
+    _hOpts2.scales.x.max = chartWindow.max;
     state.charts.hum = new Chart(document.getElementById('humChart'), {
       type: 'line', data: { datasets: humDS }, options: _hOpts2, plugins: [sensorBandsPlugin, dailyMinMaxPlugin],
     });
@@ -2792,7 +3182,134 @@ function createOrUpdateCharts() {
 function updateCharts() {
   if (!state.charts.temp) return;
   createOrUpdateCharts();
+  if (_sensorModalChart && _sensorModalSourceKey) {
+    openSensorChartModal(_sensorModalSourceKey);
+  }
 }
+
+var _sensorModalChart = null;
+var _sensorModalSourceKey = null;
+var _sensorModalRange = 'week';
+
+function cloneChartDataForModal(data) {
+  return {
+    labels: data && Array.isArray(data.labels) ? data.labels.slice() : undefined,
+    datasets: (data && Array.isArray(data.datasets) ? data.datasets : []).map(function(ds) {
+      var out = Object.assign({}, ds);
+      if (Array.isArray(ds.data)) {
+        out.data = ds.data.map(function(p) {
+          if (p && typeof p === 'object') return Object.assign({}, p);
+          return p;
+        });
+      }
+      return out;
+    })
+  };
+}
+
+function openSensorChartModal(chartKey) {
+  var srcChart = state.charts[chartKey];
+  if (!srcChart) return;
+  _sensorModalSourceKey = chartKey;
+  _sensorModalRange = state.timeRange === 'custom' ? 'all' : state.timeRange;
+  var title = chartKey === 'hum' ? 'Humidity (%RH)' : 'Temperature (°C)';
+  document.getElementById('sensorChartModalTitle').textContent = title;
+  syncSensorModalOverlayChecks();
+
+  var overlay = document.getElementById('sensorChartModalOverlay');
+  overlay.style.display = 'flex';
+  if (_sensorModalChart) {
+    _sensorModalChart.destroy();
+    _sensorModalChart = null;
+  }
+
+  var modalCanvas = document.getElementById('sensorChartModalCanvas');
+  modalCanvas.removeAttribute('width');
+  modalCanvas.removeAttribute('height');
+
+  var srcY = (srcChart.options && srcChart.options.scales && srcChart.options.scales.y) ? srcChart.options.scales.y : {};
+  var yTitle = srcY.title && srcY.title.text ? srcY.title.text : '';
+  var modalData = cloneChartDataForModal(srcChart.data);
+  var bounds = getEntriesBounds(state.timeRange === 'custom' ? state.filteredEntries : state.allEntries);
+  var win = getWindowForRange(bounds, _sensorModalRange);
+
+  _sensorModalChart = new Chart(modalCanvas, {
+    type: srcChart.config.type,
+    data: modalData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      plugins: {
+        legend: { display: true, position: 'top', labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 14, padding: 10 } },
+        tooltip: { backgroundColor: '#1e293b', titleColor: '#f1f5f9', bodyColor: '#94a3b8', borderColor: '#334155', borderWidth: 1 },
+        zoom: {
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+          pan: { enabled: true, mode: 'x' }
+        }
+      },
+      scales: {
+        x: {
+          type: 'time',
+          time: getTimeAxisConfig(),
+          min: win.min,
+          max: win.max,
+          grid: { color: '#d6e3df', lineWidth: 0.7 },
+          ticks: { color: '#64748b', maxTicksLimit: 12, font: { size: 10 } }
+        },
+        y: {
+          title: { display: !!yTitle, text: yTitle, color: '#94a3b8', font: { size: 11 } },
+          min: srcY.min,
+          max: srcY.max,
+          grid: { color: '#d6e3df', lineWidth: 0.7 },
+          ticks: { color: '#64748b', font: { size: 10 } }
+        }
+      }
+    },
+    plugins: [sensorBandsPlugin, dailyMinMaxPlugin]
+  });
+
+  updateSensorModalRangeButtons();
+}
+
+function setSensorModalRange(range) {
+  _sensorModalRange = range;
+  updateSensorModalRangeButtons();
+  if (!_sensorModalChart) return;
+  var bounds = getEntriesBounds(state.timeRange === 'custom' ? state.filteredEntries : state.allEntries);
+  var win = getWindowForRange(bounds, range);
+  if (_sensorModalChart.options && _sensorModalChart.options.scales && _sensorModalChart.options.scales.x) {
+    _sensorModalChart.options.scales.x.min = win.min;
+    _sensorModalChart.options.scales.x.max = win.max;
+  }
+  _sensorModalChart.update('none');
+}
+
+function updateSensorModalRangeButtons() {
+  document.querySelectorAll('[data-scmrange]').forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-scmrange') === _sensorModalRange);
+  });
+}
+
+function closeSensorChartModal(evt) {
+  if (evt && evt.target && evt.target.id !== 'sensorChartModalOverlay') return;
+  var overlay = document.getElementById('sensorChartModalOverlay');
+  overlay.style.display = 'none';
+  if (_sensorModalChart) {
+    _sensorModalChart.destroy();
+    _sensorModalChart = null;
+  }
+  _sensorModalSourceKey = null;
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeSensorChartModal();
+});
+
+document.getElementById('sensorChartModalOverlay').addEventListener('click', function(e) {
+  if (e.target && e.target.id === 'sensorChartModalOverlay') closeSensorChartModal(e);
+});
 </script>
 
 <!-- =================================================================
@@ -2925,8 +3442,8 @@ function createOrUpdateSyncChart() {
           } }
         },
         scales: {
-          x: { stacked: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: isDay ? 10 : 11 }, maxRotation: isDay ? 45 : 0, maxTicksLimit: isDay ? 24 : 7 } },
-          y: { stacked: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 11 } }, title: { display: true, text: 'Uploads', color: '#64748b', font: { size: 11 } } }
+          x: { stacked: true, grid: { color: '#d6e3df' }, ticks: { color: '#64748b', font: { size: isDay ? 10 : 11 }, maxRotation: isDay ? 45 : 0, maxTicksLimit: isDay ? 24 : 7 } },
+          y: { stacked: true, grid: { color: '#d6e3df' }, ticks: { color: '#64748b', font: { size: 11 } }, title: { display: true, text: 'Uploads', color: '#64748b', font: { size: 11 } } }
         }
       }
     });
@@ -3231,6 +3748,10 @@ function onHarvestCtrlChange() {
 // =====================================================================
 // SENSOR MAP SETUP
 // =====================================================================
+var _sensorMiniMap = null;
+var _sensorModalMap = null;
+var _sensorMapCoords = null;
+
 function setupSensorMap() {
   var mapKey = STATION.sensorMap;
   var mapDef = mapKey ? SENSOR_MAPS[mapKey] : null;
@@ -3239,13 +3760,93 @@ function setupSensorMap() {
 
   panel.style.display = '';
   var inner = document.getElementById('sensorMapInner');
-  var html = '<svg class="rack-svg" viewBox="' + mapDef.viewBox + '" xmlns="http://www.w3.org/2000/svg" aria-label="' + mapDef.label + '">' + mapDef.svg + '</svg>';
+  var lat = Number(STATION && STATION.mapLat);
+  var lon = Number(STATION && STATION.mapLon);
+  var hasCoords = isFinite(lat) && isFinite(lon);
+  _sensorMapCoords = hasCoords ? { lat: lat, lon: lon, label: (STATION && STATION.title) ? STATION.title : 'Station' } : null;
+
+  var html = '<div class="sensor-map-layout"><div class="sensor-map-figure">';
+  html += '<svg class="rack-svg" viewBox="' + mapDef.viewBox + '" xmlns="http://www.w3.org/2000/svg" aria-label="' + mapDef.label + '">' + mapDef.svg + '</svg>';
   html += '<div class="sensor-map-legend">';
   mapDef.legend.forEach(function(item) {
     html += '<div class="sml-item"><div class="sml-dot" style="background:' + item.color + '"></div><span style="color:' + item.color + '">' + item.label + '</span></div>';
   });
+  html += '</div></div>';
+  if (hasCoords) {
+    html += '<div class="sensor-mini-map-card">';
+    html += '<div class="sensor-mini-map-head"><span class="sensor-mini-map-title">Station Location</span>' +
+      '<button class="sensor-mini-map-expand" onclick="openSensorMapModal(event)" title="Expand map">&#10530;</button></div>';
+    html += '<div id="sensorMiniMap" class="sensor-mini-map"></div>';
+    html += '<div class="sensor-mini-map-note">Scroll or pinch to zoom. Drag to pan.</div>';
+    html += '</div>';
+  }
   html += '</div>';
   inner.innerHTML = html;
+
+  if (hasCoords && typeof L !== 'undefined') {
+    initSensorMiniMap(lat, lon);
+  }
+}
+
+function initSensorMiniMap(lat, lon) {
+  var mapEl = document.getElementById('sensorMiniMap');
+  if (!mapEl || typeof L === 'undefined') return;
+  if (_sensorMiniMap) {
+    _sensorMiniMap.remove();
+    _sensorMiniMap = null;
+  }
+  _sensorMiniMap = L.map(mapEl, {
+    zoomControl: false,
+    attributionControl: true,
+    dragging: false,
+    touchZoom: false,
+    doubleClickZoom: false,
+    scrollWheelZoom: false,
+    boxZoom: false,
+    keyboard: false,
+    tap: false
+  }).setView([lat, lon], 12);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd',
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+  }).addTo(_sensorMiniMap);
+  L.marker([lat, lon]).addTo(_sensorMiniMap).bindPopup((_sensorMapCoords && _sensorMapCoords.label) ? _sensorMapCoords.label : 'Station');
+  setTimeout(function() { if (_sensorMiniMap) _sensorMiniMap.invalidateSize(); }, 80);
+}
+
+function openSensorMapModal(evt) {
+  if (evt) evt.stopPropagation();
+  if (!_sensorMapCoords || typeof L === 'undefined') return;
+  var overlay = document.getElementById('sensorMapModalOverlay');
+  var modalCanvas = document.getElementById('sensorMapModalCanvas');
+  var title = document.getElementById('sensorMapModalTitle');
+  if (title) title.textContent = (_sensorMapCoords.label || 'Station') + ' Location';
+  overlay.style.display = 'flex';
+
+  if (_sensorModalMap) {
+    _sensorModalMap.remove();
+    _sensorModalMap = null;
+  }
+
+  _sensorModalMap = L.map(modalCanvas, { zoomControl: true, attributionControl: true }).setView([_sensorMapCoords.lat, _sensorMapCoords.lon], 13);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd',
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+  }).addTo(_sensorModalMap);
+  L.marker([_sensorMapCoords.lat, _sensorMapCoords.lon]).addTo(_sensorModalMap).bindPopup(_sensorMapCoords.label || 'Station').openPopup();
+  setTimeout(function() { if (_sensorModalMap) _sensorModalMap.invalidateSize(); }, 80);
+}
+
+function closeSensorMapModal(evt) {
+  if (evt && evt.target && evt.target.id !== 'sensorMapModalOverlay' && !evt.target.classList.contains('sensor-map-modal-close')) return;
+  var overlay = document.getElementById('sensorMapModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+  if (_sensorModalMap) {
+    _sensorModalMap.remove();
+    _sensorModalMap = null;
+  }
 }
 
 // =====================================================================
@@ -3263,6 +3864,9 @@ function setupPage() {
 // INITIALIZATION
 // =====================================================================
 document.addEventListener('DOMContentLoaded', function () {
+  // Apply role-based nav visibility
+  if (typeof applyNavVisibility === 'function') applyNavVisibility();
+
   // Setup page chrome
   setupPage();
   setupSensorMap();
@@ -3393,6 +3997,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Setup auto-refresh
   setupAutoRefresh();
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeSensorMapModal();
 });
 </script>
 

@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <script>if(sessionStorage.getItem('sw_auth')!=='ok'){location.replace('../login.html?r='+encodeURIComponent(location.href));}</script>
+<script src="seaweed_common.js"></script>
+<script>if(typeof requireFeature==='function')requireFeature('battery','../ESP32_Weather_Station_Dashboard.html');</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ESP32 Seaweed Station — Battery Lifetime Estimator v2.1</title>
 <style>

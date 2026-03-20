@@ -39,7 +39,7 @@ a:hover { text-decoration: underline; }
 .header-left { display: flex; align-items: center; gap: 14px; }
 .header-left h1 { font-size: 1.3rem; font-weight: 700; }
 .header-left .sub { font-size: 0.8rem; color: var(--text-sec); }
-.wave { font-size: 1.8rem; }
+.brand-icon { width: 36px; height: 36px; display: block; }
 .header-actions { display: flex; gap: 8px; align-items: center; }
 
 /* -- Buttons ------------------------------------------------------- */
@@ -154,7 +154,29 @@ a:hover { text-decoration: underline; }
 
 <header class="header">
   <div class="header-left">
-    <span class="wave">&#127754;</span>
+    <svg class="brand-icon" viewBox="0 0 72 72" role="img" aria-label="Seaweed icon">
+      <defs>
+        <linearGradient id="seaBgHdr" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#f6fbf8"/>
+          <stop offset="100%" stop-color="#e6f3ec"/>
+        </linearGradient>
+        <linearGradient id="leafAHdr" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#b8df6f"/>
+          <stop offset="100%" stop-color="#78b43a"/>
+        </linearGradient>
+        <linearGradient id="leafBHdr" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#9ed05d"/>
+          <stop offset="100%" stop-color="#5f9f2f"/>
+        </linearGradient>
+      </defs>
+      <rect x="1" y="1" width="70" height="70" rx="14" fill="url(#seaBgHdr)" stroke="#cfe5dd"/>
+      <path d="M21 58C16 46 17 35 24 23C27 18 27 12 25 8C30 12 33 20 32 26C31 33 26 40 28 49C29 53 32 57 36 61C30 61 25 60 21 58Z" fill="url(#leafBHdr)"/>
+      <path d="M35 59C29 45 30 33 40 19C44 13 45 8 43 4C50 9 54 18 52 27C50 37 42 43 43 52C44 55 46 58 49 61C43 62 39 61 35 59Z" fill="url(#leafAHdr)"/>
+      <path d="M50 57C46 48 47 39 53 29C56 24 57 18 56 14C61 18 64 25 63 32C62 40 56 45 56 52C56 55 58 58 60 60C56 61 53 60 50 57Z" fill="url(#leafBHdr)"/>
+      <path d="M29 57C31 45 27 34 21 27" stroke="#6f9f3e" stroke-width="1.2" fill="none" opacity="0.35"/>
+      <path d="M43 58C45 43 39 30 33 22" stroke="#6f9f3e" stroke-width="1.2" fill="none" opacity="0.35"/>
+      <path d="M56 56C57 46 53 36 48 29" stroke="#6f9f3e" stroke-width="1.2" fill="none" opacity="0.35"/>
+    </svg>
     <div>
       <h1>Seaweed Station Overview</h1>
       <div class="sub">All monitoring tables at a glance</div>

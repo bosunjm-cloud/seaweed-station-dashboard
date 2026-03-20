@@ -4,17 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Login — Seaweed Station Dashboard</title>
+<script src="pages/seaweed_common.js"></script>
 <style>
   :root {
-    --bg: #0f172a; --bg-card: #1e293b;
-    --text: #f1f5f9; --text-sec: #94a3b8; --text-muted: #64748b;
-    --border: #334155; --radius: 12px;
-    --accent: #3b82f6; --danger: #ef4444;
-    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --bg: #eef8f5; --bg-card: #ffffff; --bg-hover: #e5f2ee;
+    --text: #12362f; --text-sec: #457c72; --text-muted: #6d8f88;
+    --border: #bfded6; --radius: 12px;
+    --accent: #2f89b7; --danger: #d04f5f;
+    --shadow: 0 8px 24px rgba(25, 81, 77, 0.14);
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background: var(--bg);
+    background: linear-gradient(180deg, #e8f5f1 0%, #f5fbf9 100%);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     min-height: 100vh;
@@ -32,9 +33,22 @@
     width: 100%;
     max-width: 360px;
     text-align: center;
+    transition: opacity 1700ms ease, transform 1700ms ease;
+    will-change: opacity, transform;
   }
 
-  .wave { font-size: 3rem; margin-bottom: 12px; }
+  body.is-transitioning .card {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  .brand-icon {
+    width: 72px;
+    height: 72px;
+    display: block;
+    margin: 0 auto 12px;
+    filter: drop-shadow(0 4px 8px rgba(38, 100, 54, 0.18));
+  }
 
   h1 {
     font-size: 1.3rem;
@@ -61,7 +75,7 @@
   input[type="password"] {
     width: 100%;
     padding: 10px 14px;
-    background: var(--bg);
+    background: #f7fcfa;
     border: 1px solid var(--border);
     border-radius: 8px;
     color: var(--text);
@@ -72,6 +86,7 @@
   }
   input[type="password"]:focus {
     border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(47, 137, 183, 0.2);
   }
 
   .btn {
@@ -84,27 +99,74 @@
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
-    transition: opacity 0.15s;
+    transition: opacity 0.15s, transform 0.1s;
   }
   .btn:hover  { opacity: 0.88; }
-  .btn:active { opacity: 0.75; }
+  .btn:active { opacity: 0.75; transform: translateY(1px); }
 
   .error {
     display: none;
     margin-top: 14px;
     padding: 9px 12px;
-    background: #450a0a;
+    background: #ffe4e8;
     border: 1px solid var(--danger);
     border-radius: 8px;
     font-size: 0.85rem;
     color: var(--danger);
   }
   .error.show { display: block; }
+
+  .water-transition {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 999;
+    transition: opacity 1700ms ease;
+    will-change: opacity;
+    background:
+      linear-gradient(180deg, rgba(230, 245, 240, 0.07) 0%, rgba(203, 233, 243, 0.26) 100%),
+      radial-gradient(circle at 50% 110%, rgba(130, 196, 219, 0.12) 0%, rgba(130, 196, 219, 0) 72%);
+  }
+
+  .water-transition.play {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .water-transition,
+    .card {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="wave">🌊</div>
+  <svg class="brand-icon" viewBox="0 0 72 72" role="img" aria-label="Seaweed icon">
+    <defs>
+      <linearGradient id="seaBg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#f6fbf8"/>
+        <stop offset="100%" stop-color="#e6f3ec"/>
+      </linearGradient>
+      <linearGradient id="leafA" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#b8df6f"/>
+        <stop offset="100%" stop-color="#78b43a"/>
+      </linearGradient>
+      <linearGradient id="leafB" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#9ed05d"/>
+        <stop offset="100%" stop-color="#5f9f2f"/>
+      </linearGradient>
+    </defs>
+    <rect x="1" y="1" width="70" height="70" rx="14" fill="url(#seaBg)" stroke="#cfe5dd"/>
+    <path d="M21 58C16 46 17 35 24 23C27 18 27 12 25 8C30 12 33 20 32 26C31 33 26 40 28 49C29 53 32 57 36 61C30 61 25 60 21 58Z" fill="url(#leafB)"/>
+    <path d="M35 59C29 45 30 33 40 19C44 13 45 8 43 4C50 9 54 18 52 27C50 37 42 43 43 52C44 55 46 58 49 61C43 62 39 61 35 59Z" fill="url(#leafA)"/>
+    <path d="M50 57C46 48 47 39 53 29C56 24 57 18 56 14C61 18 64 25 63 32C62 40 56 45 56 52C56 55 58 58 60 60C56 61 53 60 50 57Z" fill="url(#leafB)"/>
+    <path d="M29 57C31 45 27 34 21 27" stroke="#6f9f3e" stroke-width="1.2" fill="none" opacity="0.35"/>
+    <path d="M43 58C45 43 39 30 33 22" stroke="#6f9f3e" stroke-width="1.2" fill="none" opacity="0.35"/>
+    <path d="M56 56C57 46 53 36 48 29" stroke="#6f9f3e" stroke-width="1.2" fill="none" opacity="0.35"/>
+  </svg>
   <h1>Seaweed Station</h1>
   <p class="sub">Enter the access password to continue</p>
 
@@ -115,25 +177,177 @@
     <div class="error" id="errMsg">Incorrect password. Please try again.</div>
   </form>
 </div>
+<div class="water-transition" id="waterTransition" aria-hidden="true"></div>
 
 <script>
+  var REDIRECT_ANIMATION_MS = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1700;
+  var isTransitioning = false;
+
+  function addHint(rel, href, asValue) {
+    if (!href) return;
+    var existing = document.querySelector('link[rel="' + rel + '"][href="' + href + '"]');
+    if (existing) return;
+    var link = document.createElement('link');
+    link.rel = rel;
+    link.href = href;
+    if (asValue) link.as = asValue;
+    document.head.appendChild(link);
+  }
+
+  function preloadDestination(url) {
+    try {
+      var dest = new URL(url, location.href);
+
+      addHint('dns-prefetch', dest.origin);
+      addHint('preconnect', dest.origin);
+
+      // Hint browser to fetch assets/doc early.
+      addHint('prefetch', dest.href, 'document');
+
+      // Warm same-origin HTML and key assets in the background. Do not block UI transition.
+      if (dest.origin === location.origin) {
+        fetch(dest.href, { credentials: 'same-origin' })
+          .then(function(response) { return response.text(); })
+          .then(function(html) {
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            var assets = [];
+
+            doc.querySelectorAll('link[rel="stylesheet"][href]').forEach(function(el) {
+              assets.push({ href: new URL(el.getAttribute('href'), dest.href).href, as: 'style' });
+            });
+
+            doc.querySelectorAll('script[src]').forEach(function(el) {
+              assets.push({ href: new URL(el.getAttribute('src'), dest.href).href, as: 'script' });
+            });
+
+            doc.querySelectorAll('img[src]').forEach(function(el) {
+              assets.push({ href: new URL(el.getAttribute('src'), dest.href).href, as: 'image' });
+            });
+
+            assets.slice(0, 12).forEach(function(asset) {
+              addHint('prefetch', asset.href, asset.as);
+            });
+          })
+          .catch(function() {});
+      }
+    } catch (_e) {
+      // Ignore preload issues; navigation still proceeds normally.
+    }
+  }
+
+  function goWithWaterTransition(url) {
+    var overlay = document.getElementById('waterTransition');
+    var button = document.querySelector('#loginForm .btn');
+
+    if (isTransitioning) return;
+    if (!overlay || REDIRECT_ANIMATION_MS === 0) {
+      location.replace(url);
+      return;
+    }
+
+    isTransitioning = true;
+    if (button) button.disabled = true;
+    document.body.classList.add('is-transitioning');
+
+    preloadDestination(url);
+
+    window.requestAnimationFrame(function() {
+      overlay.classList.add('play');
+    });
+
+    window.setTimeout(function() {
+      location.replace(url);
+    }, REDIRECT_ANIMATION_MS);
+  }
+
   // If already authenticated, skip straight to the dashboard
   if (sessionStorage.getItem('sw_auth') === 'ok') {
     var r = new URLSearchParams(location.search).get('r');
     location.replace(r || 'index.html');
   }
 
+  // Legacy fallback password — used when no access_control config exists
+  var LEGACY_PASSWORD = 'mwani';
+
+  // Pre-fetch access control roles on page load so login is instant
+  var _rolesPromise = (typeof fetchAccessControl === 'function')
+    ? fetchAccessControl().catch(function() { return []; })
+    : Promise.resolve([]);
+
+  function setSessionRole(role) {
+    sessionStorage.setItem('sw_auth', 'ok');
+    sessionStorage.setItem('sw_role', role.roleId || 'admin');
+    sessionStorage.setItem('sw_allowed_stations', JSON.stringify(role.allowedStations || ['*']));
+    // Support both formats: new { features: {...} } and legacy { canViewSettings, ... }
+    var f = role.features && typeof role.features === 'object' ? role.features : null;
+    sessionStorage.setItem('sw_features', JSON.stringify({
+      settings:      f ? f.settings !== false      : role.canViewSettings !== false,
+      battery:       f ? f.battery !== false        : role.canViewBattery !== false,
+      stationHealth: f ? f.stationHealth !== false  : role.canViewStationHealth !== false
+    }));
+  }
+
   function checkPassword() {
     var pwd = document.getElementById('pwd').value;
-    if (pwd === 'mwani') {
-      sessionStorage.setItem('sw_auth', 'ok');
-      var r = new URLSearchParams(location.search).get('r');
-      location.replace(r || 'index.html');
-    } else {
-      document.getElementById('errMsg').classList.add('show');
+    var errMsg = document.getElementById('errMsg');
+    var btn = document.querySelector('#loginForm .btn');
+    if (btn) btn.disabled = true;
+    errMsg.classList.remove('show');
+
+    _rolesPromise.then(function(roles) {
+      // If roles exist, match password against them
+      if (roles && roles.length) {
+        var matched = null;
+        for (var i = 0; i < roles.length; i++) {
+          if (roles[i].password === pwd) { matched = roles[i]; break; }
+        }
+        if (matched) {
+          setSessionRole(matched);
+          var r = new URLSearchParams(location.search).get('r');
+          goWithWaterTransition(r || 'index.html');
+          return;
+        }
+      } else {
+        // No access_control configured → legacy single-password mode
+        if (pwd === LEGACY_PASSWORD) {
+          setSessionRole({
+            roleId: 'admin',
+            allowedStations: ['*'],
+            canViewSettings: true,
+            canViewBattery: true,
+            canViewStationHealth: true
+          });
+          var r = new URLSearchParams(location.search).get('r');
+          goWithWaterTransition(r || 'index.html');
+          return;
+        }
+      }
+
+      // No match
+      if (btn) btn.disabled = false;
+      errMsg.classList.add('show');
       document.getElementById('pwd').value = '';
       document.getElementById('pwd').focus();
-    }
+    }).catch(function() {
+      // Network error during role fetch — try legacy password
+      if (pwd === LEGACY_PASSWORD) {
+        setSessionRole({
+          roleId: 'admin',
+          allowedStations: ['*'],
+          canViewSettings: true,
+          canViewBattery: true,
+          canViewStationHealth: true
+        });
+        var r = new URLSearchParams(location.search).get('r');
+        goWithWaterTransition(r || 'index.html');
+        return;
+      }
+      if (btn) btn.disabled = false;
+      errMsg.classList.add('show');
+      document.getElementById('pwd').value = '';
+      document.getElementById('pwd').focus();
+    });
+
     return false;
   }
 </script>

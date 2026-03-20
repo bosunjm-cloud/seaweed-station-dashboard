@@ -21,7 +21,7 @@
 .collapsible-toggle{width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:1rem;font-weight:600;padding:10px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .2s}
 .collapsible-toggle:hover{background:var(--bg-hover)}
 .collapsible-chevron{font-size:.7rem;transition:transform .3s}
-.collapsible-body{padding-top:10px}
+.collapsible-body{padding-top:6px}
 
 /* -- Daily summary highlight classes ------------------------------ */
 .peaks-table td .hl-min{color:#38bdf8;font-weight:700}
@@ -402,13 +402,13 @@ body {
   </div>
   <div class="header-actions">
     <a class="btn btn-sm" href="../ESP32_Weather_Station_Dashboard.html" title="Back to overview">&#9664; Overview</a>
-    <a class="btn btn-sm" href="battery_estimator.html" title="Battery Estimator" style="font-size:0.95rem">&#128267; Battery</a>
+    <a class="btn btn-sm" href="battery_estimator.html" title="Battery Estimator" style="font-size:0.95rem" data-feature="battery">&#128267; Battery</a>
     <button class="btn btn-primary" id="btnFetchTS" onclick="fetchThingSpeak()">Fetch ThingSpeak</button>
     <button class="btn btn-green" id="btnLoadCSV" onclick="document.getElementById('csvInput').click()">Load CSV</button>
     <input type="file" id="csvInput" multiple accept=".csv,.txt" style="display:none"
            onchange="handleCSVUpload(this.files)">
     <button class="btn" id="btnExportCSV" onclick="exportCSV()" title="Export merged data as CSV" style="display:none">Export CSV</button>
-    <a class="btn btn-sm" href="station_health.html" title="Battery, Sync, Data Health">&#128267; Station Health</a>
+    <a class="btn btn-sm" href="station_health.html" title="Battery, Sync, Data Health" data-feature="stationHealth">&#128267; Station Health</a>
   </div>
   <div class="header-meta">
     <span><span class="label">Source:</span> <span id="dataSourceLabel">No data loaded</span></span>
@@ -607,16 +607,13 @@ body {
     <div class="collapsible-body" style="display:none">
     <section class="chart-panel" id="weatherSection" style="display:block">
       <div class="chart-header">
-        <h3>&#127326; Local Weather (Open-Meteo)</h3>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span class="chart-subhead" id="weatherLocation" style="margin:0"></span>
-          <div class="time-btns">
-            <button class="btn btn-sm" data-wxrange="day" onclick="setWeatherTimeRange('day')">Day</button>
-            <button class="btn btn-sm active" data-wxrange="week" onclick="setWeatherTimeRange('week')">Week</button>
-            <button class="btn btn-sm" data-wxrange="month" onclick="setWeatherTimeRange('month')">Month</button>
-            <button class="btn btn-sm" data-wxrange="all" onclick="setWeatherTimeRange('all')">All</button>
-            <button class="btn btn-sm" data-wxrange="forecast" onclick="setWeatherTimeRange('forecast')">7-Day &#x2197;</button>
-          </div>
+        <span class="chart-subhead" id="weatherLocation" style="margin:0"></span>
+        <div class="time-btns">
+          <button class="btn btn-sm" data-wxrange="day" onclick="setWeatherTimeRange('day')">Day</button>
+          <button class="btn btn-sm active" data-wxrange="week" onclick="setWeatherTimeRange('week')">Week</button>
+          <button class="btn btn-sm" data-wxrange="month" onclick="setWeatherTimeRange('month')">Month</button>
+          <button class="btn btn-sm" data-wxrange="all" onclick="setWeatherTimeRange('all')">All</button>
+          <button class="btn btn-sm" data-wxrange="forecast" onclick="setWeatherTimeRange('forecast')">7-Day &#x2197;</button>
         </div>
       </div>
       <div class="chart-subhead" id="weatherSubhead">Hourly weather from Open-Meteo</div>
@@ -643,7 +640,6 @@ body {
     <div class="collapsible-body" style="display:none">
     <section class="chart-panel" id="tidesSection" style="display:block">
       <div class="chart-header">
-        <h3>&#127754; Tides &amp; Moon Phase</h3>
         <span class="chart-subhead" id="tideStation" style="margin:0"></span>
       </div>
 
@@ -801,6 +797,10 @@ body {
 
 <!-- Tide prediction engine (shared) -->
 <script src="tides.js"></script>
+
+<!-- Shared dashboard helpers (access control, config) -->
+<script src="seaweed_common.js"></script>
+<script>if(typeof applyNavVisibility==='function')applyNavVisibility();</script>
 
 <!-- ===================================================================
      MAIN JAVASCRIPT

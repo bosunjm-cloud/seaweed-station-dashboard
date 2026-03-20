@@ -94,9 +94,185 @@ var RESET_CUTOFF_UTC_DEFAULT = '2026-03-16T00:00:00Z';
 var RESET_CUTOFF_STORAGE_KEY = 'seaweed_reset_cutoff_utc';
 var RESET_CUTOFF_ENABLED = false;
 
+var DASHBOARD_CONFIG_KEY = 'seaweed_dashboard_config';
+var DEFAULT_DEVICE_PROFILES = [
+  {
+    id: 'perth',
+    name: 'Perth Test',
+    enabled: true,
+    channelId: '3262071',
+    apiKey: 'VVHUX39KINYPLCVI',
+    dataFolder: 'data_3262071_TT'
+  },
+  {
+    id: 'shangani',
+    name: 'Shangani',
+    enabled: true,
+    channelId: '',
+    apiKey: '',
+    dataFolder: 'data_Shangani'
+  },
+  {
+    id: 'funzi',
+    name: 'Funzi',
+    enabled: true,
+    channelId: '',
+    apiKey: '',
+    dataFolder: 'data_Funzi'
+  },
+  {
+    id: 'spare',
+    name: 'Spare',
+    enabled: true,
+    channelId: '',
+    apiKey: '',
+    dataFolder: 'data_spare'
+  },
+  {
+    id: 'wroom',
+    name: 'Perth WROOM',
+    enabled: true,
+    channelId: '3246116',
+    apiKey: '7K00B1Y8DNOTEIM0',
+    dataFolder: 'data_WROOM_PTT'
+  }
+];
+
+function getDashboardConfig() {
+  try {
+    return JSON.parse(localStorage.getItem(DASHBOARD_CONFIG_KEY) || '{}') || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function normalizeInstallDateUtc(value) {
+  if (value == null) return null;
+  var s = String(value).trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s + 'T00:00:00Z';
+  var d = new Date(ensureUTC(s));
+  if (isNaN(d.getTime())) return null;
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0)).toISOString();
+}
+
+function defaultNameForDeviceId(deviceId) {
+  var sid = String(deviceId || '').trim();
+  if (!sid) return 'Unknown Device';
+  return sid.replace(/[_-]+/g, ' ').replace(/\b\w/g, function(m) { return m.toUpperCase(); });
+}
+
+function getConfiguredDeviceProfiles(opts) {
+  opts = opts || {};
+  var includeDisabled = !!opts.includeDisabled;
+  var cfg = getDashboardConfig();
+  var out = [];
+  var byId = {};
+  var defaultOrder = {};
+
+  DEFAULT_DEVICE_PROFILES.forEach(function(p, idx) {
+    defaultOrder[p.id] = idx;
+    byId[p.id] = Object.assign({}, p);
+  });
+
+  var channels = Array.isArray(cfg.channels) ? cfg.channels : [];
+  channels.forEach(function(ch) {
+    if (!ch || !ch.id) return;
+    var id = String(ch.id).trim().toLowerCase();
+    if (!id) return;
+    if (!byId[id]) {
+      byId[id] = {
+        id: id,
+        name: defaultNameForDeviceId(id),
+        enabled: true,
+        channelId: '',
+        apiKey: '',
+        dataFolder: 'data_' + id
+      };
+    }
+    if (ch.name) byId[id].name = String(ch.name);
+    if (ch.channelId != null) byId[id].channelId = String(ch.channelId).trim();
+    if (ch.apiKey != null) byId[id].apiKey = String(ch.apiKey).trim();
+    if (ch.dataFolder) byId[id].dataFolder = normalizeDataFolder(String(ch.dataFolder), byId[id].dataFolder);
+  });
+
+  var explicitProfiles = Array.isArray(cfg.deviceProfiles) && cfg.deviceProfiles.length;
+  if (explicitProfiles) {
+    byId = {};
+    cfg.deviceProfiles.forEach(function(profile, idx) {
+      if (!profile || !profile.id) return;
+      var id = String(profile.id).trim().toLowerCase();
+      if (!id) return;
+      var base = DEFAULT_DEVICE_PROFILES.find(function(d) { return d.id === id; }) || {
+        id: id,
+        name: defaultNameForDeviceId(id),
+        enabled: true,
+        channelId: '',
+        apiKey: '',
+        dataFolder: 'data_' + id
+      };
+      var merged = Object.assign({}, base, profile);
+      merged.id = id;
+      merged.name = String(merged.name || merged.title || base.name || defaultNameForDeviceId(id));
+      merged.enabled = merged.enabled !== false;
+      merged.channelId = merged.channelId != null ? String(merged.channelId).trim() : '';
+      merged.apiKey = merged.apiKey != null ? String(merged.apiKey).trim() : '';
+      merged.dataFolder = normalizeDataFolder(merged.dataFolder || base.dataFolder || ('data_' + id), base.dataFolder || ('data_' + id));
+      merged.installDateUtc = normalizeInstallDateUtc(merged.installDateUtc || merged.installDate || merged.installedAt || null);
+      byId[id] = merged;
+      if (defaultOrder[id] == null) defaultOrder[id] = 1000 + idx;
+    });
+  }
+
+  Object.keys(byId).forEach(function(id) {
+    var p = byId[id];
+    if (!p) return;
+    p.id = String(p.id || id).trim().toLowerCase();
+    p.name = String(p.name || defaultNameForDeviceId(p.id));
+    p.enabled = p.enabled !== false;
+    p.channelId = p.channelId != null ? String(p.channelId).trim() : '';
+    p.apiKey = p.apiKey != null ? String(p.apiKey).trim() : '';
+    p.dataFolder = normalizeDataFolder(p.dataFolder || ('data_' + p.id), 'data_' + p.id);
+    p.installDateUtc = normalizeInstallDateUtc(p.installDateUtc || null);
+    if (includeDisabled || p.enabled) out.push(p);
+  });
+
+  out.sort(function(a, b) {
+    var oa = defaultOrder[a.id];
+    var ob = defaultOrder[b.id];
+    if (oa == null && ob == null) return a.id.localeCompare(b.id);
+    if (oa == null) return 1;
+    if (ob == null) return -1;
+    if (oa !== ob) return oa - ob;
+    return a.id.localeCompare(b.id);
+  });
+  return out;
+}
+
+function getConfiguredDeviceProfileMap(opts) {
+  var profiles = getConfiguredDeviceProfiles(opts);
+  var map = {};
+  profiles.forEach(function(p) { map[p.id] = p; });
+  return map;
+}
+
+function getConfiguredDeviceProfile(stationId) {
+  var id = String(stationId || '').trim().toLowerCase();
+  if (!id) return null;
+  var map = getConfiguredDeviceProfileMap({ includeDisabled: true });
+  return map[id] || null;
+}
+
 function isStationAllowed(stationId) {
-  if (!WROOM_ONLY_MODE) return true;
-  return !!WROOM_ONLY_STATION_IDS[String(stationId || '').toLowerCase()];
+  var sid = String(stationId || '').toLowerCase();
+  if (!sid) return false;
+  if (WROOM_ONLY_MODE && !WROOM_ONLY_STATION_IDS[sid]) return false;
+
+  var cfgMap = getConfiguredDeviceProfileMap({ includeDisabled: true });
+  var ids = Object.keys(cfgMap);
+  if (!ids.length) return true;
+  if (!cfgMap[sid]) return false;
+  return cfgMap[sid].enabled !== false;
 }
 
 function clearNonWroomCaches() {
@@ -109,8 +285,14 @@ function clearNonWroomCaches() {
 clearNonWroomCaches();
 
 function getResetCutoffMs(stationId) {
-  if (!RESET_CUTOFF_ENABLED) return null;
   var sid = String(stationId || '').toLowerCase();
+  var profile = getConfiguredDeviceProfile(sid);
+  if (profile && profile.installDateUtc) {
+    var installMs = Date.parse(profile.installDateUtc);
+    if (!isNaN(installMs)) return installMs;
+  }
+
+  if (!RESET_CUTOFF_ENABLED) return null;
   if (sid === 'wroom') return null;
   var cutoffUtc = RESET_CUTOFF_UTC_DEFAULT;
   try {
@@ -229,18 +411,8 @@ function supabaseRowToFeed(row) {
     sat_b_humidity_1:  n(row.sat_b_humidity_1),
     sat_b_temp_2:      n(row.sat_b_temp_2),
     sat_b_humidity_2:  n(row.sat_b_humidity_2),
-    // Config
-    deploy_mode:          n(row.deploy_mode),
-    sample_period_s:      n(row.sample_period_s),
-    sleep_enable:         n(row.sleep_enable),
-    espnow_sync_period_s: n(row.espnow_sync_period_s),
-    sat_a_installed:      n(row.sat_a_installed),
-    sat_b_installed:      n(row.sat_b_installed),
-    // Firmware
-    fw_version:     n(row.fw_version),
-    fw_date:        n(row.fw_date),
-    sat_a_fw_ver:   n(row.sat_a_fw_ver),
-    sat_b_fw_ver:   n(row.sat_b_fw_ver),
+    // Config & firmware removed from sensor_readings view —
+    // now in upload_sessions (applied_*) and sync_sessions.
   };
 }
 
@@ -310,9 +482,13 @@ function normalizeDataFolder(folder, fallback) {
  * @returns {string} Normalised folder name.
  */
 function getDataFolder(configKey, defaultFolder) {
+  var profile = getConfiguredDeviceProfile(configKey);
+  if (profile && profile.dataFolder) {
+    return normalizeDataFolder(profile.dataFolder, normalizeDataFolder(defaultFolder, defaultFolder));
+  }
   var fallback = normalizeDataFolder(defaultFolder, defaultFolder);
   try {
-    var s = JSON.parse(localStorage.getItem('seaweed_dashboard_config') || '{}');
+    var s = JSON.parse(localStorage.getItem(DASHBOARD_CONFIG_KEY) || '{}');
     var c = (s.channels || []).find(function (ch) { return ch.id === configKey; });
     if (c && c.dataFolder) return normalizeDataFolder(c.dataFolder, fallback);
   } catch (e) { /* ignore */ }
@@ -450,6 +626,53 @@ async function fetchLatestUploadSession(stationId) {
 }
 
 /**
+ * Fetch upload_sessions timeline rows for a station.
+ *
+ * @param {string} stationId
+ * @param {Object} [opts]
+ * @param {number} [opts.limit=2000]
+ * @param {number} [opts.timeoutMs=30000]
+ * @returns {Promise<Object[]>} Rows sorted by upload_started_at ascending.
+ */
+async function fetchUploadSessions(stationId, opts) {
+  opts = opts || {};
+  var limit = opts.limit || 2000;
+  var supaCfg = getSupabaseConfig();
+  if (!supaCfg.url || !supaCfg.key ||
+      supaCfg.url === 'YOUR_SUPABASE_URL' || supaCfg.key === 'YOUR_SUPABASE_ANON_KEY') {
+    throw new Error('Supabase not configured');
+  }
+  var hdrs = supabaseHeaders(supaCfg.key);
+  var rows = [];
+  var pageSize = 1000;
+  var offset = 0;
+
+  while (offset < limit) {
+    var batchLimit = Math.min(pageSize, limit - offset);
+    var url = supaCfg.url + '/rest/v1/upload_sessions' +
+              '?device_id=eq.' + encodeURIComponent(stationId) +
+              '&order=upload_started_at.desc' +
+              '&limit=' + batchLimit +
+              '&offset=' + offset;
+    var res = await fetchWithTimeout(url, opts.timeoutMs || 30000, { headers: hdrs });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var batch = await res.json();
+    if (!batch.length) break;
+    rows = rows.concat(batch);
+    if (batch.length < batchLimit) break;
+    offset += batch.length;
+  }
+
+  rows = rows.filter(function(r) {
+    return isAfterResetWindow(stationId, ensureUTC(r && r.upload_started_at));
+  });
+  rows.sort(function(a, b) {
+    return new Date(ensureUTC(a.upload_started_at)).getTime() - new Date(ensureUTC(b.upload_started_at)).getTime();
+  });
+  return rows;
+}
+
+/**
  * Fetch the most recent sync sessions (one per satellite node) for a station.
  * Returns RSSI, drift, fw_ver per node from sync_sessions.
  *
@@ -557,7 +780,7 @@ async function fetchDeviceStatusMap(stationIds) {
   var hdrs = supabaseHeaders(supaCfg.key);
   var idList = stationIds.map(function(id) { return String(id).replace(/,/g, ''); }).join(',');
   var url = supaCfg.url + '/rest/v1/device_status' +
-            '?select=device_id,next_check_in,last_seen,last_upload_at' +
+            '?select=device_id,battery_pct,next_check_in,last_seen,last_upload_at' +
             '&device_id=in.(' + encodeURIComponent(idList) + ')';
 
   var res = await fetchWithTimeout(url, 15000, { headers: hdrs });
@@ -569,6 +792,7 @@ async function fetchDeviceStatusMap(stationIds) {
     var r = rows[i] || {};
     if (!r.device_id) continue;
     out[r.device_id] = {
+      batteryPct: (r.battery_pct !== null && r.battery_pct !== undefined) ? Number(r.battery_pct) : null,
       nextCheckInAt: parseNextCheckInValue(r.next_check_in),
       lastSeenAt: r.last_seen ? new Date(ensureUTC(r.last_seen)) : null,
       lastUploadAt: r.last_upload_at ? new Date(ensureUTC(r.last_upload_at)) : null,
@@ -761,4 +985,198 @@ function onDashboardDataRefresh(handler) {
       } catch (e3) {}
     }
   };
+}
+
+// =====================================================================
+// ACCESS CONTROL — ROLE-BASED GATING
+// =====================================================================
+
+var ACCESS_CONTROL_CACHE_KEY = 'seaweed_access_control_cache';
+
+/**
+ * Fetch access_control config from Supabase dashboard_config table.
+ * Caches the result in localStorage so offline / file:// still works.
+ * Returns the roles array (or [] if unavailable).
+ */
+async function fetchAccessControl() {
+  try {
+    var supaCfg = getSupabaseConfig();
+    if (!supaCfg.url || !supaCfg.key) return getCachedAccessControlRoles();
+    var url = supaCfg.url + '/rest/v1/dashboard_config?key=eq.access_control&select=value';
+    var res = await fetchWithTimeout(url, 10000, { headers: supabaseHeaders(supaCfg.key) });
+    if (!res.ok) return getCachedAccessControlRoles();
+    var rows = await res.json();
+    if (rows.length && rows[0].value) {
+      var ac = rows[0].value;
+      try { localStorage.setItem(ACCESS_CONTROL_CACHE_KEY, JSON.stringify(ac)); } catch (e) {}
+      return Array.isArray(ac.roles) ? ac.roles : [];
+    }
+  } catch (e) { /* network error — use cache */ }
+  return getCachedAccessControlRoles();
+}
+
+function getCachedAccessControlRoles() {
+  try {
+    var raw = localStorage.getItem(ACCESS_CONTROL_CACHE_KEY);
+    if (raw) {
+      var ac = JSON.parse(raw);
+      return Array.isArray(ac.roles) ? ac.roles : [];
+    }
+  } catch (e) {}
+  return [];
+}
+
+/**
+ * Push access_control config to Supabase (admin only).
+ */
+async function pushAccessControlToSupabase(rolesArray) {
+  var supaCfg = getSupabaseConfig();
+  if (!supaCfg.url || !supaCfg.key) throw new Error('Supabase not configured');
+  var payload = { roles: rolesArray };
+  var url = supaCfg.url + '/rest/v1/dashboard_config?key=eq.access_control';
+  var res = await fetchWithTimeout(url, 15000, {
+    method: 'PATCH',
+    headers: Object.assign({}, supabaseHeaders(supaCfg.key), {
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    }),
+    body: JSON.stringify({ value: payload })
+  });
+  if (!res.ok) throw new Error('Push access_control failed: HTTP ' + res.status);
+  try { localStorage.setItem(ACCESS_CONTROL_CACHE_KEY, JSON.stringify(payload)); } catch (e) {}
+}
+
+/**
+ * Push device profiles to Supabase dashboard_config (admin only).
+ */
+async function pushDeviceProfilesToSupabase(profiles) {
+  var supaCfg = getSupabaseConfig();
+  if (!supaCfg.url || !supaCfg.key) throw new Error('Supabase not configured');
+  var url = supaCfg.url + '/rest/v1/dashboard_config?key=eq.device_profiles';
+  var res = await fetchWithTimeout(url, 15000, {
+    method: 'PATCH',
+    headers: Object.assign({}, supabaseHeaders(supaCfg.key), {
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    }),
+    body: JSON.stringify({ value: profiles })
+  });
+  if (!res.ok) throw new Error('Push device_profiles failed: HTTP ' + res.status);
+}
+
+/**
+ * Fetch shared device profiles from Supabase dashboard_config.
+ * Merges into local config as authoritative source for coords, install dates, etc.
+ */
+async function fetchSharedDeviceProfiles() {
+  try {
+    var supaCfg = getSupabaseConfig();
+    if (!supaCfg.url || !supaCfg.key) return null;
+    var url = supaCfg.url + '/rest/v1/dashboard_config?key=eq.device_profiles&select=value';
+    var res = await fetchWithTimeout(url, 10000, { headers: supabaseHeaders(supaCfg.key) });
+    if (!res.ok) return null;
+    var rows = await res.json();
+    if (rows.length && Array.isArray(rows[0].value) && rows[0].value.length) {
+      return rows[0].value;
+    }
+  } catch (e) {}
+  return null;
+}
+
+// ── Session role state ──────────────────────────────────────────────
+
+/**
+ * Get the current session's role context (set by login.html).
+ * Returns { roleId, allowedStations, features } or a default admin-like fallback
+ * when no access control is configured (backward compat).
+ */
+function getCurrentRole() {
+  try {
+    var roleId = sessionStorage.getItem('sw_role');
+    if (roleId) {
+      var stations = JSON.parse(sessionStorage.getItem('sw_allowed_stations') || '["*"]');
+      var features = JSON.parse(sessionStorage.getItem('sw_features') || '{}');
+      return {
+        roleId: roleId,
+        allowedStations: stations,
+        features: {
+          settings: features.settings !== false,
+          battery: features.battery !== false,
+          stationHealth: features.stationHealth !== false
+        }
+      };
+    }
+  } catch (e) {}
+  // Fallback: no role set → legacy mode (full access)
+  return {
+    roleId: null,
+    allowedStations: ['*'],
+    features: { settings: true, battery: true, stationHealth: true }
+  };
+}
+
+/**
+ * Check if a station is visible for the current role.
+ */
+function isStationVisibleForRole(stationId) {
+  var role = getCurrentRole();
+  if (!role.allowedStations || !role.allowedStations.length) return true;
+  if (role.allowedStations.indexOf('*') !== -1) return true;
+  return role.allowedStations.indexOf(String(stationId).toLowerCase()) !== -1;
+}
+
+/**
+ * Filter a stations array to only those allowed by the current role.
+ */
+function filterStationsForRole(stationsArray) {
+  if (!Array.isArray(stationsArray)) return [];
+  return stationsArray.filter(function(s) {
+    var id = typeof s === 'string' ? s : (s && (s.id || s.device_id));
+    return isStationVisibleForRole(id);
+  });
+}
+
+/**
+ * Check if the current role can access a feature.
+ * @param {string} featureName - 'settings', 'battery', or 'stationHealth'
+ */
+function canAccessFeature(featureName) {
+  var role = getCurrentRole();
+  return !!role.features[featureName];
+}
+
+/**
+ * Page guard: redirect if the current role cannot access a feature.
+ * Call at top of page scripts.
+ */
+function requireFeature(featureName, redirectUrl) {
+  if (!canAccessFeature(featureName)) {
+    var dest = redirectUrl || '../ESP32_Weather_Station_Dashboard.html';
+    location.replace(dest);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Hide nav elements whose data-feature attribute is not allowed for the current role.
+ * Also hides station-specific links whose data-station-link is not in allowed stations.
+ * Call on DOMContentLoaded or after header is in the DOM.
+ */
+function applyNavVisibility() {
+  var role = getCurrentRole();
+  // Feature-gated links
+  document.querySelectorAll('[data-feature]').forEach(function(el) {
+    var feature = el.getAttribute('data-feature');
+    if (!canAccessFeature(feature)) {
+      el.style.display = 'none';
+    }
+  });
+  // Station-scoped links
+  document.querySelectorAll('[data-station-link]').forEach(function(el) {
+    var sid = el.getAttribute('data-station-link');
+    if (!isStationVisibleForRole(sid)) {
+      el.style.display = 'none';
+    }
+  });
 }

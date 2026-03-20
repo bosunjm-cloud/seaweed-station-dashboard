@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>if(sessionStorage.getItem('sw_auth')!=='ok'){location.replace('../login.html?r='+encodeURIComponent(location.href));}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Station Health &mdash; Seaweed Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -31,8 +32,8 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 
 /* ======================== LAYOUT ======================== */
 .main{max-width:1400px;margin:0 auto;padding:16px 20px}
-.station-section{margin-bottom:28px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
-.station-header{background:var(--bg-card);padding:12px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
+.station-section{margin-bottom:28px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--bg-card)}
+.station-header{background:var(--bg-card);padding:12px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;transition:background .2s ease}
 .station-header h2{font-size:1.1rem;font-weight:600;display:flex;align-items:center;gap:8px}
 .station-header .freshness{font-size:.75rem;padding:3px 10px;border-radius:12px}
 .fresh-ok{background:#dff5eb;color:#1f9d6c}.fresh-stale{background:#fff1dd;color:#d0892d}.fresh-old{background:#ffe4e8;color:#d04f5f}
@@ -41,12 +42,15 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .next-check-warn{background:#fff1dd;color:#d0892d;border-color:#d0892d}
 .next-check-late{background:#ffe4e8;color:#d04f5f;border-color:#d04f5f}
 .next-check-unknown{background:var(--bg);color:var(--text-muted);border-color:var(--border)}
-.station-body{padding:14px 18px}
+.station-body{padding:14px 18px;transition:background .2s ease}
+.station-section.expanded{background:#dcebe7}
+.station-section.expanded .station-header{background:linear-gradient(135deg,#c8e3dc 0%,#cfe6df 100%)}
+.station-section.expanded .station-body{background:#dcebe7;border-top:1px solid #b7d5ce}
 .chevron{font-size:.7rem;transition:transform .3s;color:var(--text-muted)}
 
 /* ======================== COMPACT SUMMARY GRID ======================== */
-.summary-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px}
-.sum-card{background:var(--bg-card-alt);border-radius:8px;padding:10px 14px}
+.summary-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-bottom:14px}
+.sum-card{background:var(--bg-card);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:8px;padding:10px 14px;display:flex;flex-direction:column;gap:4px}
 .sum-card h4{font-size:.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
 .sum-val{font-size:1.15rem;font-weight:700}.sum-sub{font-size:.72rem;color:var(--text-muted);margin-top:2px}
 
@@ -58,9 +62,10 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 /* ======================== CHARTS ======================== */
 .chart-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
 @media(max-width:900px){.chart-row{grid-template-columns:1fr}}
-.chart-box{background:var(--bg-card-alt);border-radius:8px;padding:10px 12px;position:relative}
+.chart-box{background:var(--bg-card);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:8px;padding:10px 12px;position:relative}
 .chart-box h4{font-size:.78rem;color:var(--text-sec);margin-bottom:6px}
 .chart-box canvas{width:100%!important;height:180px!important}
+.chart-box.chart-box-tall canvas{height:270px!important}
 /* ======================== CHART EXPAND BUTTON ======================== */
 .chart-expand-btn{position:absolute;top:6px;right:6px;background:rgba(255,255,255,.92);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;opacity:0;transition:opacity .15s,color .15s;z-index:2;line-height:1;padding:0}
 .chart-box:hover .chart-expand-btn,.chart-box-full:hover .chart-expand-btn{opacity:1}
@@ -73,6 +78,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .chart-modal-header h3{font-size:1rem;font-weight:600}
 .chart-modal-actions{display:flex;gap:6px;align-items:center}
 .chart-modal-range{display:none;gap:4px;align-items:center;margin-right:6px}
+.chart-modal-toggles{display:none;gap:4px;align-items:center;margin-right:6px}
 .chart-modal-close{background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:3px 12px;cursor:pointer;font-size:.8rem;transition:background .15s}
 .chart-modal-close:hover{background:var(--bg-hover);color:var(--text)}
 .chart-modal-hint{font-size:.7rem;color:var(--text-muted)}
@@ -80,10 +86,18 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 
 /* ======================== DAILY HEALTH TABLE ======================== */
 .health-table-wrap{overflow-x:auto;margin-bottom:14px}
+.section-title{font-size:.82rem;color:var(--text-sec);font-weight:600;letter-spacing:.02em;margin:8px 0 7px}
 .health-table{width:100%;border-collapse:collapse;font-size:.78rem}
 .health-table th{background:var(--bg-card);color:var(--text-sec);padding:6px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
 .health-table td{padding:5px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
 .health-table tr:hover{background:var(--bg-hover)}
+.health-table th.group-head{text-align:center;color:var(--text-muted);font-size:.68rem;letter-spacing:.04em;text-transform:uppercase}
+.health-table .grp-config{background:rgba(14,165,233,.06)}
+.health-table .grp-battery{background:rgba(34,197,94,.06)}
+.health-table .grp-data{background:rgba(245,158,11,.08)}
+.health-table .grp-radio{background:rgba(59,130,246,.06)}
+.health-table th.group-start,.health-table td.group-start{border-left:1px solid rgba(148,163,184,.35)}
+.health-table tr:hover td.grp-config,.health-table tr:hover td.grp-battery,.health-table tr:hover td.grp-data,.health-table tr:hover td.grp-radio{background:var(--bg-hover)}
 
 /* ======================== CHART TIME RANGE CONTROLS ======================== */
 .chart-box-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px}
@@ -94,8 +108,17 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .trange-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
 
 /* ======================== SYNC BAR CHART ======================== */
-.chart-box-full{background:var(--bg-card-alt);border-radius:8px;padding:10px 12px;margin-bottom:14px;position:relative}
+.chart-box-full{background:var(--bg-card);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:8px;padding:10px 12px;margin-bottom:14px;position:relative}
 .chart-box-full canvas{width:100%!important;height:220px!important}
+.chart-box-full.chart-box-voltage canvas{height:440px!important}
+.logs-panel{background:var(--bg-card);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:8px;padding:10px 12px;margin-bottom:14px}
+.calc-days-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;align-items:flex-start}
+.calc-days-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:8px 12px;box-shadow:var(--shadow);flex:0 0 auto;min-width:220px;max-width:240px}
+.calc-days-label{font-size:.78rem;color:var(--text-sec);font-weight:600;margin-bottom:4px}
+.calc-days-value{font-size:1.25rem;font-weight:700;line-height:1.15;color:var(--success)}
+.calc-days-value .unit{font-size:.76rem;font-weight:500;margin-left:4px;color:var(--text-sec)}
+.calc-days-sub{font-size:.72rem;color:var(--text-muted);margin-top:3px}
+.calc-days-muted{font-size:.72rem;color:var(--text-muted);font-weight:500;margin-left:6px}
 
 /* ======================== CONFIG CHANGE LOG ======================== */
 .fc-config-section{margin-top:16px}
@@ -105,6 +128,9 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
 .fc-config-table th{background:var(--bg-card);color:var(--text-muted);padding:5px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
 .fc-config-table td{padding:4px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
 .fc-config-table tr:hover{background:var(--bg-hover)}
+.config-log-actions{margin-top:8px}
+.config-expand-btn{background:var(--bg-card);border:1px solid var(--border);color:var(--text-sec);padding:4px 10px;border-radius:6px;font-size:.74rem;cursor:pointer}
+.config-expand-btn:hover{background:var(--bg-hover)}
 
 
 /* ======================== FOOTER ======================== */
@@ -159,11 +185,11 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
     <h1>&#128267; Station Health <span>Battery &bull; Sync &bull; Data Quality</span></h1>
     <div class="nav-links">
       <a class="btn" href="../ESP32_Weather_Station_Dashboard.html">&#9664; Overview</a>
-      <a class="btn" href="station.html?table=perth">Perth TT</a>
-      <a class="btn" href="perth_wroom.html">Perth WROOM</a>
-      <a class="btn" href="station.html?table=shangani">Shangani</a>
-      <a class="btn" href="station.html?table=funzi">Funzi</a>
-      <a class="btn" href="station.html?table=spare">Spare</a>
+      <a class="btn" data-station-link="perth" href="station.html?table=perth">Perth TT</a>
+      <a class="btn" data-station-link="wroom" href="perth_wroom.html">Perth WROOM</a>
+      <a class="btn" data-station-link="shangani" href="station.html?table=shangani">Shangani</a>
+      <a class="btn" data-station-link="funzi" href="station.html?table=funzi">Funzi</a>
+      <a class="btn" data-station-link="spare" href="station.html?table=spare">Spare</a>
       <button class="btn-fetch" id="btnFetchAll" onclick="fetchLiveAll()" title="Pull latest data from Supabase for all stations">&#128752; Fetch Live</button>
       <button class="btn" id="btnTriggerDL" onclick="triggerCIDownload()" title="Trigger GitHub Actions to download fresh data">&#9889; Download</button>
       <span class="fetch-status" id="fetchStatus"></span>
@@ -185,9 +211,6 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
         <span style="font-size:11px;color:var(--text-muted);">Station:</span>
         <select id="fcStationSelect" onchange="switchForecastStation(this.value)" style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text-sec);font-size:11px;padding:3px 8px;cursor:pointer;">
           <option value="perth">Perth TT</option>
-          <option value="shangani">Shangani</option>
-          <option value="funzi">Funzi</option>
-          <option value="spare">Spare</option>
         </select>
         <span style="font-size:11px;color:var(--text-muted);">From</span>
         <input type="date" id="fcStartDate" style="background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text-sec);font-size:11px;padding:2px 6px;cursor:pointer;">
@@ -218,11 +241,6 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
     <div id="fcInfoCards"></div>
     <div id="fcTrendStatus" style="margin-top:8px;padding:8px 12px;background:var(--bg-card-alt);border-radius:6px;font-size:.72rem;color:#64748b;min-height:24px;display:none"></div>
 
-    <!-- ===== FORECAST CONFIG LOG ===== -->
-    <div class="fc-config-section" id="fcConfigLogSection">
-      <h4>Config Change Log <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(Latest 15)</span></h4>
-      <div id="fcConfigChangeLog"><div style="color:var(--text-muted);font-size:.75rem;padding:8px 0">Loading…</div></div>
-    </div>
   </section>
 </main>
 
@@ -236,13 +254,87 @@ if (!sessionStorage.getItem('sw_auth')) { window.location.href = '../login.html'
 <script>
 "use strict";
 
+// Feature gate: redirect non-authorised roles back to overview
+if (typeof requireFeature === 'function') requireFeature('stationHealth', '../ESP32_Weather_Station_Dashboard.html');
+
 // Station configurations
-var STATIONS = [
+var STATIONS_DEFAULT = [
   { id: 'perth',    name: 'Perth Test Table',          defaultFolder: 'data_3262071_TT', configKey: 'perth',    type: 'gateway', tz: 'Australia/Perth' },
   { id: 'shangani', name: 'Shangani Aramani, Kenya',   defaultFolder: 'data_Shangani',   configKey: 'shangani', type: 'gateway', tz: 'Africa/Nairobi' },
   { id: 'funzi',    name: 'Funzi Island, Kenya',       defaultFolder: 'data_Funzi',      configKey: 'funzi',    type: 'gateway', tz: 'Africa/Nairobi' },
   { id: 'spare',    name: 'Spare Station',             defaultFolder: 'data_spare',      configKey: 'spare',    type: 'gateway', tz: 'UTC' },
 ];
+
+function buildConfiguredStations() {
+  var baseMap = {};
+  STATIONS_DEFAULT.forEach(function(st) { baseMap[st.id] = Object.assign({}, st); });
+  if (typeof getConfiguredDeviceProfiles !== 'function') {
+    return STATIONS_DEFAULT.map(function(st) { return Object.assign({}, st); });
+  }
+
+  var configured = getConfiguredDeviceProfiles({ includeDisabled: false });
+  if (!configured || !configured.length) {
+    return STATIONS_DEFAULT.map(function(st) { return Object.assign({}, st); });
+  }
+
+  return configured
+    .filter(function(p) { return p.id !== 'wroom'; })
+    .map(function(p) {
+      var base = baseMap[p.id] || {
+        id: p.id,
+        name: p.name || p.id,
+        defaultFolder: p.dataFolder || ('data_' + p.id),
+        configKey: p.id,
+        type: 'gateway',
+        tz: 'UTC'
+      };
+      var out = Object.assign({}, base);
+      out.id = p.id;
+      out.name = p.name || base.name || p.id;
+      out.configKey = p.id;
+      out.defaultFolder = p.dataFolder || base.defaultFolder || ('data_' + p.id);
+      return out;
+    });
+}
+
+var STATIONS = buildConfiguredStations();
+
+// Role-based: filter stations to only those the current role can see
+if (typeof filterStationsForRole === 'function') {
+  STATIONS = filterStationsForRole(STATIONS);
+}
+
+function syncConfiguredStationUI() {
+  // Apply role-based nav visibility first
+  if (typeof applyNavVisibility === 'function') applyNavVisibility();
+
+  var enabledIds = {};
+  STATIONS.forEach(function(st) { enabledIds[st.id] = true; });
+
+  var links = document.querySelectorAll('[data-station-link]');
+  for (var i = 0; i < links.length; i++) {
+    var id = links[i].getAttribute('data-station-link');
+    if (!id) continue;
+    if (id === 'wroom') {
+      links[i].style.display = enabledIds.wroom ? '' : 'none';
+    } else {
+      links[i].style.display = enabledIds[id] ? '' : 'none';
+    }
+  }
+
+  var sel = document.getElementById('fcStationSelect');
+  if (sel) {
+    sel.innerHTML = '';
+    STATIONS.forEach(function(st) {
+      var opt = document.createElement('option');
+      opt.value = st.id;
+      opt.textContent = st.name;
+      sel.appendChild(opt);
+    });
+  }
+}
+
+syncConfiguredStationUI();
 
 // Timezone helpers (all display uses UTC)
 function stationTz(stationId) {
@@ -273,6 +365,10 @@ var stationRanges = {}; // { stationId: 'day'|'week'|'month'|'all' }
 var _syncWindowCache = {}; // cache evaluateSyncWindows per station+range
 var _stationChartsRendered = {}; // lazy-render: true once charts are built for a station
 var _stationDataSource = {}; // { stationId: { source: 'live'|'ci'|'cache', savedAt: timestamp } }
+var _stationConfigRowsCache = {}; // { stationId: config rows[] }
+var _stationConfigLogExpanded = {}; // { stationId: bool }
+var _stationLogsVisibleDays = {}; // { stationId: number }
+var STATION_LOG_ROWS_STEP = 15;
 var _currentRangeMaxPts = 350; // adaptive LTTB limit — lowered for 'all' range with large datasets
 
 // Largest-Triangle-Three-Buckets downsampling for {x,y} arrays.
@@ -312,7 +408,9 @@ function lttbDownsample(data, maxPts) {
 var stationData = {}; // { stationId: { entries: [], raw: {} } }
 var _stationDiag = {}; // v2: { stationId: { upload: <row>, sync: { A: <row>, B: <row> } } }
 var _stationSyncTimeline = {}; // { stationId: sync_sessions[] }
+var _stationUploadTimeline = {}; // { stationId: upload_sessions[] }
 var _deviceStatusById = {}; // { stationId: { nextCheckInAt, ... } }
+var _deviceConfigById = {}; // { stationId: { bulk_freq_hours, ... } }
 
 async function refreshDeviceStatusMap() {
   try {
@@ -323,17 +421,45 @@ async function refreshDeviceStatusMap() {
   }
 }
 
+async function refreshDeviceConfigMap() {
+  try {
+    var ids = STATIONS.map(function(st) { return st.id; }).filter(Boolean);
+    if (!ids.length) { _deviceConfigById = {}; return; }
+    var supaCfg = getSupabaseConfig();
+    var hdrs = supabaseHeaders(supaCfg.key);
+    var idList = ids.map(function(id) { return String(id).replace(/,/g, ''); }).join(',');
+    var url = supaCfg.url + '/rest/v1/device_config' +
+              '?select=device_id,upload_interval_hours,sample_period_min,sat_sync_period_min,updated_at' +
+              '&device_id=in.(' + encodeURIComponent(idList) + ')';
+    var res = await fetchWithTimeout(url, 15000, { headers: hdrs });
+    if (!res.ok) throw new Error('device_config HTTP ' + res.status);
+    var rows = await res.json();
+    var out = {};
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i] || {};
+      if (!r.device_id) continue;
+      out[r.device_id] = r;
+    }
+    _deviceConfigById = out;
+  } catch (e) {
+    console.warn('[Health] device_config fetch failed:', e.message || e);
+  }
+}
+
 async function loadStationDiagnostics(stationId) {
   try {
     var ulSess = await fetchLatestUploadSession(stationId);
     var syncSess = await fetchLatestSyncSessions(stationId);
     var syncRows = await fetchSyncSessions(stationId, { limit: 2000, timeoutMs: 20000 });
+    var uploadRows = await fetchUploadSessions(stationId, { limit: 2000, timeoutMs: 20000 });
     _stationDiag[stationId] = { upload: ulSess, sync: syncSess };
     _stationSyncTimeline[stationId] = Array.isArray(syncRows) ? syncRows : [];
+    _stationUploadTimeline[stationId] = Array.isArray(uploadRows) ? uploadRows : [];
   } catch (diagErr) {
     console.warn('[Health] Diagnostics fetch failed for ' + stationId + ':', diagErr);
     _stationDiag[stationId] = { upload: null, sync: {} };
     _stationSyncTimeline[stationId] = [];
+    _stationUploadTimeline[stationId] = [];
   }
 }
 
@@ -389,10 +515,26 @@ function isSatelliteInstalled(entries, node) {
   return hasSatelliteSignals(entries, node);
 }
 
+function buildStationRangeBar(stationId, range) {
+  var rangeBar = document.createElement('div');
+  rangeBar.className = 'station-range';
+  rangeBar.innerHTML =
+    '<span class="label">Plots:</span>' +
+    '<button class="btn btn-sm ' + (range === 'day' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'day\')">Day</button>' +
+    '<button class="btn btn-sm ' + (range === 'week' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'week\')">Week</button>' +
+    '<button class="btn btn-sm ' + (range === 'month' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'month\')">Month</button>' +
+    '<button class="btn btn-sm ' + (range === 'all' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'all\')">All</button>';
+  return rangeBar;
+}
+
 // Parse gateway station data (T0 + SatA + SatB)
 function parseStationData(raw, station) {
   var feeds = raw.feeds || [];
   var entries = [];
+  function toNum(v) {
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
 
   for (var i = 0; i < feeds.length; i++) {
     var f = feeds[i];
@@ -400,6 +542,71 @@ function parseStationData(raw, station) {
     if (isNaN(ts.getTime())) continue;
 
     var entry = { timestamp: ts, entryId: f.entry_id || i };
+    var isLegacy = (f.field1 !== undefined) || (f.field2 !== undefined) || (f.field3 !== undefined) ||
+                   (f.field4 !== undefined) || (f.field5 !== undefined) || (f.field6 !== undefined) ||
+                   (f.field7 !== undefined) || (f.field8 !== undefined);
+
+    if (!isLegacy) {
+      // Structured Supabase v2 row (preferred). Legacy field1-8 path remains below.
+      entry.deployMode = toNum(f.deploy_mode);
+      entry.samplePeriod_s = toNum(f.sample_period_s);
+      entry.sleepEnable = (f.sleep_enable === null || f.sleep_enable === undefined) ? null : (Number(f.sleep_enable) === 1);
+      entry.espnowSyncPeriod_s = toNum(f.espnow_sync_period_s);
+      entry.tsBulkFreqHours = toNum(f.bulk_freq_hours);
+      entry.satAInstalled = (f.sat_a_installed === null || f.sat_a_installed === undefined) ? null : (Number(f.sat_a_installed) === 1);
+      entry.satBInstalled = (f.sat_b_installed === null || f.sat_b_installed === undefined) ? null : (Number(f.sat_b_installed) === 1);
+
+      entry.t0BatPct = toNum(f.battery_pct);
+      entry.t0Temp1 = toNum(f.temp_1);
+      entry.t0Hum1 = toNum(f.humidity_1);
+      entry.t0Temp2 = toNum(f.temp_2);
+      entry.t0Hum2 = toNum(f.humidity_2);
+      entry.t0Temp3 = toNum(f.temp_3);
+      entry.t0Hum3 = toNum(f.humidity_3);
+      entry.t0BatV = toNum(f.battery_v);
+      entry.t0Rssi = null;
+      entry.t0Boot = toNum(f.boot_count);
+      entry.t0Heap = null;
+
+      entry.satABatV = toNum(f.sat_a_battery_v);
+      entry.satABatPct = toNum(f.sat_a_battery_pct);
+      entry.satARssi = null;
+      entry.satASampleId = null;
+      entry.satASyncDrift = null;
+      entry.satAFwVersion = f.sat_a_fw_ver != null ? String(f.sat_a_fw_ver) : null;
+      entry.satATemp1 = toNum(f.sat_a_temp_1);
+      entry.satAHum1 = toNum(f.sat_a_humidity_1);
+      entry.satATemp2 = toNum(f.sat_a_temp_2);
+      entry.satAHum2 = toNum(f.sat_a_humidity_2);
+
+      entry.satBBatV = toNum(f.sat_b_battery_v);
+      entry.satBBatPct = toNum(f.sat_b_battery_pct);
+      entry.satBRssi = null;
+      entry.satBSampleId = null;
+      entry.satBSyncDrift = null;
+      entry.satBFwVersion = f.sat_b_fw_ver != null ? String(f.sat_b_fw_ver) : null;
+      entry.satBTemp1 = toNum(f.sat_b_temp_1);
+      entry.satBHum1 = toNum(f.sat_b_humidity_1);
+      entry.satBTemp2 = toNum(f.sat_b_temp_2);
+      entry.satBHum2 = toNum(f.sat_b_humidity_2);
+
+      entry._rawField8 = null;
+      entry.sdFreeKB = null;
+      entry.csq = null;
+      entry.uploadOk = null;
+      entry.syncDrift = null;
+      entry.t0FwVersion = f.fw_version != null ? String(f.fw_version) : null;
+      entry.t0BuildDate = f.fw_date != null ? String(f.fw_date) : null;
+
+      if (entry.satAInstalled === null) {
+        entry.satAInstalled = (entry.satABatV !== null || entry.satATemp1 !== null || entry.satATemp2 !== null);
+      }
+      if (entry.satBInstalled === null) {
+        entry.satBInstalled = (entry.satBBatV !== null || entry.satBTemp1 !== null || entry.satBTemp2 !== null);
+      }
+      entries.push(entry);
+      continue;
+    }
 
     // T0 battery %
     entry.t0BatPct = parseFloat(f.field1);
@@ -540,6 +747,13 @@ function onAllLoaded() {
   document.getElementById('loadingMsg').style.display = 'none';
   document.getElementById('stationsContainer').style.display = '';
   var container = document.getElementById('stationsContainer');
+  container.innerHTML = '';
+
+  if (!STATIONS.length) {
+    container.innerHTML = '<div class="loading-msg" style="display:block">No stations are enabled. Open Settings and enable at least one station.</div>';
+    document.getElementById('forecastPanel').style.display = 'none';
+    return;
+  }
 
   STATIONS.forEach(function(station) {
     var data = stationData[station.id];
@@ -722,16 +936,6 @@ function renderStationSection(station, data) {
 
   if (hasData) {
     var body = sec.querySelector('.station-body');
-    var range = stationRanges[stationId] || 'week';
-    var rangeBar = document.createElement('div');
-    rangeBar.className = 'station-range';
-    rangeBar.innerHTML =
-      '<span class="label">Plots:</span>' +
-      '<button class="btn btn-sm ' + (range === 'day' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'day\')">Day</button>' +
-      '<button class="btn btn-sm ' + (range === 'week' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'week\')">Week</button>' +
-      '<button class="btn btn-sm ' + (range === 'month' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'month\')">Month</button>' +
-      '<button class="btn btn-sm ' + (range === 'all' ? 'active' : '') + '" onclick="setStationRange(\'' + stationId + '\', \'all\')">All</button>';
-    body.appendChild(rangeBar);
     renderSummaryCards(body, e, stationId);
     // Charts are lazy-rendered on first expand — see toggleStation() / _renderStationCharts()
   }
@@ -743,8 +947,10 @@ function toggleStation(id) {
   var body = document.getElementById('body_' + id);
   var chev = document.getElementById('chev_' + id);
   if (!body) return;
+  var section = body.closest('.station-section');
   var open = body.style.display !== 'none';
   body.style.display = open ? 'none' : '';
+  if (section) section.classList.toggle('expanded', !open);
   if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
   // Lazy-render charts on first expand
   if (!open && !_stationChartsRendered[id]) {
@@ -764,10 +970,19 @@ function _renderStationCharts(stationId) {
   _currentRangeMaxPts = (range === 'all' && data.entries.length > 3000) ? 200 : MAX_CHART_POINTS;
   var chartsDiv = document.createElement('div');
   chartsDiv.id = 'charts_' + stationId;
+  chartsDiv.appendChild(buildStationRangeBar(stationId, range));
   renderBatteryCharts(chartsDiv, chartEntries, stationId, range);
   renderSyncCharts(chartsDiv, chartEntries, stationId, range);
-  renderDataHealth(chartsDiv, chartEntries);
-  renderDailyHealth(chartsDiv, chartEntries, stationId);
+  var logsPanel = document.createElement('div');
+  logsPanel.className = 'logs-panel';
+  var logsTitle = document.createElement('div');
+  logsTitle.className = 'section-title';
+  logsTitle.textContent = 'Station Logs:';
+  logsPanel.appendChild(logsTitle);
+  // Station logs are always all-time, independent from chart range toggles.
+  renderDailyHealth(logsPanel, data.entries, stationId);
+  renderStationConfigChangeLog(logsPanel, data.entries, stationId);
+  chartsDiv.appendChild(logsPanel);
   body.appendChild(chartsDiv);
   _currentRangeMaxPts = MAX_CHART_POINTS; // reset
   _stationChartsRendered[stationId] = true;
@@ -807,18 +1022,7 @@ function setStationRange(stationId, range) {
   // Destroy existing chart instances (memory leak fix)
   _destroyStationCharts(stationId);
 
-  // Update active range button without rebuilding the range bar
-  var rangeBar = body.querySelector('.station-range');
-  if (rangeBar) {
-    var btns = rangeBar.querySelectorAll('.btn');
-    for (var i = 0; i < btns.length; i++) {
-      var txt = btns[i].textContent.toLowerCase();
-      if (txt === range) btns[i].classList.add('active');
-      else btns[i].classList.remove('active');
-    }
-  }
-
-  // Remove old charts container only — keep range bar + summary cards
+  // Remove old charts container only — keep summary cards
   var oldCharts = document.getElementById('charts_' + stationId);
   if (oldCharts) oldCharts.remove();
 
@@ -829,13 +1033,433 @@ function setStationRange(stationId, range) {
   var chartEntries = filterByRange(data.entries, range);
   var chartsDiv = document.createElement('div');
   chartsDiv.id = 'charts_' + stationId;
+  chartsDiv.appendChild(buildStationRangeBar(stationId, range));
   renderBatteryCharts(chartsDiv, chartEntries, stationId, range);
   renderSyncCharts(chartsDiv, chartEntries, stationId, range);
-  renderDataHealth(chartsDiv, chartEntries);
-  renderDailyHealth(chartsDiv, chartEntries, stationId);
+  var logsPanel = document.createElement('div');
+  logsPanel.className = 'logs-panel';
+  var logsTitle = document.createElement('div');
+  logsTitle.className = 'section-title';
+  logsTitle.textContent = 'Station Logs:';
+  logsPanel.appendChild(logsTitle);
+  // Station logs are always all-time, independent from chart range toggles.
+  renderDailyHealth(logsPanel, data.entries, stationId);
+  renderStationConfigChangeLog(logsPanel, data.entries, stationId);
+  chartsDiv.appendChild(logsPanel);
   body.appendChild(chartsDiv);
   _currentRangeMaxPts = MAX_CHART_POINTS; // reset
   _stationChartsRendered[stationId] = true;
+}
+
+function _buildConfigSnapshotFromUploadSession(row) {
+  if (!row) return null;
+  // Only use rows that have the applied config fields (post-migration firmware)
+  if (row.applied_sample_period_min == null && row.applied_deploy_mode == null &&
+      row.applied_fw_version == null) return null;
+  return {
+    deployMode: row.applied_deploy_mode != null ? Number(row.applied_deploy_mode) : null,
+    sleepEnable: row.applied_sleep_enable === true || row.applied_sleep_enable === false ? !!row.applied_sleep_enable : null,
+    samplePeriod_s: row.applied_sample_period_min != null ? Number(row.applied_sample_period_min) * 60 : null,
+    uploadIntervalHours: row.applied_upload_interval_hours != null ? Number(row.applied_upload_interval_hours) : null,
+    espnowSyncPeriod_s: row.applied_sat_sync_period_min != null ? Number(row.applied_sat_sync_period_min) * 60 : null,
+    satAInstalled: row.applied_sat_a_enable === true || row.applied_sat_a_enable === false ? !!row.applied_sat_a_enable : null,
+    satBInstalled: row.applied_sat_b_enable === true || row.applied_sat_b_enable === false ? !!row.applied_sat_b_enable : null,
+    fwVersion: row.applied_fw_version || null,
+    validationMode: row.applied_validation_mode === true || row.applied_validation_mode === false ? !!row.applied_validation_mode : null
+  };
+}
+
+function _buildConfigSnapshotFromSyncSession(row) {
+  if (!row) return null;
+
+  var hasAny =
+    row.applied_sample_period_min != null || row.sample_period_min != null ||
+    row.applied_sat_sync_period_min != null || row.sync_period_min != null ||
+    row.applied_upload_interval_hours != null ||
+    row.applied_deploy_mode != null ||
+    row.applied_sleep_enable === true || row.applied_sleep_enable === false ||
+    row.applied_sat_a_enable === true || row.applied_sat_a_enable === false ||
+    row.applied_sat_b_enable === true || row.applied_sat_b_enable === false ||
+    row.applied_validation_mode === true || row.applied_validation_mode === false ||
+    row.applied_fw_version != null;
+
+  if (!hasAny) return null;
+
+  var sampleMin = row.applied_sample_period_min != null ? Number(row.applied_sample_period_min) :
+                  (row.sample_period_min != null ? Number(row.sample_period_min) : null);
+  var syncMin = row.applied_sat_sync_period_min != null ? Number(row.applied_sat_sync_period_min) :
+                (row.sync_period_min != null ? Number(row.sync_period_min) : null);
+
+  return {
+    deployMode: row.applied_deploy_mode != null ? Number(row.applied_deploy_mode) : null,
+    sleepEnable: row.applied_sleep_enable === true || row.applied_sleep_enable === false ? !!row.applied_sleep_enable : null,
+    samplePeriod_s: sampleMin != null && isFinite(sampleMin) ? sampleMin * 60 : null,
+    uploadIntervalHours: row.applied_upload_interval_hours != null ? Number(row.applied_upload_interval_hours) : null,
+    espnowSyncPeriod_s: syncMin != null && isFinite(syncMin) ? syncMin * 60 : null,
+    satAInstalled: row.applied_sat_a_enable === true || row.applied_sat_a_enable === false ? !!row.applied_sat_a_enable : null,
+    satBInstalled: row.applied_sat_b_enable === true || row.applied_sat_b_enable === false ? !!row.applied_sat_b_enable : null,
+    fwVersion: row.applied_fw_version || null,
+    validationMode: row.applied_validation_mode === true || row.applied_validation_mode === false ? !!row.applied_validation_mode : null
+  };
+}
+
+function _configSnapshotHasSignal(cfg) {
+  if (!cfg) return false;
+  return cfg.deployMode != null ||
+         cfg.sleepEnable === true || cfg.sleepEnable === false ||
+         cfg.samplePeriod_s != null ||
+         cfg.uploadIntervalHours != null ||
+         cfg.espnowSyncPeriod_s != null ||
+         cfg.satAInstalled === true || cfg.satAInstalled === false ||
+         cfg.satBInstalled === true || cfg.satBInstalled === false ||
+         cfg.fwVersion != null ||
+         cfg.validationMode === true || cfg.validationMode === false;
+}
+
+function _mergeConfigSnapshots(baseCfg, patchCfg) {
+  var base = baseCfg || {};
+  var patch = patchCfg || {};
+  return {
+    deployMode: patch.deployMode != null ? patch.deployMode : (base.deployMode != null ? base.deployMode : null),
+    sleepEnable: patch.sleepEnable === true || patch.sleepEnable === false ? !!patch.sleepEnable : (base.sleepEnable === true || base.sleepEnable === false ? !!base.sleepEnable : null),
+    samplePeriod_s: patch.samplePeriod_s != null ? patch.samplePeriod_s : (base.samplePeriod_s != null ? base.samplePeriod_s : null),
+    uploadIntervalHours: patch.uploadIntervalHours != null ? patch.uploadIntervalHours : (base.uploadIntervalHours != null ? base.uploadIntervalHours : null),
+    espnowSyncPeriod_s: patch.espnowSyncPeriod_s != null ? patch.espnowSyncPeriod_s : (base.espnowSyncPeriod_s != null ? base.espnowSyncPeriod_s : null),
+    satAInstalled: patch.satAInstalled === true || patch.satAInstalled === false ? !!patch.satAInstalled : (base.satAInstalled === true || base.satAInstalled === false ? !!base.satAInstalled : null),
+    satBInstalled: patch.satBInstalled === true || patch.satBInstalled === false ? !!patch.satBInstalled : (base.satBInstalled === true || base.satBInstalled === false ? !!base.satBInstalled : null),
+    fwVersion: patch.fwVersion != null ? patch.fwVersion : (base.fwVersion != null ? base.fwVersion : null),
+    validationMode: patch.validationMode === true || patch.validationMode === false ? !!patch.validationMode : (base.validationMode === true || base.validationMode === false ? !!base.validationMode : null)
+  };
+}
+
+function _buildConfigSnapshotFromEntry(entry) {
+  if (!entry) return null;
+
+  var hasStructured =
+    entry.deployMode !== null && entry.deployMode !== undefined ||
+    entry.samplePeriod_s !== null && entry.samplePeriod_s !== undefined ||
+    entry.espnowSyncPeriod_s !== null && entry.espnowSyncPeriod_s !== undefined ||
+    entry.sleepEnable === true || entry.sleepEnable === false ||
+    entry.satAInstalled === true || entry.satAInstalled === false ||
+    entry.satBInstalled === true || entry.satBInstalled === false ||
+    entry.tsBulkFreqHours !== null && entry.tsBulkFreqHours !== undefined;
+
+  if (hasStructured) {
+    return {
+      deployMode: entry.deployMode != null && isFinite(entry.deployMode) ? Number(entry.deployMode) : null,
+      sleepEnable: entry.sleepEnable === true || entry.sleepEnable === false ? !!entry.sleepEnable : null,
+      samplePeriod_s: entry.samplePeriod_s != null && isFinite(entry.samplePeriod_s) ? Number(entry.samplePeriod_s) : null,
+      uploadIntervalHours: entry.tsBulkFreqHours != null && isFinite(entry.tsBulkFreqHours) ? Number(entry.tsBulkFreqHours) : null,
+      espnowSyncPeriod_s: entry.espnowSyncPeriod_s != null && isFinite(entry.espnowSyncPeriod_s) ? Number(entry.espnowSyncPeriod_s) : null,
+      satAInstalled: entry.satAInstalled === true || entry.satAInstalled === false ? !!entry.satAInstalled : null,
+      satBInstalled: entry.satBInstalled === true || entry.satBInstalled === false ? !!entry.satBInstalled : null,
+      fwVersion: null,
+      validationMode: null
+    };
+  }
+
+  var cfg = parseField8ConfigUnified(entry._rawField8 || '');
+  if (!cfg) return null;
+  return {
+    deployMode: cfg.deployMode != null && isFinite(cfg.deployMode) ? Number(cfg.deployMode) : null,
+    sleepEnable: cfg.sleepEnable === true || cfg.sleepEnable === false ? !!cfg.sleepEnable : null,
+    samplePeriod_s: cfg.samplePeriod_s != null && isFinite(cfg.samplePeriod_s) ? Number(cfg.samplePeriod_s) : null,
+    uploadIntervalHours: cfg.tsBulkFreqHours != null && isFinite(cfg.tsBulkFreqHours) ? Number(cfg.tsBulkFreqHours) : null,
+    espnowSyncPeriod_s: cfg.espnowSyncPeriod_s != null && isFinite(cfg.espnowSyncPeriod_s) ? Number(cfg.espnowSyncPeriod_s) : null,
+    satAInstalled: cfg.satAInstalled === true || cfg.satAInstalled === false ? !!cfg.satAInstalled : null,
+    satBInstalled: cfg.satBInstalled === true || cfg.satBInstalled === false ? !!cfg.satBInstalled : null,
+    fwVersion: null,
+    validationMode: null
+  };
+}
+
+function _configSnapshotsEqual(a, b) {
+  if (!a || !b) return false;
+  return a.deployMode === b.deployMode &&
+         a.sleepEnable === b.sleepEnable &&
+         a.samplePeriod_s === b.samplePeriod_s &&
+         a.uploadIntervalHours === b.uploadIntervalHours &&
+         a.espnowSyncPeriod_s === b.espnowSyncPeriod_s &&
+         a.satAInstalled === b.satAInstalled &&
+         a.satBInstalled === b.satBInstalled &&
+         a.fwVersion === b.fwVersion &&
+         a.validationMode === b.validationMode;
+}
+
+function _buildConfigSnapshotFromDeviceConfigRow(row) {
+  if (!row) return null;
+  var uih = row.upload_interval_hours != null ? row.upload_interval_hours
+          : row.bulk_freq_hours != null ? row.bulk_freq_hours : null;
+  return {
+    deployMode: row.deploy_mode != null ? Number(row.deploy_mode) : null,
+    sleepEnable: row.sleep_enable === true || row.sleep_enable === false ? !!row.sleep_enable : null,
+    samplePeriod_s: row.sample_period_min != null && isFinite(row.sample_period_min) ? Number(row.sample_period_min) * 60 : null,
+    uploadIntervalHours: uih != null && isFinite(uih) ? Number(uih) : null,
+    espnowSyncPeriod_s: row.sat_sync_period_min != null && isFinite(row.sat_sync_period_min) ? Number(row.sat_sync_period_min) * 60 : null,
+    satAInstalled: row.sat_a_enable === true || row.sat_a_enable === false ? !!row.sat_a_enable : null,
+    satBInstalled: row.sat_b_enable === true || row.sat_b_enable === false ? !!row.sat_b_enable : null,
+    fwVersion: null,
+    validationMode: row.validation_mode === true || row.validation_mode === false ? !!row.validation_mode : null
+  };
+}
+
+function _fmtCfgSeconds(sec) {
+  if (sec == null || !isFinite(sec) || sec <= 0) return '--';
+  if (sec % 3600 === 0) return (sec / 3600) + 'h';
+  if (sec % 60 === 0) return (sec / 60) + 'm';
+  return Math.round(sec) + 's';
+}
+
+function _fmtCfgHours(h) {
+  if (h == null || !isFinite(h) || h <= 0) return '--';
+  if (Math.abs(h - Math.round(h)) < 1e-6) return String(Math.round(h)) + 'h';
+  return h.toFixed(1) + 'h';
+}
+
+function _configSummaryText(cfg) {
+  if (!cfg) return '--';
+  var mode = cfg.deployMode == null ? '--' : (Number(cfg.deployMode) === 0 ? 'WiFi' : 'Cell');
+  var sleep = (cfg.sleepEnable === true) ? 'ON' : (cfg.sleepEnable === false ? 'OFF' : '--');
+  var sats = '--';
+  if (cfg.satAInstalled !== null || cfg.satBInstalled !== null) {
+    var count = (cfg.satAInstalled ? 1 : 0) + (cfg.satBInstalled ? 1 : 0);
+    sats = String(count);
+  }
+  var fw = cfg.fwVersion || '--';
+  return 'Mode ' + mode + ' | Sample ' + _fmtCfgSeconds(cfg.samplePeriod_s) +
+         ' | Upload ' + _fmtCfgHours(cfg.uploadIntervalHours) +
+         ' | Sync ' + _fmtCfgSeconds(cfg.espnowSyncPeriod_s) +
+         ' | Sleep ' + sleep +
+         ' | Sat ' + sats +
+         ' | FW ' + fw;
+}
+
+function _configDiffText(oldCfg, newCfg) {
+  if (!oldCfg || !newCfg) return 'Changed';
+  var d = [];
+  if (oldCfg.deployMode !== newCfg.deployMode && newCfg.deployMode != null) {
+    d.push(newCfg.deployMode === 0 ? 'Mode WiFi' : 'Mode Cell');
+  }
+  if (oldCfg.sleepEnable !== newCfg.sleepEnable && newCfg.sleepEnable !== null) {
+    d.push('Sleep ' + (newCfg.sleepEnable ? 'ON' : 'OFF'));
+  }
+  if (oldCfg.samplePeriod_s !== newCfg.samplePeriod_s && newCfg.samplePeriod_s != null) {
+    d.push('Sample ' + _fmtCfgSeconds(newCfg.samplePeriod_s));
+  }
+  if (oldCfg.uploadIntervalHours !== newCfg.uploadIntervalHours && newCfg.uploadIntervalHours != null) {
+    d.push('Upload ' + _fmtCfgHours(newCfg.uploadIntervalHours));
+  }
+  if (oldCfg.espnowSyncPeriod_s !== newCfg.espnowSyncPeriod_s && newCfg.espnowSyncPeriod_s != null) {
+    d.push('Sync ' + _fmtCfgSeconds(newCfg.espnowSyncPeriod_s));
+  }
+  if (oldCfg.satAInstalled !== newCfg.satAInstalled || oldCfg.satBInstalled !== newCfg.satBInstalled) {
+    if (newCfg.satAInstalled !== null || newCfg.satBInstalled !== null) {
+      var satCount = (newCfg.satAInstalled ? 1 : 0) + (newCfg.satBInstalled ? 1 : 0);
+      d.push('Sat ' + satCount);
+    }
+  }
+  if (oldCfg.fwVersion !== newCfg.fwVersion && newCfg.fwVersion != null) {
+    d.push('FW ' + newCfg.fwVersion);
+  }
+  if (oldCfg.validationMode !== newCfg.validationMode && newCfg.validationMode !== null) {
+    d.push('Validation ' + (newCfg.validationMode ? 'ON' : 'OFF'));
+  }
+  return d.join(', ') || 'Changed';
+}
+
+function _coerceDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? null : value;
+  }
+  var d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function _buildStationConfigRows(entries, stationId) {
+  var rows = [];
+  var prevCfg = null;
+
+  // Primary timeline source: upload_sessions; secondary: sync_sessions.
+  // sync_sessions can carry sample/sync period snapshots even when upload snapshots are sparse.
+  var timeline = [];
+  var uploadRows = (_stationUploadTimeline[stationId] || []).slice();
+  uploadRows.forEach(function(row) {
+    var ts = _coerceDate(ensureUTC(row && row.upload_started_at));
+    var cfg = _buildConfigSnapshotFromUploadSession(row);
+    if (!ts || !cfg || !_configSnapshotHasSignal(cfg)) return;
+    timeline.push({ ts: ts, cfg: cfg, src: 'upload' });
+  });
+
+  var syncRows = (_stationSyncTimeline[stationId] || []).slice();
+  syncRows.forEach(function(row) {
+    var ts = _coerceDate(ensureUTC(row && row.sync_started_at));
+    var cfg = _buildConfigSnapshotFromSyncSession(row);
+    if (!ts || !cfg || !_configSnapshotHasSignal(cfg)) return;
+    timeline.push({ ts: ts, cfg: cfg, src: 'sync' });
+  });
+
+  timeline.sort(function(a, b) {
+    var d = a.ts.getTime() - b.ts.getTime();
+    if (d !== 0) return d;
+    if (a.src === b.src) return 0;
+    return a.src === 'upload' ? 1 : -1;
+  });
+
+  for (var i = 0; i < timeline.length; i++) {
+    var evt = timeline[i];
+    var mergedCfg = _mergeConfigSnapshots(prevCfg, evt.cfg);
+    if (!_configSnapshotHasSignal(mergedCfg)) continue;
+    if (!prevCfg) {
+      rows.push({ ts: evt.ts, cfg: mergedCfg, diff: 'Initial', isInitial: true });
+      prevCfg = mergedCfg;
+      continue;
+    }
+    if (!_configSnapshotsEqual(prevCfg, mergedCfg)) {
+      rows.push({ ts: evt.ts, cfg: mergedCfg, diff: _configDiffText(prevCfg, mergedCfg), isInitial: false });
+      prevCfg = mergedCfg;
+    }
+  }
+
+  // Fallback: if no upload_sessions config data, use legacy entry-level fields
+  if (!rows.length) {
+    var sorted = (entries || []).slice().sort(function(a, b) {
+      var aTs = _coerceDate(a && a.timestamp);
+      var bTs = _coerceDate(b && b.timestamp);
+      var aMs = aTs ? aTs.getTime() : 0;
+      var bMs = bTs ? bTs.getTime() : 0;
+      return aMs - bMs;
+    });
+    for (var j = 0; j < sorted.length; j++) {
+      var entryTs = _coerceDate(sorted[j] && sorted[j].timestamp);
+      if (!entryTs) continue;
+      var entryCfg = _buildConfigSnapshotFromEntry(sorted[j]);
+      if (!entryCfg) continue;
+      if (!prevCfg) {
+        rows.push({ ts: entryTs, cfg: entryCfg, diff: 'Initial', isInitial: true });
+        prevCfg = entryCfg;
+        continue;
+      }
+      if (!_configSnapshotsEqual(prevCfg, entryCfg)) {
+        rows.push({ ts: entryTs, cfg: entryCfg, diff: _configDiffText(prevCfg, entryCfg), isInitial: false });
+        prevCfg = entryCfg;
+      }
+    }
+  }
+
+  // Append current device_config as "pending" if different from last known
+  var cfgRow = stationId ? (_deviceConfigById[stationId] || null) : null;
+  if (cfgRow && cfgRow.updated_at) {
+    var cfgTs = _coerceDate(ensureUTC(cfgRow.updated_at));
+    if (cfgTs) {
+      var dcCfg = _buildConfigSnapshotFromDeviceConfigRow(cfgRow);
+      if (dcCfg) {
+        var lastCfg = rows.length ? rows[rows.length - 1].cfg : null;
+        var same = lastCfg ? _configSnapshotsEqual(lastCfg, dcCfg) : false;
+        if (!same) {
+          rows.push({ ts: cfgTs, cfg: dcCfg, diff: rows.length ? _configDiffText(lastCfg, dcCfg) : 'Initial', isInitial: rows.length === 0 });
+        }
+      }
+    }
+  }
+
+  rows.sort(function(a, b) {
+    return b.ts.getTime() - a.ts.getTime();
+  });
+  return rows;
+}
+
+function _renderStationConfigChangeLogBody(stationId, hostEl) {
+  var host = hostEl || document.getElementById('cfglog_' + stationId);
+  if (!host) return;
+  var rows = (_stationConfigRowsCache[stationId] || []).filter(function(r) {
+    return r && r.ts && !isNaN(new Date(r.ts).getTime());
+  });
+  if (!rows.length) {
+    host.innerHTML = '<div style="color:var(--text-muted);font-size:.75rem;padding:8px 0">No configuration data yet.</div>';
+    return;
+  }
+  var expanded = !!_stationConfigLogExpanded[stationId];
+  var shown = expanded ? rows : rows.slice(0, 15);
+  var html = '<div class="fc-config-table-wrap"><table class="fc-config-table">' +
+    '<thead><tr><th>When (UTC)</th><th>Configuration</th><th>Changed</th></tr></thead><tbody>';
+  for (var i = 0; i < shown.length; i++) {
+    var r = shown[i];
+    var ts = _coerceDate(r.ts);
+    if (!ts) continue;
+    var when = ts.toLocaleString('en-GB', {
+      day: '2-digit', month: 'short',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+      timeZone: 'UTC'
+    }) + ' UTC';
+    html += '<tr>' +
+      '<td style="white-space:nowrap;color:var(--text-muted)">' + when + '</td>' +
+      '<td style="white-space:normal">' + _configSummaryText(r.cfg) + '</td>' +
+      '<td style="white-space:nowrap;color:' + (r.isInitial ? 'var(--text-muted)' : 'var(--danger)') + '">' + r.diff + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table></div>';
+  if (rows.length > 15) {
+    html += '<div class="config-log-actions"><button class="config-expand-btn" onclick="toggleStationConfigLog(\'' + stationId + '\')">' +
+      (expanded ? 'Show latest 15' : 'Show older entries (' + rows.length + ' total)') +
+      '</button></div>';
+  }
+  host.innerHTML = html;
+}
+
+function toggleStationConfigLog(stationId) {
+  _stationConfigLogExpanded[stationId] = !_stationConfigLogExpanded[stationId];
+  _renderStationConfigChangeLogBody(stationId);
+}
+
+function renderStationConfigChangeLog(container, entries, stationId) {
+  var section = document.createElement('div');
+  section.className = 'fc-config-section';
+  var count = 15;
+  section.innerHTML = '<h4>Station Config Change Log: <span style="font-size:.72rem;color:var(--text-muted);font-weight:400">(Latest ' + count + ')</span></h4>';
+  var host = document.createElement('div');
+  host.id = 'cfglog_' + stationId;
+  host.innerHTML = '<div style="color:var(--text-muted);font-size:.75rem;padding:8px 0">Loading…</div>';
+  section.appendChild(host);
+  container.appendChild(section);
+
+  function buildAndRender() {
+    var uploadCount = (_stationUploadTimeline[stationId] || []).length;
+    var syncCount = (_stationSyncTimeline[stationId] || []).length;
+    _stationConfigRowsCache[stationId] = _buildStationConfigRows(entries, stationId);
+    console.info('[Health] Config log source for ' + stationId + ': upload_sessions=' + uploadCount +
+      ', sync_sessions=' + syncCount +
+      ', entries=' + ((entries && entries.length) || 0) +
+      ', device_config=' + (_deviceConfigById && _deviceConfigById[stationId] ? 'yes' : 'no'));
+    _renderStationConfigChangeLogBody(stationId, host);
+  }
+
+  try {
+    buildAndRender();
+  } catch (e) {
+    console.warn('[Health] Config change log render failed for ' + stationId + ':', e && e.message ? e.message : e);
+    if (host) {
+      host.innerHTML = '<div style="color:var(--warning);font-size:.75rem;padding:8px 0">Config log unavailable for now.</div>';
+    }
+  }
+
+  // Watchdog: retry one more render pass before surfacing an error.
+  setTimeout(function() {
+    if (!host) return;
+    var txt = (host.textContent || '').trim().toLowerCase();
+    if (txt.indexOf('loading') === 0) {
+      try {
+        buildAndRender();
+      } catch (e2) {
+        host.innerHTML = '<div style="color:var(--warning);font-size:.75rem;padding:8px 0">Config log unavailable for now.</div>';
+        return;
+      }
+      txt = (host.textContent || '').trim().toLowerCase();
+      if (txt.indexOf('loading') === 0) {
+        host.innerHTML = '<div style="color:var(--warning);font-size:.75rem;padding:8px 0">Config log did not finish rendering. Try Fetch Live once, then reload.</div>';
+      }
+    }
+  }, 1800);
 }
 
 // Sync analysis functions: collectSyncEventTimes, parseField8ConfigUnified,
@@ -853,18 +1477,30 @@ function renderSummaryCards(container, entries, stationId) {
   var nextCheck = estimateStationNextCheckIn(e, stationId);
 
   function lastWith(key) {
-    for (var i = e.length - 1; i >= 0; i--) { if (e[i][key] !== null) return e[i]; }
+    for (var i = e.length - 1; i >= 0; i--) {
+      if (e[i][key] !== null && e[i][key] !== undefined) return e[i];
+    }
+    return null;
+  }
+
+  function lastWithPredicate(predicate) {
+    for (var i = e.length - 1; i >= 0; i--) {
+      if (predicate(e[i])) return e[i];
+    }
     return null;
   }
 
   var t0 = lastWith('t0BatPct');
   var satA = lastWith('satABatV');
   var satB = lastWith('satBBatV');
+  var t0VoltEntry = lastWithPredicate(function(row) {
+    return row && row.t0BatV !== null && row.t0BatV !== undefined && isFinite(row.t0BatV) && Number(row.t0BatV) > 0;
+  });
 
   // Battery drain last 24h
   function drain24(key) {
     var cutoff = new Date(latest.timestamp.getTime() - 24*3600000);
-    var recent = e.filter(function(x) { return x.timestamp >= cutoff && x[key] !== null; });
+    var recent = e.filter(function(x) { return x.timestamp >= cutoff && x[key] !== null && x[key] !== undefined; });
     if (recent.length < 2) return '--';
     var d = recent[recent.length-1][key] - recent[0][key];
     return (d >= 0 ? '+' : '') + d.toFixed(1) + '%';
@@ -884,6 +1520,127 @@ function renderSummaryCards(container, entries, stationId) {
 
   var satAFw = syncA && syncA.sat_fw_ver ? 'v' + syncA.sat_fw_ver : '--';
   var satBFw = syncB && syncB.sat_fw_ver ? 'v' + syncB.sat_fw_ver : '--';
+
+  var statusRow = _deviceStatusById && _deviceStatusById[stationId] ? _deviceStatusById[stationId] : null;
+  var configRow = _deviceConfigById && _deviceConfigById[stationId] ? _deviceConfigById[stationId] : null;
+
+  var t0LatestSamplePct = (t0 && t0.t0BatPct !== null && t0.t0BatPct !== undefined) ? Number(t0.t0BatPct) : null;
+  var t0DisplayPct = t0LatestSamplePct;
+  if (t0DisplayPct === null && statusRow && statusRow.batteryPct != null && isFinite(statusRow.batteryPct)) {
+    t0DisplayPct = statusRow.batteryPct >= 0 ? Number(statusRow.batteryPct) : null;
+  }
+  var t0PluggedIn = (t0LatestSamplePct === 0);
+  var t0DisplayV = t0VoltEntry && t0VoltEntry.t0BatV != null ? Number(t0VoltEntry.t0BatV) : null;
+
+  function isUploadSuccessRow(row) {
+    if (!row) return false;
+    var okNum = (row.upload_ok !== null && row.upload_ok !== undefined && row.upload_ok !== '') ? Number(row.upload_ok) : null;
+    if (okNum != null && isFinite(okNum)) return okNum > 0;
+    var s = String(row.status || '').trim().toLowerCase();
+    return s === 'ok' || s === 'success' || s === 'succeeded' || s === 'complete' || s === 'completed';
+  }
+
+  // Data success metrics moved to top summary cards.
+  var samplePeriodMin = null;
+  var expectedEntries = null;
+  var completeness = null;
+  var gaps = 0;
+  var longestGapMs = 0;
+  var t0SensorPct = null;
+  var satASensorPct = null;
+  var satBSensorPct = null;
+  if (e.length >= 2) {
+    var intervals = [];
+    for (var ii = 1; ii < e.length; ii++) {
+      var dt = e[ii].timestamp - e[ii - 1].timestamp;
+      if (dt > 0) intervals.push(dt);
+    }
+    if (intervals.length) {
+      intervals.sort(function(a, b) { return a - b; });
+      var medianMs = intervals[Math.floor(intervals.length / 2)];
+      if (medianMs > 0) {
+        samplePeriodMin = Math.round(medianMs / 60000);
+        var totalSpan = latest.timestamp - e[0].timestamp;
+        expectedEntries = Math.floor(totalSpan / medianMs) + 1;
+        completeness = Math.max(0, Math.min(100, (e.length / Math.max(1, expectedEntries)) * 100));
+
+        var gapThreshold = medianMs * 2.5;
+        for (var gi = 0; gi < intervals.length; gi++) {
+          if (intervals[gi] > gapThreshold) {
+            gaps++;
+            if (intervals[gi] > longestGapMs) longestGapMs = intervals[gi];
+          }
+        }
+      }
+    }
+
+    var t0SensorN = e.filter(function(x) { return x.t0Temp1 !== null || x.t0Temp2 !== null || x.t0Temp3 !== null; }).length;
+    var satASensorN = e.filter(function(x) { return x.satATemp1 !== null || x.satATemp2 !== null; }).length;
+    var satBSensorN = e.filter(function(x) { return x.satBTemp1 !== null || x.satBTemp2 !== null; }).length;
+    t0SensorPct = e.length ? (t0SensorN / e.length * 100) : null;
+    satASensorPct = e.length ? (satASensorN / e.length * 100) : null;
+    satBSensorPct = e.length ? (satBSensorN / e.length * 100) : null;
+  }
+
+  // Upload success rate in last 24h
+  var uploadRows = Array.isArray(_stationUploadTimeline[stationId]) ? _stationUploadTimeline[stationId] : [];
+  var upload24Rows = uploadRows.filter(function(r) {
+    var ts = r && r.upload_started_at ? new Date(ensureUTC(r.upload_started_at)) : null;
+    return ts && !isNaN(ts.getTime()) && ts.getTime() >= (latest.timestamp.getTime() - 24 * 3600000);
+  });
+  var upload24Ok = upload24Rows.filter(isUploadSuccessRow).length;
+  var upload24Pct = upload24Rows.length ? (upload24Ok / upload24Rows.length * 100) : null;
+
+  // SD storage usage estimate from observed free-space trend.
+  var sdPoints = [];
+  for (var upi = 0; upi < uploadRows.length; upi++) {
+    var up = uploadRows[upi] || {};
+    var upTs = up.upload_started_at ? new Date(ensureUTC(up.upload_started_at)) : null;
+    var upFree = (up.sd_free_kb !== null && up.sd_free_kb !== undefined) ? Number(up.sd_free_kb) : null;
+    if (upTs && !isNaN(upTs.getTime()) && upFree != null && isFinite(upFree) && upFree > 0) {
+      sdPoints.push({ t: upTs.getTime(), free: upFree });
+    }
+  }
+  if (!sdPoints.length) {
+    for (var si = 0; si < e.length; si++) {
+      if (e[si].sdFreeKB != null && isFinite(e[si].sdFreeKB) && Number(e[si].sdFreeKB) > 0) {
+        sdPoints.push({ t: e[si].timestamp.getTime(), free: Number(e[si].sdFreeKB) });
+      }
+    }
+  }
+  sdPoints.sort(function(a, b) { return a.t - b.t; });
+  var latestSdFreeKB = sdPoints.length ? sdPoints[sdPoints.length - 1].free : null;
+  var estimatedSdTotalKB = sdPoints.length ? Math.max.apply(null, sdPoints.map(function(p) { return p.free; })) : null;
+  var storageUsedPct = null;
+  if (latestSdFreeKB != null && estimatedSdTotalKB != null && estimatedSdTotalKB > 0 && latestSdFreeKB <= estimatedSdTotalKB) {
+    storageUsedPct = Math.max(0, Math.min(100, (1 - (latestSdFreeKB / estimatedSdTotalKB)) * 100));
+  }
+
+  var sdDaysRemaining = null;
+  if (sdPoints.length >= 2 && latestSdFreeKB != null) {
+    var firstSd = sdPoints[0];
+    var lastSd = sdPoints[sdPoints.length - 1];
+    var daysSpan = (lastSd.t - firstSd.t) / 86400000;
+    if (daysSpan > 0) {
+      var kbPerDay = (firstSd.free - lastSd.free) / daysSpan;
+      if (kbPerDay > 0.5) sdDaysRemaining = latestSdFreeKB / kbPerDay;
+    }
+  }
+
+  var totalDaysRunning = (latest.timestamp.getTime() - e[0].timestamp.getTime()) / 86400000;
+  var lastCheckInText = (statusRow && statusRow.lastSeenAt && !isNaN(statusRow.lastSeenAt.getTime()))
+    ? fmtStationTime(statusRow.lastSeenAt, stationId, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC'
+    : '--';
+  var lastConfigAppliedText = (configRow && configRow.updated_at)
+    ? fmtStationTime(new Date(ensureUTC(configRow.updated_at)), stationId, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC'
+    : '--';
+
+  function pctTone(v) {
+    if (v === null || v === undefined || !isFinite(v)) return 'var(--text-muted)';
+    if (v >= 95) return 'var(--success)';
+    if (v >= 75) return 'var(--warning)';
+    return 'var(--danger)';
+  }
 
   // Sync rates (24h) based on expected sync windows (default 3h cadence)
   // v2: satASampleId is no longer in sensor_readings view;
@@ -972,23 +1729,26 @@ function renderSummaryCards(container, entries, stationId) {
 
   row.innerHTML =
     '<div class="sum-card">' +
-      '<h4>T0 Gateway</h4>' +
-      '<div class="sum-val" style="color:' + batColor(t0 ? t0.t0BatPct : null) + '">' + (t0 ? safeFixed(t0.t0BatPct, 0, '%') : '--') + '</div>' +
-      '<div class="sum-sub">Voltage: ' + (t0 ? safeFixed(t0.t0BatV, 2, 'V') : '--') + '</div>' +
-      '<div class="sum-sub">24h \u0394: ' + drain24('t0BatPct') + '</div>' +
-      '<div class="sum-sub">Boot: ' + (t0 && t0.t0Boot !== null ? '#' + t0.t0Boot : '--') +
-        ' &nbsp; Heap: ' + (ulSess && ulSess.free_heap !== null ? (ulSess.free_heap/1024).toFixed(0) + ' KB' : '--') + '</div>' +
-      '<div class="sum-sub" style="margin-top:4px;color:var(--accent)">FW: ' + t0Fw + '</div>' +
+      '<h4>Gateway and System</h4>' +
+      '<div class="sum-val" style="color:' + batColor(t0DisplayPct) + '">' + safeFixed(t0DisplayPct, 0, '%') + '</div>' +
+      '<div class="sum-sub">Voltage: ' + safeFixed(t0DisplayV, 2, 'V') + ' &nbsp; 24h Δ: ' + drain24('t0BatPct') + '</div>' +
+      (t0PluggedIn ? '<div class="sum-sub" style="color:var(--warning)">Power: Plugged in (USB sample)</div>' : '') +
+      '<div class="sum-sub">Upload success (24h): <span style="color:' + pctTone(upload24Pct) + '">' + (upload24Pct != null ? upload24Pct.toFixed(0) + '%' : '--') + '</span> (' + upload24Ok + '/' + upload24Rows.length + ')</div>' +
+      '<div class="sum-sub">Storage used: ' + (storageUsedPct != null ? storageUsedPct.toFixed(1) + '%' : '--') + ' &nbsp; Free: ' + (latestSdFreeKB != null ? formatKB(latestSdFreeKB) : '--') + '</div>' +
+      '<div class="sum-sub">FW: <span style="color:var(--accent)">' + t0Fw + '</span></div>' +
     '</div>' +
     satACard +
     satBCard +
     '<div class="sum-card">' +
-      '<h4>System</h4>' +
-      '<div class="sum-val">' + (ulSess && ulSess.sd_free_kb !== null ? formatKB(ulSess.sd_free_kb) : '--') + '</div>' +
-      '<div class="sum-sub">SD Free &nbsp;|&nbsp; CSQ: ' + (ulSess && ulSess.csq !== null ? ulSess.csq : '--') + '</div>' +
-      '<div class="sum-sub">Upload: ' + (ulSess ? (ulSess.status === 'ok' ? '\u2705' : '\u274C') + ' ' + (ulSess.transport || '') : '--') + '</div>' +
-      '<div class="sum-sub">Entries: ' + e.length.toLocaleString() + '</div>' +
-      '<div class="sum-sub">Last upload: ' + timeAgo(latest.timestamp) + ' ago</div>' +
+      '<h4>Data and Check-Ins</h4>' +
+      '<div class="sum-val" style="color:' + pctTone(completeness) + '">' + (completeness != null ? completeness.toFixed(1) + '%' : '--') + ' <span style="font-size:.72rem;font-weight:500;color:var(--text-muted)">since commissioning</span></div>' +
+      '<div class="sum-sub">24h Sensor coverage: T0 ' + (t0SensorPct != null ? t0SensorPct.toFixed(1) + '%' : '--') +
+        (satAEnabled ? ' &nbsp;|&nbsp; A ' + (satASensorPct != null ? satASensorPct.toFixed(1) + '%' : '--') : '') +
+        (satBEnabled ? ' &nbsp;|&nbsp; B ' + (satBSensorPct != null ? satBSensorPct.toFixed(1) + '%' : '--') : '') + '</div>' +
+      '<div class="sum-sub">24h Expected/Actual: ' + (expectedEntries != null ? expectedEntries.toLocaleString() : '--') + ' / ' + e.length.toLocaleString() + '</div>' +
+      '<div class="sum-sub">Total entries: ' + e.length.toLocaleString() + ' &nbsp;|&nbsp; Days running: ' + totalDaysRunning.toFixed(1) + '</div>' +
+      '<div class="sum-sub">Last config applied: ' + lastConfigAppliedText + '</div>' +
+      '<div class="sum-sub">Last check-in: ' + lastCheckInText + '</div>' +
       '<div class="sum-sub"><span class="' + nextCheck.cls + '">' + nextCheck.summaryText + '</span></div>' +
     '</div>';
 
@@ -996,7 +1756,7 @@ function renderSummaryCards(container, entries, stationId) {
 }
 
 function batColor(pct) {
-  if (pct === null) return 'var(--text-muted)';
+  if (pct === null || pct === undefined || !isFinite(pct)) return 'var(--text-muted)';
   if (pct > 80) return 'var(--success)';
   if (pct < 30) return 'var(--danger)';
   if (pct <= 80) return 'var(--warning)';
@@ -1011,57 +1771,636 @@ function batColor(pct) {
 function renderBatteryCharts(container, entries, stationId, range) {
   if (!entries || !entries.length) return;
   var satBEnabled = isSatelliteInstalled(entries, 'B');
-  var row = document.createElement('div');
-  row.className = 'chart-row';
+  var firstTs = entries[0].timestamp;
+  var lastTs = entries[entries.length - 1].timestamp;
+  var CUTOFF_V = 3.3;
+  var FULL_V = 4.2;
+  var PLOT_MIN_V = 3.2;
+  var PLOT_MAX_V = 4.3;
+  var PLOT_MIN_PCT = 0;
+  var PLOT_MAX_PCT = 110;
 
-  // Create canvas elements directly so we hold references (not via getElementById)
-  var batCanvas = document.createElement('canvas');
-  var batBox = document.createElement('div');
-  batBox.className = 'chart-box';
-  batBox.innerHTML = '<h4>Battery % (' + rangeLabel(range) + ')</h4>';
-  batBox.appendChild(batCanvas);
-  row.appendChild(batBox);
+  var voltWrap = document.createElement('div');
+  voltWrap.className = 'chart-box-full chart-box-voltage';
+  voltWrap.innerHTML = '<h4>Battery Voltage (' + rangeLabel(range) + ')</h4>';
+
+  var calcControl = document.createElement('div');
+  calcControl.className = 'time-btns';
+  calcControl.style.marginBottom = '8px';
+  calcControl.style.gap = '6px';
+
+  var btnCalcToggle = document.createElement('button');
+  btnCalcToggle.className = 'btn btn-sm';
+  btnCalcToggle.type = 'button';
+  btnCalcToggle.textContent = 'Show Calculated';
+
+  var btnEventToggle = document.createElement('button');
+  btnEventToggle.className = 'btn btn-sm';
+  btnEventToggle.type = 'button';
+  btnEventToggle.textContent = 'Show Events';
+
+  var calcModeNote = document.createElement('span');
+  calcModeNote.style.fontSize = '.72rem';
+  calcModeNote.style.color = 'var(--text-muted)';
+  calcModeNote.textContent = 'Calculated: latest behavior/settings';
+
+  var calcHint = document.createElement('span');
+  calcHint.style.fontSize = '.72rem';
+  calcHint.style.color = 'var(--text-muted)';
+  calcHint.textContent = 'Anchor: start of visible range';
+
+  calcControl.appendChild(btnEventToggle);
+  calcControl.appendChild(btnCalcToggle);
+  calcControl.appendChild(calcModeNote);
+  calcControl.appendChild(calcHint);
+  voltWrap.appendChild(calcControl);
 
   var voltCanvas = document.createElement('canvas');
-  var voltBox = document.createElement('div');
-  voltBox.className = 'chart-box';
-  voltBox.innerHTML = '<h4>Battery Voltage (' + rangeLabel(range) + ')</h4>';
-  voltBox.appendChild(voltCanvas);
-  row.appendChild(voltBox);
+  voltWrap.appendChild(voltCanvas);
 
-  container.appendChild(row);
+  var calcDaysRow = document.createElement('div');
+  calcDaysRow.className = 'calc-days-row';
+  calcDaysRow.style.display = 'none';
+  voltWrap.appendChild(calcDaysRow);
 
-  function makeDS(data, key, label, color) {
-    var pts = data.filter(function(e){return e[key]!==null;}).map(function(e){return {x:e.timestamp,y:e[key]};});
-    return { label: label, data: lttbDownsample(pts),
-      borderColor: color, backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false };
+  container.appendChild(voltWrap);
+
+  function makeVoltDS(data, key, label, color) {
+    var pts = data
+      .filter(function(e) { return e[key] !== null && e[key] !== undefined && isFinite(e[key]) && Number(e[key]) > 0; })
+      .map(function(e) { return { x: e.timestamp, y: Number(e[key]) }; });
+    return {
+      label: label,
+      data: lttbDownsample(pts),
+      yAxisID: 'y',
+      borderColor: color,
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.2,
+      fill: false
+    };
   }
 
-  makeLiveChart(batBox, batCanvas, 'Battery % \u2013 ' + rangeLabel(range), {
-    type: 'line',
-    data: { datasets: (function() {
-      var ds = [
-        makeDS(entries, 't0BatPct', 'T0', '#3b82f6'),
-        makeDS(entries, 'satABatPct', 'Sat-A', '#10b981')
-      ];
-      if (satBEnabled) ds.push(makeDS(entries, 'satBBatPct', 'Sat-B', '#f59e0b'));
-      return ds;
-    })()},
-    options: chartOpts('Battery (%)', 0, 100, range, stationId),
-  }, { stationId: stationId, chartKey: 'battery_pct' });
+  function pctSeries(data, pctKey) {
+    return data
+      .filter(function(e) { return e[pctKey] !== null && e[pctKey] !== undefined && isFinite(e[pctKey]); })
+      .map(function(e) { return { t: e.timestamp.getTime(), p: Number(e[pctKey]) }; })
+      .sort(function(a, b) { return a.t - b.t; });
+  }
 
-  makeLiveChart(voltBox, voltCanvas, 'Battery Voltage \u2013 ' + rangeLabel(range), {
-    data: { datasets: (function() {
-      var ds = [
-        makeDS(entries, 't0BatV', 'T0', '#60a5fa'),
-        makeDS(entries, 'satABatV', 'Sat-A', '#34d399'),
-      ];
-      if (satBEnabled) ds.push(makeDS(entries, 'satBBatV', 'Sat-B', '#fbbf24'));
-      return ds;
-    })()},
+  function voltageSeries(data, voltKey) {
+    return data
+      .filter(function(e) { return e[voltKey] !== null && e[voltKey] !== undefined && isFinite(e[voltKey]) && Number(e[voltKey]) > 0; })
+      .map(function(e) { return { t: e.timestamp.getTime(), v: Number(e[voltKey]) }; })
+      .sort(function(a, b) { return a.t - b.t; });
+  }
+
+  function pctUpperEnvelope(pts, binMs) {
+    if (!pts || !pts.length) return [];
+    binMs = Math.max(1, binMs || 3 * 3600000);
+    var byBin = {};
+    for (var i = 0; i < pts.length; i++) {
+      var p = pts[i];
+      var bin = Math.floor(p.t / binMs);
+      var cur = byBin[bin];
+      if (!cur || p.p > cur.p) byBin[bin] = { t: p.t, p: p.p };
+    }
+    var out = Object.keys(byBin).map(function(k) { return byBin[k]; });
+    out.sort(function(a, b) { return a.t - b.t; });
+    return out;
+  }
+
+  function estimateDailyPctLossFromPoints(pts) {
+    if (pts.length < 2) return 0.4;
+    var first = pts[0];
+    var last = pts[pts.length - 1];
+    var days = (last.t - first.t) / 86400000;
+    if (days <= 0) return 0.4;
+    var loss = (first.p - last.p) / days;
+    if (!isFinite(loss) || loss <= 0) return 0.4;
+    return Math.max(0.05, Math.min(8, loss));
+  }
+
+  function resolveAnchorPctFromPoints(pts, anchorMs, dailyPctLoss) {
+    var best = null;
+    for (var i = 0; i < pts.length; i++) {
+      var dt = Math.abs(pts[i].t - anchorMs);
+      if (!best || dt < best.dt) best = { p: Number(pts[i].p), t: pts[i].t, dt: dt };
+    }
+    if (!best) return null;
+    var deltaDays = (anchorMs - best.t) / 86400000;
+    var adjPct = best.p - (dailyPctLoss * deltaDays);
+    if (!isFinite(adjPct)) return null;
+    return Math.max(0, Math.min(100, adjPct));
+  }
+
+  function estimateCalculatedDaysToCutoff(pctKey, boardKind, useEnvelope) {
+    if (typeof BatteryModel === 'undefined' || typeof BatteryModel.projectVoltageCurve !== 'function') return null;
+    var rawPts = pctSeries(entries, pctKey);
+    if (!rawPts.length) return null;
+
+    var fitPts = useEnvelope ? pctUpperEnvelope(rawPts, 3 * 3600000) : rawPts;
+    if (fitPts.length < 2) fitPts = rawPts;
+
+    var dailyPctLoss = estimateDailyPctLossFromPoints(fitPts);
+    var anchorPct = resolveAnchorPctFromPoints(fitPts, calcAnchorMs, dailyPctLoss);
+    if (anchorPct === null) return null;
+
+    var battCap = 3000;
+    var derating = 0.85;
+    var usableMah = battCap * derating;
+    var dailyMah = Math.max(0.01, (dailyPctLoss / 100) * usableMah);
+    var approxDays = Math.max(2, Math.ceil(Math.min(5000, anchorPct / Math.max(0.01, dailyPctLoss))) + 30);
+
+    var curve = BatteryModel.projectVoltageCurve(
+      anchorPct,
+      new Date(calcAnchorMs),
+      dailyMah,
+      battCap,
+      derating,
+      {
+        boardKind: boardKind,
+        fullV: FULL_V,
+        cutoffV: CUTOFF_V,
+        maxDays: approxDays
+      }
+    ) || [];
+
+    var base = curve
+      .filter(function(p) {
+        return p && p.time && !isNaN(p.time.getTime()) && p.voltage !== null && p.voltage !== undefined && isFinite(p.voltage);
+      })
+      .map(function(p) { return { t: p.time.getTime(), v: Number(p.voltage) }; })
+      .sort(function(a, b) { return a.t - b.t; });
+
+    if (!base.length) return null;
+    if (base[0].v <= CUTOFF_V) return 0;
+
+    for (var i = 1; i < base.length; i++) {
+      var p0 = base[i - 1];
+      var p1 = base[i];
+      if (p1.v <= CUTOFF_V) {
+        var den = (p1.v - p0.v);
+        var f = (Math.abs(den) < 1e-9) ? 1 : (CUTOFF_V - p0.v) / den;
+        f = Math.max(0, Math.min(1, f));
+        var crossTs = p0.t + (p1.t - p0.t) * f;
+        return Math.max(0, Math.min(5000, (crossTs - calcAnchorMs) / 86400000));
+      }
+    }
+
+    return null;
+  }
+
+  function buildCalculatedPoints(data, pctKey, boardKind, anchorMs, rangeStartMs, rangeEndMs, voltKey) {
+    if (typeof BatteryModel === 'undefined' || typeof BatteryModel.projectVoltageCurve !== 'function') return [];
+    var rawPts = pctSeries(data, pctKey);
+    // For satellites, use an upper-envelope to ignore transient sync droops.
+    var useEnvelope = (pctKey === 'satABatPct' || pctKey === 'satBBatPct');
+    var fitPts = useEnvelope ? pctUpperEnvelope(rawPts, 3 * 3600000) : rawPts;
+    if (fitPts.length < 2) fitPts = rawPts;
+
+    var dailyPctLoss = estimateDailyPctLossFromPoints(fitPts);
+    var anchorPct = resolveAnchorPctFromPoints(fitPts, anchorMs, dailyPctLoss);
+    if (anchorPct === null) return [];
+
+    var clipStartMs = Math.max(rangeStartMs, anchorMs);
+    if (!isFinite(clipStartMs) || !isFinite(rangeEndMs) || clipStartMs > rangeEndMs) return [];
+
+    var battCap = 3000;
+    var derating = 0.85;
+    var usableMah = battCap * derating;
+    var dailyMah = Math.max(0.01, (dailyPctLoss / 100) * usableMah);
+    // Generate far enough ahead to keep modal projections from looking abruptly cropped.
+    var approxDaysToCutoff = Math.max(2, Math.ceil(Math.min(730, anchorPct / Math.max(0.01, dailyPctLoss))) + 30);
+    var maxDays = Math.max(2, Math.ceil((rangeEndMs - anchorMs) / 86400000) + 3, approxDaysToCutoff);
+
+    var curve = BatteryModel.projectVoltageCurve(
+      anchorPct,
+      new Date(anchorMs),
+      dailyMah,
+      battCap,
+      derating,
+      {
+        boardKind: boardKind,
+        fullV: FULL_V,
+        cutoffV: CUTOFF_V,
+        maxDays: maxDays
+      }
+    ) || [];
+
+    var base = curve
+      .filter(function(p) {
+        return p && p.time && !isNaN(p.time.getTime()) && p.voltage !== null && p.voltage !== undefined && isFinite(p.voltage);
+      })
+      .map(function(p) { return { t: p.time.getTime(), v: Number(p.voltage) }; })
+      .sort(function(a, b) { return a.t - b.t; });
+
+    if (!base.length) return [];
+
+    function interpAt(ts) {
+      if (ts < base[0].t) return null;
+      if (base.length === 1) return base[0].v;
+      for (var i = 1; i < base.length; i++) {
+        var p0 = base[i - 1];
+        var p1 = base[i];
+        if (ts <= p1.t) {
+          var den = (p1.t - p0.t);
+          if (den <= 0) return p1.v;
+          var f = (ts - p0.t) / den;
+          return p0.v + (p1.v - p0.v) * f;
+        }
+      }
+      return null;
+    }
+
+    var modelEndMs = Math.max(rangeEndMs, base[base.length - 1].t);
+    var spanMs = modelEndMs - clipStartMs;
+    var stepMs;
+    if (spanMs <= 86400000) stepMs = 15 * 60000;           // day
+    else if (spanMs <= 7 * 86400000) stepMs = 60 * 60000;  // week
+    else if (spanMs <= 30 * 86400000) stepMs = 6 * 3600000;// month
+    else stepMs = 24 * 3600000;                            // all
+
+    var out = [];
+    for (var t = clipStartMs; t <= modelEndMs; t += stepMs) {
+      var v = interpAt(t);
+      if (v !== null && isFinite(v)) out.push({ x: new Date(t), y: v });
+    }
+
+    if (!out.length || out[out.length - 1].x.getTime() < modelEndMs) {
+      var endV = interpAt(modelEndMs);
+      if (endV !== null && isFinite(endV)) out.push({ x: new Date(modelEndMs), y: endV });
+    }
+
+    // Align calculated curve to the anchor voltage so dashed starts on the measured line.
+    var voltagePts = data
+      .filter(function(e) { return e[voltKey] !== null && e[voltKey] !== undefined && isFinite(e[voltKey]) && Number(e[voltKey]) > 0; })
+      .map(function(e) { return { t: e.timestamp.getTime(), v: Number(e[voltKey]) }; })
+      .sort(function(a, b) { return a.t - b.t; });
+
+    if (voltagePts.length && out.length) {
+      var bestV = null;
+      for (var vi = 0; vi < voltagePts.length; vi++) {
+        var dtv = Math.abs(voltagePts[vi].t - anchorMs);
+        if (!bestV || dtv < bestV.dt) bestV = { v: voltagePts[vi].v, dt: dtv };
+      }
+      if (bestV && isFinite(bestV.v)) {
+        var modelAnchorV = out[0].y;
+        var shift = bestV.v - modelAnchorV;
+        out = out.map(function(p) {
+          var y = p.y + shift;
+          if (!isFinite(y)) return p;
+          return { x: p.x, y: Math.max(PLOT_MIN_V, Math.min(PLOT_MAX_V, y)) };
+        });
+      }
+    }
+
+    return out;
+  }
+
+  function calculatedDataset(label, color, pctKey, boardKind, anchorMs, rangeStartMs, rangeEndMs, voltKey) {
+    return {
+      label: label,
+      data: buildCalculatedPoints(entries, pctKey, boardKind, anchorMs, rangeStartMs, rangeEndMs, voltKey),
+      yAxisID: 'y',
+      borderColor: color,
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      borderDash: [9, 5],
+      pointRadius: 0,
+      tension: 0.15,
+      fill: false,
+      hidden: true,
+      _isCalculated: true,
+      _calcPctKey: pctKey,
+      _calcBoardKind: boardKind,
+      _calcVoltKey: voltKey
+    };
+  }
+
+  function uniqSortedTimes(list) {
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var d = list[i];
+      if (!d || isNaN(d.getTime())) continue;
+      var t = d.getTime();
+      if (seen[t]) continue;
+      seen[t] = true;
+      out.push(new Date(t));
+    }
+    out.sort(function(a, b) { return a - b; });
+    return out;
+  }
+
+  function verticalEventDataset(label, color, times, hiddenByDefault, dashPattern, lineWidth, eventType) {
+    var points = [];
+    for (var i = 0; i < times.length; i++) {
+      points.push({ x: times[i], y: PLOT_MIN_V });
+      points.push({ x: times[i], y: PLOT_MAX_V });
+      points.push({ x: times[i], y: null }); // break line between vertical markers
+    }
+    return {
+      label: label,
+      data: points,
+      yAxisID: 'y',
+      borderColor: color,
+      backgroundColor: 'transparent',
+      borderWidth: lineWidth || 1.4,
+      borderDash: dashPattern || [6, 4],
+      pointRadius: 0,
+      tension: 0,
+      fill: false,
+      hidden: !!hiddenByDefault,
+      parsing: false,
+      spanGaps: false,
+      _isEvent: true,
+      _eventType: eventType || 'generic'
+    };
+  }
+
+  var rangeStartMs = firstTs.getTime();
+  var rangeEndMs = lastTs.getTime();
+  var calcAnchorMs = rangeStartMs;
+  var uploadRows = Array.isArray(_stationUploadTimeline[stationId]) ? _stationUploadTimeline[stationId] : [];
+  var syncRows = Array.isArray(_stationSyncTimeline[stationId]) ? _stationSyncTimeline[stationId] : [];
+  var uploadEventTimes = uniqSortedTimes(uploadRows.map(function(r) {
+    return r && r.upload_started_at ? new Date(ensureUTC(r.upload_started_at)) : null;
+  }).filter(function(d) {
+    return d && !isNaN(d.getTime()) && d.getTime() >= rangeStartMs && d.getTime() <= rangeEndMs;
+  }));
+  var configChangeRows = _buildStationConfigRows(entries, stationId);
+  var configEventTimes = uniqSortedTimes(configChangeRows.map(function(r) {
+    return r && r.ts ? new Date(r.ts) : null;
+  }).filter(function(d) {
+    return d && !isNaN(d.getTime()) && d.getTime() >= rangeStartMs && d.getTime() <= rangeEndMs;
+  }));
+  var syncEventTimesA = uniqSortedTimes(syncRows.filter(function(r) {
+    return String((r && r.node_id) || '').toUpperCase() === 'A';
+  }).map(function(r) {
+    return r && r.sync_started_at ? new Date(ensureUTC(r.sync_started_at)) : null;
+  }).filter(function(d) {
+    return d && !isNaN(d.getTime()) && d.getTime() >= rangeStartMs && d.getTime() <= rangeEndMs;
+  }));
+  var syncEventTimesB = uniqSortedTimes(syncRows.filter(function(r) {
+    return String((r && r.node_id) || '').toUpperCase() === 'B';
+  }).map(function(r) {
+    return r && r.sync_started_at ? new Date(ensureUTC(r.sync_started_at)) : null;
+  }).filter(function(d) {
+    return d && !isNaN(d.getTime()) && d.getTime() >= rangeStartMs && d.getTime() <= rangeEndMs;
+  }));
+  // Sample events come from the unified sensor_readings cadence (covers T0 + satellites).
+  var sampleEventTimes = uniqSortedTimes(entries.map(function(e) {
+    return e && e.timestamp ? e.timestamp : null;
+  }).filter(function(d) {
+    return d && !isNaN(d.getTime()) && d.getTime() >= rangeStartMs && d.getTime() <= rangeEndMs;
+  }));
+
+  var voltDatasets = [
+    {
+      label: 'Full (4.2V)',
+      data: [{ x: firstTs, y: FULL_V }, { x: lastTs, y: FULL_V }],
+      yAxisID: 'y',
+      borderColor: '#94a3b8',
+      borderWidth: 1,
+      borderDash: [4, 4],
+      pointRadius: 0,
+      parsing: false,
+      tension: 0,
+      fill: false,
+      _isGuide: true
+    },
+    {
+      label: 'Cutoff (3.3V)',
+      data: [{ x: firstTs, y: CUTOFF_V }, { x: lastTs, y: CUTOFF_V }],
+      yAxisID: 'y',
+      borderColor: '#ef5350',
+      borderWidth: 1,
+      borderDash: [6, 4],
+      pointRadius: 0,
+      parsing: false,
+      tension: 0,
+      fill: false,
+      _isGuide: true
+    },
+    makeVoltDS(entries, 't0BatV', 'T0', '#60a5fa'),
+    makeVoltDS(entries, 'satABatV', 'Sat-A', '#34d399'),
+    calculatedDataset('T0 Calculated', '#93c5fd', 't0BatPct', 't0', calcAnchorMs, rangeStartMs, rangeEndMs, 't0BatV'),
+    calculatedDataset('Sat-A Calculated', '#6ee7b7', 'satABatPct', 'te', calcAnchorMs, rangeStartMs, rangeEndMs, 'satABatV')
+  ];
+  if (satBEnabled) {
+    voltDatasets.push(makeVoltDS(entries, 'satBBatV', 'Sat-B', '#fbbf24'));
+    voltDatasets.push(calculatedDataset('Sat-B Calculated', '#fde68a', 'satBBatPct', 'te', calcAnchorMs, rangeStartMs, rangeEndMs, 'satBBatV'));
+  }
+  voltDatasets.push(verticalEventDataset('T0 Upload Events', 'rgba(96,165,250,0.85)', uploadEventTimes, true, [7, 5], 1.6, 'upload'));
+  voltDatasets.push(verticalEventDataset('Sat-A Sync Events', 'rgba(52,211,153,0.85)', syncEventTimesA, true, [7, 5], 1.6, 'sync'));
+  if (satBEnabled) {
+    voltDatasets.push(verticalEventDataset('Sat-B Sync Events', 'rgba(251,191,36,0.85)', syncEventTimesB, true, [7, 5], 1.6, 'sync'));
+  }
+  voltDatasets.push(verticalEventDataset('Config Events', 'rgba(239,68,68,0.85)', configEventTimes, true, [4, 4], 1.6, 'config'));
+  // Keep sample events available but placed last and hidden by default.
+  voltDatasets.push(verticalEventDataset('Sample Events', 'rgba(109,143,136,0.70)', sampleEventTimes, true, [2, 5], 1.4, 'sample'));
+
+  // Extend Full/Cutoff guide lines to the farthest calculated projection timestamp.
+  var projectedEndTs = lastTs.getTime();
+  for (var vdi = 0; vdi < voltDatasets.length; vdi++) {
+    var vds = voltDatasets[vdi];
+    if (!vds || !vds._isCalculated || !Array.isArray(vds.data) || !vds.data.length) continue;
+    var lastPt = vds.data[vds.data.length - 1];
+    var lastMs = lastPt && lastPt.x instanceof Date ? lastPt.x.getTime() : new Date(lastPt && lastPt.x).getTime();
+    if (isFinite(lastMs) && lastMs > projectedEndTs) projectedEndTs = lastMs;
+  }
+  var projectedEndDate = new Date(projectedEndTs);
+  voltDatasets[0].data = [{ x: firstTs, y: FULL_V }, { x: projectedEndDate, y: FULL_V }];
+  voltDatasets[1].data = [{ x: firstTs, y: CUTOFF_V }, { x: projectedEndDate, y: CUTOFF_V }];
+
+  var opts = chartOpts('Voltage (V)', PLOT_MIN_V, PLOT_MAX_V, range, stationId, rangeStartMs, rangeEndMs);
+  var showCalcLegend = false;
+  var showEventLegend = false;
+  var priorLegendFilter = opts.plugins && opts.plugins.legend && opts.plugins.legend.labels
+    ? opts.plugins.legend.labels.filter
+    : null;
+  if (opts.plugins && opts.plugins.legend && opts.plugins.legend.labels) {
+    opts.plugins.legend.labels.filter = function(legendItem, chartData) {
+      var ds = chartData && chartData.datasets ? chartData.datasets[legendItem.datasetIndex] : null;
+      if (ds && ds._isCalculated && !showCalcLegend) return false;
+      if (ds && ds._isEvent && !showEventLegend) return false;
+      if (typeof priorLegendFilter === 'function') return priorLegendFilter(legendItem, chartData);
+      return true;
+    };
+  }
+  opts.scales.y.ticks = {
+    color: '#94a3b8',
+    font: { size: 10 },
+    stepSize: 0.1,
+    callback: function(v) {
+      if (v <= PLOT_MIN_V + 0.0001 || v >= PLOT_MAX_V - 0.0001) return '';
+      return Number(v).toFixed(1);
+    }
+  };
+  opts.scales.yPct = {
+    position: 'right',
+    min: PLOT_MIN_PCT,
+    max: PLOT_MAX_PCT,
+    title: { display: true, text: 'Battery (%)', color: '#64748b', font: { size: 10 } },
+    ticks: {
+      color: '#94a3b8',
+      font: { size: 10 },
+      stepSize: 10,
+      callback: function(v) {
+        if (v <= PLOT_MIN_PCT + 0.0001 || v >= PLOT_MAX_PCT - 0.0001) return '';
+        return Number(v).toFixed(0) + '%';
+      }
+    },
+    grid: { drawOnChartArea: false }
+  };
+
+  var voltChart = makeLiveChart(voltWrap, voltCanvas, 'Battery Voltage \u2013 ' + rangeLabel(range), {
     type: 'line',
-    options: chartOpts('Voltage (V)', 2.5, 4.5, range, stationId),
+    data: { datasets: voltDatasets },
+    options: opts,
   }, { stationId: stationId, chartKey: 'battery_voltage' });
+
+  function fmtDays(n) {
+    if (n === null || n === undefined || !isFinite(n)) return '--';
+    return Math.max(0, n).toFixed(0);
+  }
+
+  function fmtMonths(n) {
+    if (n === null || n === undefined || !isFinite(n)) return '--';
+    return '(' + (Math.max(0, n) / 30.44).toFixed(1) + ' mo)';
+  }
+
+  function lifeSummary(pctKey, useEnvelope, boardKind) {
+    var rawPts = pctSeries(entries, pctKey);
+    if (!rawPts.length) return { calcDays: null };
+
+    var calcDays = estimateCalculatedDaysToCutoff(pctKey, boardKind, useEnvelope);
+
+    return { calcDays: calcDays };
+  }
+
+  function renderCalcDaysCards() {
+    var cards = [];
+
+    var t0 = lifeSummary('t0BatPct', false, 't0');
+    cards.push({ title: 'T0 Gateway', color: '#60a5fa', calcDays: t0.calcDays });
+
+    var sa = lifeSummary('satABatPct', true, 'te');
+    cards.push({ title: 'Satellite A', color: '#34d399', calcDays: sa.calcDays });
+
+    if (satBEnabled) {
+      var sb = lifeSummary('satBBatPct', true, 'te');
+      cards.push({ title: 'Satellite B', color: '#fbbf24', calcDays: sb.calcDays });
+    }
+
+    calcDaysRow.innerHTML = cards.map(function(c) {
+      return '<div class="calc-days-card" style="border-top:4px solid ' + c.color + '">' +
+        '<div class="calc-days-label">' + c.title + '</div>' +
+        '<div class="calc-days-sub">Calculated - <span class="calc-days-value" style="color:' + c.color + '">' + fmtDays(c.calcDays) + '<span class="unit">days</span></span><span class="calc-days-muted">' + fmtMonths(c.calcDays) + '</span></div>' +
+      '</div>';
+    }).join('');
+  }
+
+  renderCalcDaysCards();
+
+  function refreshCalculatedDatasets() {
+    if (!voltChart) return;
+    for (var i = 0; i < voltChart.data.datasets.length; i++) {
+      var ds = voltChart.data.datasets[i];
+      if (!ds || !ds._isCalculated) continue;
+      ds.data = buildCalculatedPoints(entries, ds._calcPctKey, ds._calcBoardKind, calcAnchorMs, rangeStartMs, rangeEndMs, ds._calcVoltKey);
+    }
+    voltChart.update('none');
+  }
+
+  function setCalcVisibility(show) {
+    if (!voltChart) return;
+    showCalcLegend = !!show;
+    calcDaysRow.style.display = show ? 'flex' : 'none';
+    if (show) renderCalcDaysCards();
+    for (var i = 0; i < voltChart.data.datasets.length; i++) {
+      var ds = voltChart.data.datasets[i];
+      if (!ds || !ds._isCalculated) continue;
+      ds.hidden = !show;
+    }
+    btnCalcToggle.textContent = show ? 'Hide Calculated' : 'Show Calculated';
+    btnCalcToggle.classList.toggle('active', !!show);
+    if (!show) {
+      calcHint.textContent = 'Anchor: start of visible range';
+    } else {
+      calcHint.textContent = 'Anchor: ' + new Date(calcAnchorMs).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' UTC (click chart to re-anchor)';
+    }
+    voltChart.update('none');
+  }
+
+  function setEventVisibility(show) {
+    if (!voltChart) return;
+    showEventLegend = !!show;
+    for (var i = 0; i < voltChart.data.datasets.length; i++) {
+      var ds = voltChart.data.datasets[i];
+      if (!ds || !ds._isEvent) continue;
+      if (!show) {
+        ds.hidden = true;
+      } else {
+        ds.hidden = (ds._eventType === 'sample' || ds._eventType === 'config');
+      }
+    }
+    btnEventToggle.textContent = show ? 'Hide Events' : 'Show Events';
+    btnEventToggle.classList.toggle('active', !!show);
+    voltChart.update('none');
+  }
+
+  function setCalcAnchorFromXMs(xVal) {
+    if (xVal == null || !isFinite(xVal)) return;
+    var nearestTs = rangeStartMs;
+    var nearestDist = Infinity;
+    for (var i = 0; i < entries.length; i++) {
+      var t = entries[i].timestamp.getTime();
+      if (t < rangeStartMs || t > rangeEndMs) continue;
+      var d = Math.abs(t - xVal);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestTs = t;
+      }
+    }
+
+    calcAnchorMs = nearestTs;
+    refreshCalculatedDatasets();
+    renderCalcDaysCards();
+    setCalcVisibility(true);
+    calcHint.textContent = 'Anchor: ' + new Date(calcAnchorMs).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' UTC (click chart to re-anchor)';
+  }
+
+  btnCalcToggle.addEventListener('click', function() {
+    var anyShown = false;
+    for (var i = 0; i < voltChart.data.datasets.length; i++) {
+      var ds = voltChart.data.datasets[i];
+      if (ds && ds._isCalculated && ds.hidden !== true) { anyShown = true; break; }
+    }
+    if (!anyShown) refreshCalculatedDatasets();
+    setCalcVisibility(!anyShown);
+  });
+
+  btnEventToggle.addEventListener('click', function() {
+    setEventVisibility(!showEventLegend);
+  });
+
+  // Expose calculated-controls so expanded modal can reuse the exact same logic.
+  voltCanvas._calcController = {
+    isCalculatedVisible: function() { return !!showCalcLegend; },
+    setCalculatedVisible: function(show) { setCalcVisibility(!!show); },
+    setAnchorFromXMs: function(xVal) { setCalcAnchorFromXMs(xVal); }
+  };
+
+  voltCanvas.addEventListener('click', function(ev) {
+    if (!showCalcLegend || !voltChart || !voltChart.scales || !voltChart.scales.x) return;
+    var rect = voltCanvas.getBoundingClientRect();
+    var px = ev.clientX - rect.left;
+    var xVal = voltChart.scales.x.getValueForPixel(px);
+    setCalcAnchorFromXMs(xVal);
+  });
 }
 
 
@@ -1072,18 +2411,51 @@ function renderSyncCharts(container, entries, stationId, range) {
   if (!entries || !entries.length) return;
   var satAEnabled = isSatelliteInstalled(entries, 'A');
   var satBEnabled = isSatelliteInstalled(entries, 'B');
+  var syncBoxWrap = null;
   var rangeStartMs = entries[0].timestamp.getTime();
   var rangeEndMs = entries[entries.length - 1].timestamp.getTime();
   var syncRows = (_stationSyncTimeline[stationId] || []).filter(function(row) {
     var ts = new Date(ensureUTC(row && row.sync_started_at)).getTime();
     return !isNaN(ts) && ts >= rangeStartMs && ts <= rangeEndMs;
   });
+
+  function rowSyncLooksReal(row) {
+    if (!row) return false;
+    var okNum = Number(row.sync_ok);
+    if (isFinite(okNum) && okNum > 0) return true;
+    var syncedNum = Number(row.sat_samples_synced);
+    if (isFinite(syncedNum) && syncedNum > 0) return true;
+    var rssiNum = Number(row.sat_rssi_avg);
+    if (isFinite(rssiNum) && rssiNum !== 0) return true;
+    var s = String(row.status || '').trim().toLowerCase();
+    return s === 'ok' || s === 'success' || s === 'succeeded' || s === 'complete' || s === 'completed';
+  }
+
+  function isUsableSyncDrift(driftVal, row) {
+    if (driftVal === null || driftVal === undefined) return false;
+    var d = Number(driftVal);
+    if (!isFinite(d)) return false;
+    // Require sync evidence so stale carried values do not extend lines after disconnect.
+    return rowSyncLooksReal(row);
+  }
+
+  function isUsableLegacyDrift(driftVal, rssiVal, sampleId) {
+    if (driftVal === null || driftVal === undefined) return false;
+    var d = Number(driftVal);
+    if (!isFinite(d)) return false;
+    var r = Number(rssiVal);
+    var hasRssi = isFinite(r) && r !== 0;
+    var hasSampleId = sampleId !== null && sampleId !== undefined;
+    return hasRssi || hasSampleId;
+  }
+
   // Check if any sync/RSSI data exists
   var hasDrift = syncRows.some(function(row) {
     var n = (row && row.node_id ? String(row.node_id) : '').toUpperCase();
-    return ((n === 'A' && satAEnabled) || (n === 'B' && satBEnabled)) && row.sat_drift_s !== null && row.sat_drift_s !== undefined;
+    return ((n === 'A' && satAEnabled) || (n === 'B' && satBEnabled)) && isUsableSyncDrift(row.sat_drift_s, row);
   }) || entries.some(function(e) {
-    return (satAEnabled && e.satASyncDrift !== null) || (satBEnabled && e.satBSyncDrift !== null);
+    return (satAEnabled && isUsableLegacyDrift(e.satASyncDrift, e.satARssi, e.satASampleId)) ||
+           (satBEnabled && isUsableLegacyDrift(e.satBSyncDrift, e.satBRssi, e.satBSampleId));
   });
   var hasSystemDrift = entries.some(function(e) { return e.syncDrift !== null; });
   var hasRssi  = syncRows.some(function(row) {
@@ -1098,12 +2470,17 @@ function renderSyncCharts(container, entries, stationId, range) {
   if (!hasDrift && !hasSystemDrift && !hasRssi && !hasSyncData) return;
 
   if (hasSyncData) {
-    var syncBoxWrap = document.createElement('div');
+    syncBoxWrap = document.createElement('div');
     syncBoxWrap.className = 'chart-box';
     syncBoxWrap.style.marginBottom = '12px';
     var latestCfg = parseField8ConfigUnified(entries[entries.length - 1]._rawField8);
     var cfgSyncTxt = '--';
+    var defaultSyncPeriodMs = 3 * 3600000;
     if (latestCfg && latestCfg.espnowSyncPeriod_s) {
+      var cfgSyncSecNum = Number(latestCfg.espnowSyncPeriod_s);
+      if (isFinite(cfgSyncSecNum) && cfgSyncSecNum > 0) {
+        defaultSyncPeriodMs = cfgSyncSecNum * 1000;
+      }
       cfgSyncTxt = latestCfg.espnowSyncPeriod_s >= 3600
         ? (latestCfg.espnowSyncPeriod_s / 3600).toFixed(1) + 'h'
         : Math.round(latestCfg.espnowSyncPeriod_s / 60) + 'm';
@@ -1113,16 +2490,40 @@ function renderSyncCharts(container, entries, stationId, range) {
     syncBoxWrap.appendChild(syncCanvas);
     container.appendChild(syncBoxWrap);
 
+    function isSuccessfulSyncRow(row) {
+      if (!row) return false;
+      var okNum = Number(row.sync_ok);
+      if (isFinite(okNum)) return okNum > 0;
+      var s = String(row.status || '').trim().toLowerCase();
+      return s === 'ok' || s === 'success' || s === 'succeeded' || s === 'complete' || s === 'completed';
+    }
+
+    var satAObservedEventTimes = syncRows.filter(function(row) {
+      return String((row && row.node_id) || '').toUpperCase() === 'A' && isSuccessfulSyncRow(row);
+    }).map(function(row) {
+      return row && row.sync_started_at ? new Date(ensureUTC(row.sync_started_at)).getTime() : NaN;
+    }).filter(function(ts) {
+      return isFinite(ts) && ts >= rangeStartMs && ts <= rangeEndMs;
+    });
+
+    var satBObservedEventTimes = syncRows.filter(function(row) {
+      return String((row && row.node_id) || '').toUpperCase() === 'B' && isSuccessfulSyncRow(row);
+    }).map(function(row) {
+      return row && row.sync_started_at ? new Date(ensureUTC(row.sync_started_at)).getTime() : NaN;
+    }).filter(function(ts) {
+      return isFinite(ts) && ts >= rangeStartMs && ts <= rangeEndMs;
+    });
+
     var byBucket = {}, bucketKeys = [], labels = [];
     var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     var syncRangeCacheKey = stationId + '_sync_' + range;
     if (!_syncWindowCache[syncRangeCacheKey]) {
       _syncWindowCache[syncRangeCacheKey] = {
         satA: satAEnabled
-          ? evaluateSyncWindows(entries, 'satASampleId', 'satABatV', rangeStartMs, rangeEndMs, 3 * 3600000, 'satAInstalled')
+          ? evaluateSyncWindows(entries, 'satASampleId', 'satABatV', rangeStartMs, rangeEndMs, defaultSyncPeriodMs, 'satAInstalled', satAObservedEventTimes)
           : { synced: 0, missed: 0, total: 0, slots: [] },
         satB: satBEnabled
-          ? evaluateSyncWindows(entries, 'satBSampleId', 'satBBatV', rangeStartMs, rangeEndMs, 3 * 3600000, 'satBInstalled')
+          ? evaluateSyncWindows(entries, 'satBSampleId', 'satBBatV', rangeStartMs, rangeEndMs, defaultSyncPeriodMs, 'satBInstalled', satBObservedEventTimes)
           : { synced: 0, missed: 0, total: 0, slots: [] }
       };
     }
@@ -1215,8 +2616,8 @@ function renderSyncCharts(container, entries, stationId, range) {
           legend: { position: 'top', labels: { color: '#94a3b8', font: { size: 11 } } }
         },
         scales: {
-          x: { stacked: true, ticks: { color: '#64748b', maxTicksLimit: range === 'day' ? 24 : 14 }, grid: { color: '#1e293b' } },
-          y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, title: { display: true, text: 'Uploads', color: '#64748b' } }
+          x: { stacked: true, ticks: { color: '#64748b', maxTicksLimit: range === 'day' ? 24 : 14 }, grid: { color: '#d6e3df' } },
+          y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#d6e3df' }, title: { display: true, text: 'Uploads', color: '#64748b' } }
         }
       }
     }, { stationId: stationId, chartKey: 'sync_reliability' });
@@ -1230,7 +2631,7 @@ function renderSyncCharts(container, entries, stationId, range) {
   if (hasDrift || hasSystemDrift) {
     driftCanvas = document.createElement('canvas');
     driftBox = document.createElement('div');
-    driftBox.className = 'chart-box';
+    driftBox.className = 'chart-box chart-box-tall';
     driftBox.innerHTML = '<h4>Satellite Sync Drift (' + rangeLabel(range) + ')</h4>';
     driftBox.appendChild(driftCanvas);
     row.appendChild(driftBox);
@@ -1239,13 +2640,14 @@ function renderSyncCharts(container, entries, stationId, range) {
   if (hasRssi) {
     rssiCanvas = document.createElement('canvas');
     var rssiBox = document.createElement('div');
-    rssiBox.className = 'chart-box';
+    rssiBox.className = 'chart-box chart-box-tall';
     rssiBox.innerHTML = '<h4>RSSI (' + rangeLabel(range) + ')</h4>';
     rssiBox.appendChild(rssiCanvas);
     row.appendChild(rssiBox);
   }
 
-  container.appendChild(row);
+  if (syncBoxWrap) container.insertBefore(row, syncBoxWrap);
+  else container.appendChild(row);
 
   var satADriftSeries = [], satBDriftSeries = [], sysDriftSeries = [];
   var satARssiSeries = [], satBRssiSeries = [];
@@ -1257,10 +2659,10 @@ function renderSyncCharts(container, entries, stationId, range) {
       if (isNaN(t.getTime())) return;
       var node = (row.node_id || '').toUpperCase();
       if (node === 'A') {
-        if (row.sat_drift_s !== null && row.sat_drift_s !== undefined) satADriftSeries.push({ x: t, y: row.sat_drift_s });
+        if (isUsableSyncDrift(row.sat_drift_s, row)) satADriftSeries.push({ x: t, y: row.sat_drift_s });
         if (row.sat_rssi_avg !== null && row.sat_rssi_avg !== undefined && row.sat_rssi_avg !== 0) satARssiSeries.push({ x: t, y: row.sat_rssi_avg });
       } else if (node === 'B' && satBEnabled) {
-        if (row.sat_drift_s !== null && row.sat_drift_s !== undefined) satBDriftSeries.push({ x: t, y: row.sat_drift_s });
+        if (isUsableSyncDrift(row.sat_drift_s, row)) satBDriftSeries.push({ x: t, y: row.sat_drift_s });
         if (row.sat_rssi_avg !== null && row.sat_rssi_avg !== undefined && row.sat_rssi_avg !== 0) satBRssiSeries.push({ x: t, y: row.sat_rssi_avg });
       }
     });
@@ -1286,10 +2688,10 @@ function renderSyncCharts(container, entries, stationId, range) {
 
   recent.forEach(function(e) {
     var tsMs = e.timestamp.getTime();
-    var satAHasSampleId = e.satASampleId !== null;
-    var satBHasSampleId = e.satBSampleId !== null;
-    var satANewSync = satAHasSampleId ? (e.satASampleId !== lastSatASampleId) : true;
-    var satBNewSync = satBHasSampleId ? (e.satBSampleId !== lastSatBSampleId) : true;
+    var satAHasSampleId = e.satASampleId !== null && e.satASampleId !== undefined;
+    var satBHasSampleId = e.satBSampleId !== null && e.satBSampleId !== undefined;
+    var satANewSync = satAHasSampleId && (e.satASampleId !== lastSatASampleId);
+    var satBNewSync = satBHasSampleId && (e.satBSampleId !== lastSatBSampleId);
 
     if (satAHasSampleId) lastSatASampleId = e.satASampleId;
     if (satBHasSampleId) lastSatBSampleId = e.satBSampleId;
@@ -1301,7 +2703,7 @@ function renderSyncCharts(container, entries, stationId, range) {
       _prevRawField8 = e._rawField8;
     }
 
-    if (_needLegacySatSeries && e.satASyncDrift !== null) {
+    if (_needLegacySatSeries && isUsableLegacyDrift(e.satASyncDrift, e.satARssi, e.satASampleId)) {
       var emitSatADrift = satANewSync || satALastDrift === null || e.satASyncDrift !== satALastDrift || satALastDriftTs === null || (tsMs - satALastDriftTs >= MAX_POINT_GAP_MS);
       if (emitSatADrift) {
         satADriftSeries.push({ x: e.timestamp, y: e.satASyncDrift });
@@ -1309,7 +2711,7 @@ function renderSyncCharts(container, entries, stationId, range) {
         satALastDriftTs = tsMs;
       }
     }
-    if (_needLegacySatSeries && satBEnabled && e.satBSyncDrift !== null) {
+    if (_needLegacySatSeries && satBEnabled && isUsableLegacyDrift(e.satBSyncDrift, e.satBRssi, e.satBSampleId)) {
       var emitSatBDrift = satBNewSync || satBLastDrift === null || e.satBSyncDrift !== satBLastDrift || satBLastDriftTs === null || (tsMs - satBLastDriftTs >= MAX_POINT_GAP_MS);
       if (emitSatBDrift) {
         satBDriftSeries.push({ x: e.timestamp, y: e.satBSyncDrift });
@@ -1364,7 +2766,7 @@ function renderSyncCharts(container, entries, stationId, range) {
   }
 
   if ((hasDrift || hasSystemDrift) && driftCanvas) {
-    var dOpts = chartOpts('Drift (s)', undefined, undefined, range, stationId);
+    var dOpts = chartOpts('Drift (s)', undefined, undefined, range, stationId, rangeStartMs, rangeEndMs);
     dOpts.scales.y.ticks = { callback: function(v) { return (v>=0?'+':'')+v+'s'; }, color: '#94a3b8', font: { size: 10 } };
     var driftDatasets = [];
     if (satADriftSeries.length) driftDatasets.push(makeSeriesDS(lttbDownsample(satADriftSeries), 'Sat-A Drift', '#22c55e'));
@@ -1385,7 +2787,7 @@ function renderSyncCharts(container, entries, stationId, range) {
         if (satBEnabled) ds.push(makeSeriesDS(lttbDownsample(satBRssiSeries), 'Sat-B RSSI', '#3b82f6'));
         return ds;
       })()},
-      options: chartOpts('RSSI (dBm)', -100, 0, range, stationId),
+      options: chartOpts('RSSI (dBm)', -100, 0, range, stationId, rangeStartMs, rangeEndMs),
     }, { stationId: stationId, chartKey: 'rssi' });
   }
 
@@ -1403,6 +2805,86 @@ function rangeLabel(range) {
 // ============================================================
 var _modalChart = null;
 var _modalSource = null;
+
+function cloneChartDataForModal(data) {
+  var out = { datasets: [] };
+  if (data && Array.isArray(data.labels)) out.labels = data.labels.slice();
+  if (data && Array.isArray(data.datasets)) {
+    out.datasets = data.datasets.map(function(ds) {
+      var copy = Object.assign({}, ds);
+      if (Array.isArray(ds.data)) copy.data = ds.data.slice();
+      return copy;
+    });
+  }
+  return out;
+}
+
+function pointXMs(pt) {
+  if (pt === null || pt === undefined) return NaN;
+  if (typeof pt === 'number') return isFinite(pt) ? pt : NaN;
+  if (pt instanceof Date) return isNaN(pt.getTime()) ? NaN : pt.getTime();
+  if (typeof pt === 'object') {
+    var x = pt.x;
+    if (x instanceof Date) return isNaN(x.getTime()) ? NaN : x.getTime();
+    if (typeof x === 'number') return isFinite(x) ? x : NaN;
+    if (typeof x === 'string') {
+      var d = new Date(x);
+      return isNaN(d.getTime()) ? NaN : d.getTime();
+    }
+  }
+  return NaN;
+}
+
+function getObservedBoundsFromData(data) {
+  var min = Infinity;
+  var max = -Infinity;
+  var datasets = (data && Array.isArray(data.datasets)) ? data.datasets : [];
+  for (var i = 0; i < datasets.length; i++) {
+    var ds = datasets[i] || {};
+    if (ds._isCalculated || ds._isEvent || ds._isGuide) continue;
+    var pts = Array.isArray(ds.data) ? ds.data : [];
+    for (var j = 0; j < pts.length; j++) {
+      var t = pointXMs(pts[j]);
+      if (!isFinite(t)) continue;
+      if (t < min) min = t;
+      if (t > max) max = t;
+    }
+  }
+  if (!isFinite(min) || !isFinite(max)) return null;
+  return { min: min, max: max };
+}
+
+function getWindowForRange(bounds, range) {
+  if (!bounds || !isFinite(bounds.min) || !isFinite(bounds.max)) return { min: undefined, max: undefined };
+  if (range === 'all') return { min: bounds.min, max: bounds.max };
+  var spanMs = 0;
+  if (range === 'day') spanMs = 24 * 3600000;
+  else if (range === 'week') spanMs = 7 * 24 * 3600000;
+  else if (range === 'month') spanMs = 30 * 24 * 3600000;
+  if (!spanMs) return { min: bounds.min, max: bounds.max };
+  var end = bounds.max;
+  var start = Math.max(bounds.min, end - spanMs);
+  return { min: start, max: end };
+}
+
+function getChartSnapshotForRange(stationId, chartKey, range) {
+  if (!stationId || !chartKey) return null;
+  var prevRange = stationRanges[stationId] || 'week';
+  var changed = prevRange !== range;
+  if (changed) setStationRange(stationId, range);
+  var canvas = findStationChartCanvas(stationId, chartKey);
+  var chart = canvas ? Chart.getChart(canvas) : null;
+  var snapshot = null;
+  if (chart) {
+    snapshot = {
+      type: chart.config.type,
+      data: cloneChartDataForModal(chart.data),
+      options: chart.options
+    };
+  }
+  if (changed) setStationRange(stationId, prevRange);
+  return snapshot;
+}
 
 // Wraps new Chart() -- stores title on canvas and attaches an expand button
 function makeLiveChart(box, canvas, title, cfg, meta) {
@@ -1423,9 +2905,21 @@ function makeLiveChart(box, canvas, title, cfg, meta) {
 function openChartModal(title, srcCanvas) {
   var srcChart = Chart.getChart(srcCanvas);
   if (!srcChart) return;
+  var stationId = srcCanvas._stationId || null;
+  var chartKey = srcCanvas._chartKey || null;
+  var activeRange = stationId ? (stationRanges[stationId] || 'week') : 'week';
+  var fullSnap = getChartSnapshotForRange(stationId, chartKey, 'all');
+  var modalType = fullSnap && fullSnap.type ? fullSnap.type : srcChart.config.type;
+  var modalData = fullSnap && fullSnap.data ? fullSnap.data : cloneChartDataForModal(srcChart.data);
+  var observedBounds = getObservedBoundsFromData(modalData);
+  var initialWindow = getWindowForRange(observedBounds, activeRange);
+  var liveSourceCanvas = findStationChartCanvas(stationId, chartKey) || srcCanvas;
   _modalSource = {
-    stationId: srcCanvas._stationId || null,
-    chartKey: srcCanvas._chartKey || null
+    stationId: stationId,
+    chartKey: chartKey,
+    sourceCanvas: liveSourceCanvas,
+    modalRange: activeRange,
+    observedBounds: observedBounds
   };
   updateModalRangeControls();
   document.getElementById('chartModalTitle').textContent = title;
@@ -1437,7 +2931,12 @@ function openChartModal(title, srcCanvas) {
   modalCanvas.removeAttribute('width');
   modalCanvas.removeAttribute('height');
 
-  var isBar = srcChart.config.type === 'bar';
+  var isBar = modalType === 'bar';
+  var modalLegendFilter = function(legendItem, chartData) {
+    var ds = chartData && chartData.datasets ? chartData.datasets[legendItem.datasetIndex] : null;
+    if (ds && (ds._isCalculated || ds._isEvent) && ds.hidden === true) return false;
+    return true;
+  };
   var srcScaleY = (srcChart.options.scales || {}).y || {};
   var yTitle = (srcScaleY.title || {}).text || '';
   var yMin   = srcScaleY.min;
@@ -1449,13 +2948,13 @@ function openChartModal(title, srcCanvas) {
     modalOpts = {
       responsive: true, maintainAspectRatio: false, animation: false,
       plugins: {
-        legend: { position: 'top', labels: { color: '#94a3b8', font: { size: 11 } } },
+        legend: { position: 'top', labels: { color: '#94a3b8', font: { size: 11 }, filter: modalLegendFilter } },
         zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
                 pan:  { enabled: true, mode: 'xy' } }
       },
       scales: {
-        x: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
-        y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e293b' },
+        x: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#d6e3df' } },
+        y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#d6e3df' },
              title: { display: !!yTitle, text: yTitle, color: '#64748b' } }
       }
     };
@@ -1466,39 +2965,116 @@ function openChartModal(title, srcCanvas) {
       responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'nearest', axis: 'x', intersect: false },
       plugins: {
-        legend: { display: true, position: 'top', labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 14, padding: 10 } },
+        legend: { display: true, position: 'top', labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 14, padding: 10, filter: modalLegendFilter } },
         tooltip: { backgroundColor: '#1e293b', titleColor: '#f1f5f9', bodyColor: '#94a3b8', borderColor: '#334155', borderWidth: 1 },
         zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
                 pan:  { enabled: true, mode: 'x' } }
       },
       scales: (function() {
         var mRange = (_modalSource && _modalSource.stationId) ? (stationRanges[_modalSource.stationId] || 'week') : 'week';
-        var mxTime;
+        var mxTime, mMaxTicks, mAutoSkip;
         if (mRange === 'day') {
-          mxTime = { tooltipFormat: 'dd MMM HH:mm', displayFormats: { hour: 'HH:mm', minute: 'HH:mm' } };
+          mxTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'hour', round: 'hour', stepSize: 3, displayFormats: { hour: 'HH:mm', minute: 'HH:mm' } };
+          mMaxTicks = 9;
+          mAutoSkip = false;
         } else if (mRange === 'week') {
-          mxTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
+          mxTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'hour', stepSize: 12, displayFormats: { hour: 'dd MMM HH:mm' } };
+          mMaxTicks = 8;
+          mAutoSkip = false;
+        } else if (mRange === 'month') {
+          mxTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'hour', stepSize: 12, displayFormats: { hour: 'dd MMM HH:mm' } };
+          mMaxTicks = 10;
+          mAutoSkip = false;
         } else {
           mxTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
+          mMaxTicks = 12;
+          mAutoSkip = true;
         }
         var mAdapters = { date: { zone: 'UTC' } };
+        var mMin = initialWindow.min;
+        var mMax = initialWindow.max;
+        function tickDate(v) {
+          if (v === null || v === undefined) return null;
+          var d = null;
+          if (typeof v === 'number' && isFinite(v)) d = new Date(v);
+          if (!d || isNaN(d.getTime())) {
+            var n = Number(v);
+            if (isFinite(n)) d = new Date(n);
+          }
+          if (!d || isNaN(d.getTime())) d = new Date(v);
+          return (d && !isNaN(d.getTime())) ? d : null;
+        }
         return {
           x: { type: 'time', time: mxTime, adapters: mAdapters,
-               ticks: { color: '#64748b', font: { size: 11 }, maxTicksLimit: 12 }, grid: { color: '#1e293b' } },
+               min: (isFinite(mMin) ? mMin : undefined),
+               max: (isFinite(mMax) ? mMax : undefined),
+               ticks: {
+                 color: '#64748b',
+                 font: { size: 11 },
+                 maxTicksLimit: mMaxTicks,
+                 autoSkip: mAutoSkip,
+                 callback: function(value, index, ticks) {
+                   if (mRange !== 'week' && mRange !== 'month') return this.getLabelForValue(value);
+                   var d = tickDate(value);
+                   if (!d) return this.getLabelForValue(value);
+                   var prev = (index > 0 && ticks && ticks[index - 1]) ? tickDate(ticks[index - 1].value) : null;
+                   if (!prev || d.getUTCDate() !== prev.getUTCDate() || d.getUTCMonth() !== prev.getUTCMonth() || d.getUTCFullYear() !== prev.getUTCFullYear()) {
+                     return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+                   }
+                   return d.getUTCHours() === 0
+                     ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' })
+                     : '';
+                 }
+               },
+               grid: {
+                 color: function(ctx) {
+                   if ((mRange !== 'week' && mRange !== 'month') || !ctx.tick) return '#d6e3df';
+                   var d = tickDate(ctx.tick.value);
+                   if (!d) return '#d6e3df';
+                   return d.getUTCHours() === 12 ? 'rgba(214,227,223,0.55)' : '#d6e3df';
+                 },
+                 lineWidth: function(ctx) {
+                   if ((mRange !== 'week' && mRange !== 'month') || !ctx.tick) return 1;
+                   var d = tickDate(ctx.tick.value);
+                   if (!d) return 1;
+                   return d.getUTCHours() === 12 ? 0.8 : 1;
+                 }
+               } },
           y: { title: { display: !!yTitle, text: yTitle, color: '#64748b', font: { size: 11 } },
                min: (yMin !== undefined && yMin !== null) ? yMin : undefined,
                max: (yMax !== undefined && yMax !== null) ? yMax : undefined,
-               ticks: yTicks, grid: { color: '#1e293b' } }
+               ticks: yTicks, grid: { color: '#d6e3df' } }
         };
       })()
     };
   }
 
   _modalChart = new Chart(modalCanvas, {
-    type: srcChart.config.type,
-    data: { labels: srcChart.data.labels, datasets: srcChart.data.datasets },
+    type: modalType,
+    data: modalData,
     options: modalOpts
   });
+  updateModalToggleControls();
+}
+
+function syncModalDataFromSource() {
+  if (!_modalChart || !_modalSource) return;
+  var liveCanvas = findStationChartCanvas(_modalSource.stationId, _modalSource.chartKey) || _modalSource.sourceCanvas;
+  if (!liveCanvas) return;
+  _modalSource.sourceCanvas = liveCanvas;
+  var srcChart = Chart.getChart(liveCanvas);
+  if (!srcChart) return;
+  var xOpts = _modalChart.options && _modalChart.options.scales ? _modalChart.options.scales.x : null;
+  var curMin = xOpts ? xOpts.min : undefined;
+  var curMax = xOpts ? xOpts.max : undefined;
+  _modalChart.data = cloneChartDataForModal(srcChart.data);
+  _modalSource.observedBounds = getObservedBoundsFromData(_modalChart.data);
+  if (xOpts) {
+    xOpts.min = curMin;
+    xOpts.max = curMax;
+  }
+  _modalChart.update('none');
+  updateModalToggleControls();
 }
 
 function updateModalRangeControls() {
@@ -1510,11 +3086,104 @@ function updateModalRangeControls() {
     return;
   }
   wrap.style.display = 'flex';
-  var activeRange = stationRanges[stationId] || 'week';
+  var activeRange = (_modalSource && _modalSource.modalRange) || (stationRanges[stationId] || 'week');
   var btns = wrap.querySelectorAll('[data-mrange]');
   btns.forEach(function(btn) {
     btn.classList.toggle('active', btn.getAttribute('data-mrange') === activeRange);
   });
+}
+
+function getModalDatasetStats() {
+  var out = {
+    hasCalculated: false,
+    hasEvents: false,
+    calculatedVisible: false,
+    eventsVisible: false
+  };
+  if (!_modalChart || !_modalChart.data || !Array.isArray(_modalChart.data.datasets)) return out;
+  var sets = _modalChart.data.datasets;
+  for (var i = 0; i < sets.length; i++) {
+    var ds = sets[i] || {};
+    if (ds._isCalculated) {
+      out.hasCalculated = true;
+      if (ds.hidden !== true) out.calculatedVisible = true;
+    }
+    if (ds._isEvent) {
+      out.hasEvents = true;
+      if (ds._eventType !== 'sample' && ds._eventType !== 'config' && ds.hidden !== true) out.eventsVisible = true;
+    }
+  }
+  return out;
+}
+
+function updateModalToggleControls() {
+  var wrap = document.getElementById('chartModalToggles');
+  var calcBtn = document.getElementById('chartModalCalcBtn');
+  var eventBtn = document.getElementById('chartModalEventBtn');
+  if (!wrap || !calcBtn || !eventBtn) return;
+  if (!_modalChart) {
+    wrap.style.display = 'none';
+    return;
+  }
+  var s = getModalDatasetStats();
+  var showWrap = s.hasCalculated || s.hasEvents;
+  wrap.style.display = showWrap ? 'flex' : 'none';
+
+  calcBtn.style.display = s.hasCalculated ? '' : 'none';
+  calcBtn.classList.toggle('active', s.calculatedVisible);
+  calcBtn.textContent = s.calculatedVisible ? 'Hide Calculated' : 'Show Calculated';
+
+  eventBtn.style.display = s.hasEvents ? '' : 'none';
+  eventBtn.classList.toggle('active', s.eventsVisible);
+  eventBtn.textContent = s.eventsVisible ? 'Hide Events' : 'Show Events';
+}
+
+function setModalCalculatedVisibility(show) {
+  if (!_modalChart || !_modalChart.data || !Array.isArray(_modalChart.data.datasets)) return;
+  var sets = _modalChart.data.datasets;
+  for (var i = 0; i < sets.length; i++) {
+    if (sets[i] && sets[i]._isCalculated) sets[i].hidden = !show;
+  }
+  _modalChart.update('none');
+  updateModalToggleControls();
+}
+
+function setModalEventVisibility(show) {
+  if (!_modalChart || !_modalChart.data || !Array.isArray(_modalChart.data.datasets)) return;
+  var sets = _modalChart.data.datasets;
+  for (var i = 0; i < sets.length; i++) {
+    var ds = sets[i];
+    if (!ds || !ds._isEvent) continue;
+    if (!show) ds.hidden = true;
+    else ds.hidden = (ds._eventType === 'sample' || ds._eventType === 'config');
+  }
+  _modalChart.update('none');
+  updateModalToggleControls();
+}
+
+function toggleModalCalculated() {
+  var s = getModalDatasetStats();
+  if (!s.hasCalculated) return;
+  var targetShow = !s.calculatedVisible;
+  var liveCanvas = _modalSource ? (findStationChartCanvas(_modalSource.stationId, _modalSource.chartKey) || _modalSource.sourceCanvas) : null;
+  if (_modalSource && liveCanvas) _modalSource.sourceCanvas = liveCanvas;
+  var ctrl = liveCanvas ? liveCanvas._calcController : null;
+  if (ctrl && typeof ctrl.setCalculatedVisible === 'function') {
+    ctrl.setCalculatedVisible(targetShow);
+    syncModalDataFromSource();
+    var after = getModalDatasetStats();
+    if (!!after.calculatedVisible !== !!targetShow) {
+      setModalCalculatedVisibility(targetShow);
+    }
+    return;
+  }
+  setModalCalculatedVisibility(targetShow);
+}
+
+function toggleModalEvents() {
+  var s = getModalDatasetStats();
+  if (!s.hasEvents) return;
+  setModalEventVisibility(!s.eventsVisible);
 }
 
 function findStationChartCanvas(stationId, chartKey) {
@@ -1529,13 +3198,15 @@ function findStationChartCanvas(stationId, chartKey) {
 }
 
 function setModalRange(range) {
-  if (!_modalSource || !_modalSource.stationId) return;
-  var stationId = _modalSource.stationId;
-  var chartKey = _modalSource.chartKey;
-  setStationRange(stationId, range);
+  if (!_modalSource || !_modalChart) return;
+  _modalSource.modalRange = range;
+  var win = getWindowForRange(_modalSource.observedBounds, range);
+  if (_modalChart.options && _modalChart.options.scales && _modalChart.options.scales.x) {
+    _modalChart.options.scales.x.min = win.min;
+    _modalChart.options.scales.x.max = win.max;
+  }
+  _modalChart.update('none');
   updateModalRangeControls();
-  var nextCanvas = findStationChartCanvas(stationId, chartKey);
-  if (nextCanvas) openChartModal(nextCanvas._expandTitle, nextCanvas);
 }
 
 function closeChartModal(evt) {
@@ -1544,11 +3215,31 @@ function closeChartModal(evt) {
   if (_modalChart) { _modalChart.destroy(); _modalChart = null; }
   _modalSource = null;
   updateModalRangeControls();
+  updateModalToggleControls();
 }
 
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeChartModal();
 });
+
+function bindModalCanvasReanchor() {
+  var modalCanvasEl = document.getElementById('chartModalCanvas');
+  if (!modalCanvasEl || modalCanvasEl._reanchorBound) return;
+  modalCanvasEl.addEventListener('click', function(ev) {
+    if (!_modalChart || !_modalChart.scales || !_modalChart.scales.x) return;
+    var liveCanvas = _modalSource ? (findStationChartCanvas(_modalSource.stationId, _modalSource.chartKey) || _modalSource.sourceCanvas) : null;
+    if (_modalSource && liveCanvas) _modalSource.sourceCanvas = liveCanvas;
+    var ctrl = liveCanvas ? liveCanvas._calcController : null;
+    if (!ctrl || typeof ctrl.isCalculatedVisible !== 'function' || !ctrl.isCalculatedVisible()) return;
+    var rect = ev.target.getBoundingClientRect();
+    var px = ev.clientX - rect.left;
+    var xVal = _modalChart.scales.x.getValueForPixel(px);
+    if (xVal == null || !isFinite(xVal) || typeof ctrl.setAnchorFromXMs !== 'function') return;
+    ctrl.setAnchorFromXMs(xVal);
+    syncModalDataFromSource();
+  });
+  modalCanvasEl._reanchorBound = true;
+}
 
 function pctColor(v) {
   if (v > 90) return 'var(--success)';
@@ -1609,7 +3300,14 @@ function renderDataHealth(container, entries) {
 // ============================================================
 function renderDailyHealth(container, entries, stationId) {
   if (!entries.length) return;
+  if (!_stationLogsVisibleDays[stationId] || _stationLogsVisibleDays[stationId] < STATION_LOG_ROWS_STEP) {
+    _stationLogsVisibleDays[stationId] = STATION_LOG_ROWS_STEP;
+  }
+  var satAEnabled = isSatelliteInstalled(entries, 'A');
   var satBEnabled = isSatelliteInstalled(entries, 'B');
+  var syncRowsAll = Array.isArray(_stationSyncTimeline[stationId]) ? _stationSyncTimeline[stationId] : [];
+  var uploadRowsAll = Array.isArray(_stationUploadTimeline[stationId]) ? _stationUploadTimeline[stationId] : [];
+  var configRow = stationId ? (_deviceConfigById[stationId] || null) : null;
 
   var byDay = {};
   entries.forEach(function(e) {
@@ -1622,14 +3320,359 @@ function renderDailyHealth(container, entries, stationId) {
   var wrap = document.createElement('div');
   wrap.className = 'health-table-wrap';
 
-  var html = '<table class="health-table"><thead><tr>' +
-    '<th>Date</th><th>Samples</th>' +
-    '<th>T0 Bat%</th><th>SatA Bat%</th>' + (satBEnabled ? '<th>SatB Bat%</th>' : '') +
-    '<th>SatA Syncs</th>' + (satBEnabled ? '<th>SatB Syncs</th>' : '') +
-    '<th>Gaps</th>' +
-    '</tr></thead><tbody>';
+  function num(v) {
+    if (v === null || v === undefined || v === '' || isNaN(v)) return null;
+    return Number(v);
+  }
 
-  var days = Object.keys(byDay).sort().reverse().slice(0, 14); // last 14 days
+  function median(arr) {
+    if (!arr || !arr.length) return null;
+    var copy = arr.slice().sort(function(a, b) { return a - b; });
+    return copy[Math.floor(copy.length / 2)];
+  }
+
+  function mode(arr) {
+    if (!arr || !arr.length) return null;
+    var counts = Object.create(null);
+    var bestKey = null;
+    var bestCount = -1;
+    for (var i = 0; i < arr.length; i++) {
+      var v = arr[i];
+      if (v === null || v === undefined || !isFinite(v)) continue;
+      var k = String(v);
+      counts[k] = (counts[k] || 0) + 1;
+      if (counts[k] > bestCount) {
+        bestCount = counts[k];
+        bestKey = k;
+      }
+    }
+    return bestKey == null ? null : Number(bestKey);
+  }
+
+  function fmtPeriodSeconds(sec) {
+    if (sec == null || !isFinite(sec) || sec <= 0) return '--';
+    if (sec % 3600 === 0) return (sec / 3600) + 'h';
+    if (sec % 60 === 0) return (sec / 60) + 'm';
+    return sec + 's';
+  }
+
+  function fmtPeriodMs(ms) {
+    if (ms == null || !isFinite(ms) || ms <= 0) return '--';
+    return fmtPeriodSeconds(Math.round(ms / 1000));
+  }
+
+  function medianIntervalMs(rows, tsGetter) {
+    if (!rows || rows.length < 2) return null;
+    var ts = rows.map(tsGetter).filter(function(v) { return v != null && isFinite(v); }).sort(function(a, b) { return a - b; });
+    if (ts.length < 2) return null;
+    var diffs = [];
+    for (var i = 1; i < ts.length; i++) {
+      var d = ts[i] - ts[i - 1];
+      if (d > 0 && d <= 48 * 3600000) diffs.push(d);
+    }
+    return median(diffs);
+  }
+
+  var globalT0IntervalMs = medianIntervalMs(entries, function(r) { return r.timestamp ? r.timestamp.getTime() : null; });
+  var globalUploadIntervalMs = medianIntervalMs(uploadRowsAll, function(r) {
+    return r && r.upload_started_at ? new Date(ensureUTC(r.upload_started_at)).getTime() : null;
+  });
+
+  var samplePeriodEvents = syncRowsAll.map(function(r) {
+    var ts = r && r.sync_started_at ? new Date(ensureUTC(r.sync_started_at)).getTime() : NaN;
+    var min = num(r && r.sample_period_min);
+    var sec = min != null ? min * 60 : null;
+    if (!isFinite(ts) || sec == null || !isFinite(sec) || sec <= 0) return null;
+    return { ts: ts, v: sec };
+  }).filter(function(x) { return !!x; }).sort(function(a, b) { return a.ts - b.ts; });
+
+  function dominantValueForDay(events, dayStart, dayEnd, defaultValue) {
+    if (!events || !events.length) return defaultValue == null ? null : defaultValue;
+
+    var current = null;
+    for (var i = 0; i < events.length; i++) {
+      if (events[i].ts <= dayStart) current = events[i].v;
+      else break;
+    }
+    if (current == null) {
+      for (var j = 0; j < events.length; j++) {
+        if (events[j].ts >= dayStart && events[j].ts < dayEnd) {
+          current = events[j].v;
+          break;
+        }
+      }
+    }
+    if (current == null) current = defaultValue;
+    if (current == null) return null;
+
+    var durationByVal = Object.create(null);
+    var cursor = dayStart;
+    for (var k = 0; k < events.length; k++) {
+      var ev = events[k];
+      if (ev.ts <= dayStart || ev.ts >= dayEnd) continue;
+      if (ev.ts > cursor) {
+        var keyPrev = String(current);
+        durationByVal[keyPrev] = (durationByVal[keyPrev] || 0) + (ev.ts - cursor);
+        cursor = ev.ts;
+      }
+      current = ev.v;
+    }
+    if (dayEnd > cursor) {
+      var keyTail = String(current);
+      durationByVal[keyTail] = (durationByVal[keyTail] || 0) + (dayEnd - cursor);
+    }
+
+    var bestVal = null;
+    var bestDuration = -1;
+    var keys = Object.keys(durationByVal);
+    for (var m = 0; m < keys.length; m++) {
+      var key = keys[m];
+      var dur = durationByVal[key] || 0;
+      if (dur > bestDuration) {
+        bestDuration = dur;
+        bestVal = Number(key);
+      }
+    }
+    if (bestVal != null && isFinite(bestVal)) return bestVal;
+    return defaultValue == null ? null : defaultValue;
+  }
+  var cfgBulkFreqHours = configRow ? (num(configRow.upload_interval_hours) || num(configRow.bulk_freq_hours)) : null;
+  var uploadBulkEvents = uploadRowsAll.map(function(r) {
+    var ts = r && r.upload_started_at ? new Date(ensureUTC(r.upload_started_at)).getTime() : NaN;
+    var h = num(r && r.applied_upload_interval_hours);
+    if (!isFinite(ts) || h == null || !isFinite(h) || h <= 0) return null;
+    return { ts: ts, h: h };
+  }).filter(function(x) { return !!x; }).sort(function(a, b) { return a.ts - b.ts; });
+
+  function dominantBulkFreqHoursForDay(dayStart, dayEnd) {
+    if (!uploadBulkEvents.length) return cfgBulkFreqHours || null;
+
+    var current = null;
+    for (var i = 0; i < uploadBulkEvents.length; i++) {
+      if (uploadBulkEvents[i].ts <= dayStart) current = uploadBulkEvents[i].h;
+      else break;
+    }
+    if (current == null) {
+      for (var j = 0; j < uploadBulkEvents.length; j++) {
+        if (uploadBulkEvents[j].ts >= dayStart && uploadBulkEvents[j].ts < dayEnd) {
+          current = uploadBulkEvents[j].h;
+          break;
+        }
+      }
+    }
+    if (current == null) current = cfgBulkFreqHours || uploadBulkEvents[uploadBulkEvents.length - 1].h;
+    if (current == null) return null;
+
+    var durationByHours = Object.create(null);
+    var cursor = dayStart;
+    for (var k = 0; k < uploadBulkEvents.length; k++) {
+      var ev = uploadBulkEvents[k];
+      if (ev.ts <= dayStart || ev.ts >= dayEnd) continue;
+      if (ev.ts > cursor) {
+        var keyPrev = String(current);
+        durationByHours[keyPrev] = (durationByHours[keyPrev] || 0) + (ev.ts - cursor);
+        cursor = ev.ts;
+      }
+      current = ev.h;
+    }
+    if (dayEnd > cursor) {
+      var keyTail = String(current);
+      durationByHours[keyTail] = (durationByHours[keyTail] || 0) + (dayEnd - cursor);
+    }
+
+    var bestHours = null;
+    var bestDuration = -1;
+    var keys = Object.keys(durationByHours);
+    for (var m = 0; m < keys.length; m++) {
+      var key = keys[m];
+      var dur = durationByHours[key] || 0;
+      if (dur > bestDuration) {
+        bestDuration = dur;
+        bestHours = Number(key);
+      }
+    }
+    return (bestHours != null && isFinite(bestHours) && bestHours > 0) ? bestHours : null;
+  }
+
+  function expectedPerDayFromIntervalMs(ms) {
+    if (!ms || !isFinite(ms) || ms <= 0) return null;
+    return Math.max(1, Math.round(86400000 / ms));
+  }
+
+  function expectedCountForWindow(periodSec, windowMs) {
+    if (periodSec == null || !isFinite(periodSec) || periodSec <= 0) return null;
+    if (windowMs == null || !isFinite(windowMs) || windowMs <= 0) return 0;
+    return Math.max(0, Math.floor(windowMs / (periodSec * 1000)));
+  }
+
+  function avg(arr) {
+    if (!arr || !arr.length) return null;
+    var sum = 0;
+    for (var i = 0; i < arr.length; i++) sum += arr[i];
+    return sum / arr.length;
+  }
+
+  function fmtCount(actual, expected) {
+    return String(actual) + '/' + (expected != null ? String(expected) : '--');
+  }
+
+  function fmtLostTime(received, expected, periodSec) {
+    if (expected == null || !isFinite(expected) || periodSec == null || !isFinite(periodSec) || periodSec <= 0) return '--';
+    var gap = Math.max(0, Math.round(expected - received));
+    var totalSec = gap * periodSec;
+    if (totalSec <= 0) return '0m';
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.round((totalSec % 3600) / 60);
+    if (m === 60) { h += 1; m = 0; }
+    if (h > 0 && m > 0) return h + 'h ' + m + 'm';
+    if (h > 0) return h + 'h';
+    return m + 'm';
+  }
+
+  function isUploadSuccess(row) {
+    if (!row) return false;
+    var okNum = num(row.upload_ok);
+    if (okNum != null) return okNum > 0;
+    var s = String(row.status || '').trim().toLowerCase();
+    if (!s) return false;
+    return s === 'ok' || s === 'success' || s === 'succeeded' || s === 'complete' || s === 'completed';
+  }
+
+  function isSyncSuccess(row) {
+    if (!row) return false;
+    var okNum = num(row.sync_ok);
+    if (okNum != null) return okNum > 0;
+    var s = String(row.status || '').trim().toLowerCase();
+    if (!s) return false;
+    return s === 'ok' || s === 'success' || s === 'succeeded' || s === 'complete' || s === 'completed';
+  }
+
+  function fmtOkAttempts(okCount, attempts) {
+    return String(okCount) + '/' + String(attempts);
+  }
+
+  function fmtAvgMax(arr, suffix, invertMax) {
+    if (!arr || !arr.length) return '--';
+    var a = avg(arr);
+    var m = invertMax ? Math.max.apply(null, arr) : Math.max.apply(null, arr);
+    var aStr = a != null ? a.toFixed(1) : '--';
+    var mStr = m != null ? m.toFixed(0) : '--';
+    return aStr + '/' + mStr + (suffix || '');
+  }
+
+  function fmtAvgMaxWithOutliers(arr, suffix, maxValidAbs) {
+    if (!arr || !arr.length) return '--';
+    var kept = [];
+    var dropped = 0;
+    for (var i = 0; i < arr.length; i++) {
+      var v = arr[i];
+      if (v == null || !isFinite(v)) continue;
+      if (maxValidAbs != null && Math.abs(v) > maxValidAbs) {
+        dropped++;
+      } else {
+        kept.push(v);
+      }
+    }
+    var base = fmtAvgMax(kept, suffix, false);
+    if (dropped > 0) base += ' !' + dropped;
+    return base;
+  }
+
+  function fmtMs(sumMs) {
+    if (!sumMs || !isFinite(sumMs) || sumMs <= 0) return '--';
+    var sec = Math.round(sumMs / 1000);
+    var h = Math.floor(sec / 3600);
+    var m = Math.floor((sec % 3600) / 60);
+    var s = sec % 60;
+    if (h > 0) return h + 'h ' + m + 'm';
+    if (m > 0) return m + 'm ' + s + 's';
+    return s + 's';
+  }
+
+  function fmtFwValue(v) {
+    var s = String(v || '').trim();
+    if (!s) return '--';
+    return /^v/i.test(s) ? s : ('v' + s);
+  }
+
+  function latestFwForDay(dayEntries, allEntries, key, dayEndMs) {
+    var i;
+    for (i = dayEntries.length - 1; i >= 0; i--) {
+      var vDay = dayEntries[i] && dayEntries[i][key];
+      if (vDay != null && String(vDay).trim() !== '') return String(vDay).trim();
+    }
+    for (i = allEntries.length - 1; i >= 0; i--) {
+      var eAll = allEntries[i];
+      if (!eAll || !eAll.timestamp) continue;
+      var ts = eAll.timestamp instanceof Date ? eAll.timestamp.getTime() : new Date(eAll.timestamp).getTime();
+      if (!isFinite(ts) || ts >= dayEndMs) continue;
+      var vAll = eAll[key];
+      if (vAll != null && String(vAll).trim() !== '') return String(vAll).trim();
+    }
+    return null;
+  }
+
+  function batteryTrend(arr, key) {
+    var first = arr.find(function(e) { return e[key] !== null && e[key] !== undefined && !isNaN(e[key]); });
+    var last = arr.slice().reverse().find(function(e) { return e[key] !== null && e[key] !== undefined && !isNaN(e[key]); });
+    if (!first || !last) return '<span style="color:var(--text-muted)">--</span>';
+
+    var a = Number(first[key]);
+    var b = Number(last[key]);
+    var d = b - a;
+    var arrow = d > 0.5 ? '\u2197' : d < -0.5 ? '\u2198' : '\u2192';
+    var color = d < -10 ? 'var(--danger)' : d < -3 ? 'var(--warning)' : (d > 1 ? 'var(--success)' : 'var(--text)');
+    return '<span style="color:' + color + '">' + a.toFixed(0) + arrow + b.toFixed(0) + '</span>';
+  }
+
+  var batteryCols = 1 + (satAEnabled ? 1 : 0) + (satBEnabled ? 1 : 0);
+  var sampleCols = 1 + (satAEnabled ? 1 : 0) + (satBEnabled ? 1 : 0);
+  var gapCols = 1 + (satAEnabled ? 1 : 0) + (satBEnabled ? 1 : 0);
+  var uploadCols = 1 + (satAEnabled ? 1 : 0) + (satBEnabled ? 1 : 0);
+  var radioCols = 1 + (satAEnabled ? 1 : 0) + (satBEnabled ? 1 : 0);
+  var driftCols = 1 + (satAEnabled ? 1 : 0) + (satBEnabled ? 1 : 0);
+  var durationCols = 1 + (satAEnabled ? 1 : 0) + (satBEnabled ? 1 : 0);
+  var dataCols = sampleCols + gapCols;
+  var radioSyncCols = uploadCols + radioCols + driftCols + durationCols;
+
+  var groupTh = function(label, span, cls) {
+    return '<th colspan="' + span + '" class="group-head ' + cls + '">' + label + '</th>';
+  };
+
+  var html = '<table class="health-table"><thead>' +
+    '<tr>' +
+      '<th rowspan="2">Date</th>' +
+      groupTh('Configuration', 5, 'grp-config') +
+      groupTh('Battery', batteryCols, 'grp-battery group-start') +
+      groupTh('Data', dataCols, 'grp-data group-start') +
+      groupTh('Radio and Satellite Syncs', radioSyncCols, 'grp-radio group-start') +
+    '</tr>' +
+    '<tr>' +
+      '<th class="grp-config">Sample Period<br><span style="font-weight:400">(min)</span></th><th class="grp-config">Upload Freq<br><span style="font-weight:400">(hours)</span></th><th class="grp-config">Sat Sync Freq<br><span style="font-weight:400">(hours)</span></th><th class="grp-config">T0 FW</th><th class="grp-config">Satellite FW</th>' +
+      '<th class="grp-battery group-start">T0 Bat<br><span style="font-weight:400">(%)</span></th>' + (satAEnabled ? '<th class="grp-battery">SatA Bat<br><span style="font-weight:400">(%)</span></th>' : '') + (satBEnabled ? '<th class="grp-battery">SatB Bat<br><span style="font-weight:400">(%)</span></th>' : '') +
+      '<th class="grp-data group-start">T0 Samples<br><span style="font-weight:400">(sync rec/exp)</span></th>' +
+      (satAEnabled ? '<th class="grp-data">SatA Samples<br><span style="font-weight:400">(sync rec/exp)</span></th>' : '') +
+      (satBEnabled ? '<th class="grp-data">SatB Samples<br><span style="font-weight:400">(sync rec/exp)</span></th>' : '') +
+      '<th class="grp-data">T0 Lost Time<br><span style="font-weight:400">(period-based)</span></th>' +
+      (satAEnabled ? '<th class="grp-data">SatA Lost Time<br><span style="font-weight:400">(period-based)</span></th>' : '') +
+      (satBEnabled ? '<th class="grp-data">SatB Lost Time<br><span style="font-weight:400">(period-based)</span></th>' : '') +
+      '<th class="grp-radio group-start">T0 Uploads<br><span style="font-weight:400">(ok/attempts)</span></th>' +
+      (satAEnabled ? '<th class="grp-radio">SatA Syncs<br><span style="font-weight:400">(ok/attempts)</span></th>' : '') +
+      (satBEnabled ? '<th class="grp-radio">SatB Syncs<br><span style="font-weight:400">(ok/attempts)</span></th>' : '') +
+      '<th class="grp-radio">T0 CSQ<br><span style="font-weight:400">(avg/max)</span></th>' +
+      (satAEnabled ? '<th class="grp-radio">SatA RSSI<br><span style="font-weight:400">(avg/max)</span></th>' : '') +
+      (satBEnabled ? '<th class="grp-radio">SatB RSSI<br><span style="font-weight:400">(avg/max)</span></th>' : '') +
+      '<th class="grp-radio">T0 Drift<br><span style="font-weight:400">(avg/max)</span></th>' +
+      (satAEnabled ? '<th class="grp-radio">SatA Drift<br><span style="font-weight:400">(avg/max)</span></th>' : '') +
+      (satBEnabled ? '<th class="grp-radio">SatB Drift<br><span style="font-weight:400">(avg/max)</span></th>' : '') +
+      '<th class="grp-radio">T0 Upload Time</th>' + (satAEnabled ? '<th class="grp-radio">SatA Sync Time</th>' : '') + (satBEnabled ? '<th class="grp-radio">SatB Sync Time</th>' : '') +
+    '</tr>' +
+    '</thead><tbody>';
+
+  var allDays = Object.keys(byDay).sort().reverse();
+  var visibleDays = Math.max(STATION_LOG_ROWS_STEP, Number(_stationLogsVisibleDays[stationId]) || STATION_LOG_ROWS_STEP);
+  var days = allDays.slice(0, visibleDays);
+  var nowMs = Date.now();
 
   for (var di = 0; di < days.length; di++) {
     var day = days[di];
@@ -1638,71 +3681,221 @@ function renderDailyHealth(container, entries, stationId) {
     var tz  = stationId ? stationTz(stationId) : undefined;
     var dateLabel = dl.toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', weekday: 'short' });
 
-    // Battery delta
-    function batDelta(arr, key) {
-      var first = arr.find(function(e){return e[key]!==null;});
-      var last  = arr.slice().reverse().find(function(e){return e[key]!==null;});
-      if (!first || !last || first === last) return '<span style="color:var(--text-muted)">--</span>';
-      var d = last[key] - first[key];
-      var arrow = d > 0.5 ? '\u2197' : d < -0.5 ? '\u2198' : '\u2192';
-      var color = d < -10 ? 'color:var(--danger)' : d < -3 ? 'color:var(--warning)' : '';
-      return '<span style="' + color + '">' + first[key].toFixed(0) + arrow + last[key].toFixed(0) + '</span>';
+    var dayStart = Date.parse(day + 'T00:00:00Z');
+    var dayEnd = dayStart + 24 * 3600000;
+    var dayEvalEnd = Math.min(dayEnd, nowMs);
+    var dayWindowMs = Math.max(0, dayEvalEnd - dayStart);
+
+    var daySyncRows = syncRowsAll.filter(function(r) {
+      var t = r && r.sync_started_at ? new Date(ensureUTC(r.sync_started_at)).getTime() : NaN;
+      return isFinite(t) && t >= dayStart && t < dayEnd;
+    });
+    var dayUploadRows = uploadRowsAll.filter(function(r) {
+      var t = r && r.upload_started_at ? new Date(ensureUTC(r.upload_started_at)).getTime() : NaN;
+      return isFinite(t) && t >= dayStart && t < dayEnd;
+    });
+
+    // Majority config values for the day (fallback to global medians).
+    var daySamplePeriods = daySyncRows.map(function(r) { var m = num(r.sample_period_min); return m != null ? m * 60 : null; }).filter(function(v) { return v && v > 0; });
+    var daySyncPeriods = daySyncRows.map(function(r) { var m = num(r.sync_period_min); return m != null ? m * 60 : null; }).filter(function(v) { return v && v > 0; });
+    var cfgSampleSec = dominantValueForDay(samplePeriodEvents, dayStart, dayEnd, mode(daySamplePeriods));
+    var cfgSyncSec = mode(daySyncPeriods);
+
+    var dayUploadIntervals = [];
+    for (var ui = 0; ui < dayUploadRows.length; ui++) {
+      var curTs = new Date(ensureUTC(dayUploadRows[ui].upload_started_at)).getTime();
+      if (!isFinite(curTs)) continue;
+      var prevTs = null;
+      for (var pj = uploadRowsAll.length - 1; pj >= 0; pj--) {
+        var tPrev = uploadRowsAll[pj] && uploadRowsAll[pj].upload_started_at
+          ? new Date(ensureUTC(uploadRowsAll[pj].upload_started_at)).getTime()
+          : NaN;
+        if (!isFinite(tPrev) || tPrev >= curTs) continue;
+        prevTs = tPrev;
+        break;
+      }
+      if (prevTs != null) {
+        var dUp = curTs - prevTs;
+        if (dUp > 0 && dUp <= 24 * 3600000) dayUploadIntervals.push(Math.round(dUp / 60000) * 60000);
+      }
+    }
+    var effectiveBulkFreqHours = dominantBulkFreqHoursForDay(dayStart, dayEnd);
+    var cfgUploadMs = effectiveBulkFreqHours
+      ? Math.round(effectiveBulkFreqHours * 3600000)
+      : (mode(dayUploadIntervals) || globalUploadIntervalMs);
+
+    var dayT0Fw = fmtFwValue(latestFwForDay(de, entries, 't0FwVersion', dayEnd));
+    var daySatAFw = fmtFwValue(latestFwForDay(de, entries, 'satAFwVersion', dayEnd));
+    var daySatBFw = fmtFwValue(latestFwForDay(de, entries, 'satBFwVersion', dayEnd));
+    var daySatFw = '--';
+    if (satAEnabled && satBEnabled) daySatFw = 'A ' + daySatAFw + ' | B ' + daySatBFw;
+    else if (satAEnabled) daySatFw = daySatAFw;
+    else if (satBEnabled) daySatFw = daySatBFw;
+
+    var t0SamplesActual = de.length;
+    var dayT0IntervalMs = medianIntervalMs(de, function(r) { return r.timestamp ? r.timestamp.getTime() : null; });
+    var effectiveSampleSec = cfgSampleSec || (dayT0IntervalMs ? Math.round(dayT0IntervalMs / 1000) : (globalT0IntervalMs ? Math.round(globalT0IntervalMs / 1000) : null));
+    var t0SamplesExpected = expectedCountForWindow(effectiveSampleSec, dayWindowMs);
+    if (t0SamplesExpected == null) {
+      t0SamplesExpected = expectedPerDayFromIntervalMs(effectiveSampleSec ? effectiveSampleSec * 1000 : (dayT0IntervalMs || globalT0IntervalMs));
     }
 
-    // Sync counts
-    var satASyncs = de.filter(function(e){return e.satABatV!==null;}).length;
-    var satBSyncs = satBEnabled ? de.filter(function(e){return e.satBBatV!==null;}).length : 0;
+    var nodeADay = daySyncRows.filter(function(r) { return String(r.node_id || '').toUpperCase() === 'A'; });
+    var nodeBDay = daySyncRows.filter(function(r) { return String(r.node_id || '').toUpperCase() === 'B'; });
 
-    // Gap count within day (>2.5× median)
-    var dayGaps = 0;
-    if (de.length > 1) {
-      var ints = [];
-      for (var j = 1; j < de.length; j++) ints.push(de[j].timestamp - de[j-1].timestamp);
-      ints.sort(function(a,b){return a-b;});
-      var med = ints[Math.floor(ints.length/2)];
-      var thresh = med * 2.5;
-      dayGaps = ints.filter(function(v){return v > thresh;}).length;
-    }
+    var satASamplesActual = nodeADay.reduce(function(acc, r) {
+      var v = num(r.received_total);
+      if (v == null) v = num(r.persisted_sd);
+      if (v == null) v = (num(r.received_live) || 0) + (num(r.received_backlog) || 0);
+      return acc + (v || 0);
+    }, 0);
+    var satASamplesExpected = nodeADay.reduce(function(acc, r) { return acc + (num(r.expected_samples) || 0); }, 0);
+
+    var satBSamplesActual = nodeBDay.reduce(function(acc, r) {
+      var v = num(r.received_total);
+      if (v == null) v = num(r.persisted_sd);
+      if (v == null) v = (num(r.received_live) || 0) + (num(r.received_backlog) || 0);
+      return acc + (v || 0);
+    }, 0);
+    var satBSamplesExpected = nodeBDay.reduce(function(acc, r) { return acc + (num(r.expected_samples) || 0); }, 0);
+
+    var periodBasedExpected = expectedCountForWindow(effectiveSampleSec, dayWindowMs);
+    var t0LostTime = fmtLostTime(t0SamplesActual, periodBasedExpected, effectiveSampleSec);
+    var satALostTime = fmtLostTime(satASamplesActual, periodBasedExpected, effectiveSampleSec);
+    var satBLostTime = fmtLostTime(satBSamplesActual, periodBasedExpected, effectiveSampleSec);
+
+    var t0UploadsActual = dayUploadRows.length;
+    var t0UploadsOk = dayUploadRows.filter(isUploadSuccess).length;
+    var satASyncActual = nodeADay.length;
+    var satASyncOk = nodeADay.filter(isSyncSuccess).length;
+    var satBSyncActual = nodeBDay.length;
+    var satBSyncOk = nodeBDay.filter(isSyncSuccess).length;
+
+    var csqVals = dayUploadRows.map(function(r) { return num(r.csq); }).filter(function(v) { return v != null && v >= 0; });
+    var satARssiVals = nodeADay.map(function(r) { return num(r.sat_rssi_avg); }).filter(function(v) { return v != null && v !== 0; });
+    var satBRssiVals = nodeBDay.map(function(r) { return num(r.sat_rssi_avg); }).filter(function(v) { return v != null && v !== 0; });
+
+    var t0DriftVals = dayUploadRows.map(function(r) {
+      var v = num(r.abs_time_resync_drift_s);
+      return v == null ? null : Math.abs(v);
+    }).filter(function(v) { return v != null; });
+    var satADriftVals = nodeADay.map(function(r) {
+      var v = num(r.sat_drift_s);
+      return v == null ? null : Math.abs(v);
+    }).filter(function(v) { return v != null; });
+    var satBDriftVals = nodeBDay.map(function(r) {
+      var v = num(r.sat_drift_s);
+      return v == null ? null : Math.abs(v);
+    }).filter(function(v) { return v != null; });
+
+    var t0UploadMs = dayUploadRows.reduce(function(acc, r) { return acc + (num(r.upload_duration_ms) || 0); }, 0);
+    var satASyncMs = nodeADay.reduce(function(acc, r) { return acc + (num(r.sync_duration_ms) || 0); }, 0);
+    var satBSyncMs = nodeBDay.reduce(function(acc, r) { return acc + (num(r.sync_duration_ms) || 0); }, 0);
 
     html += '<tr>' +
       '<td>' + dateLabel + '</td>' +
-      '<td>' + de.length + '</td>' +
-      '<td>' + batDelta(de, 't0BatPct') + '</td>' +
-      '<td>' + batDelta(de, 'satABatPct') + '</td>' +
-      (satBEnabled ? '<td>' + batDelta(de, 'satBBatPct') + '</td>' : '') +
-      '<td style="color:' + (satASyncs > 0 ? 'var(--success)' : 'var(--text-muted)') + '">' + satASyncs + '/' + de.length + '</td>' +
-      (satBEnabled ? '<td style="color:' + (satBSyncs > 0 ? 'var(--success)' : 'var(--text-muted)') + '">' + satBSyncs + '/' + de.length + '</td>' : '') +
-      '<td style="color:' + (dayGaps === 0 ? 'var(--success)' : 'var(--warning)') + '">' + dayGaps + '</td>' +
+      '<td class="grp-config">' + fmtPeriodSeconds(cfgSampleSec) + '</td>' +
+      '<td class="grp-config">' + fmtPeriodMs(cfgUploadMs) + '</td>' +
+      '<td class="grp-config">' + fmtPeriodSeconds(cfgSyncSec) + '</td>' +
+      '<td class="grp-config">' + dayT0Fw + '</td>' +
+      '<td class="grp-config">' + daySatFw + '</td>' +
+      '<td class="grp-battery group-start">' + batteryTrend(de, 't0BatPct') + '</td>' +
+      (satAEnabled ? '<td class="grp-battery">' + batteryTrend(de, 'satABatPct') + '</td>' : '') +
+      (satBEnabled ? '<td class="grp-battery">' + batteryTrend(de, 'satBBatPct') + '</td>' : '') +
+      '<td class="grp-data group-start">' + fmtCount(t0SamplesActual, t0SamplesExpected) + '</td>' +
+      (satAEnabled ? '<td class="grp-data">' + fmtCount(satASamplesActual, satASamplesExpected || null) + '</td>' : '') +
+      (satBEnabled ? '<td class="grp-data">' + fmtCount(satBSamplesActual, satBSamplesExpected || null) + '</td>' : '') +
+      '<td class="grp-data">' + t0LostTime + '</td>' +
+      (satAEnabled ? '<td class="grp-data">' + satALostTime + '</td>' : '') +
+      (satBEnabled ? '<td class="grp-data">' + satBLostTime + '</td>' : '') +
+      '<td class="grp-radio group-start">' + fmtOkAttempts(t0UploadsOk, t0UploadsActual) + '</td>' +
+      (satAEnabled ? '<td class="grp-radio">' + fmtOkAttempts(satASyncOk, satASyncActual) + '</td>' : '') +
+      (satBEnabled ? '<td class="grp-radio">' + fmtOkAttempts(satBSyncOk, satBSyncActual) + '</td>' : '') +
+      '<td class="grp-radio">' + fmtAvgMax(csqVals, '', false) + '</td>' +
+      (satAEnabled ? '<td class="grp-radio">' + fmtAvgMax(satARssiVals, '', false) + '</td>' : '') +
+      (satBEnabled ? '<td class="grp-radio">' + fmtAvgMax(satBRssiVals, '', false) + '</td>' : '') +
+      '<td class="grp-radio">' + fmtAvgMaxWithOutliers(t0DriftVals, 's', 3600) + '</td>' +
+      (satAEnabled ? '<td class="grp-radio">' + fmtAvgMaxWithOutliers(satADriftVals, 's', 3600) + '</td>' : '') +
+      (satBEnabled ? '<td class="grp-radio">' + fmtAvgMaxWithOutliers(satBDriftVals, 's', 3600) + '</td>' : '') +
+      '<td class="grp-radio">' + fmtMs(t0UploadMs) + '</td>' +
+      (satAEnabled ? '<td class="grp-radio">' + fmtMs(satASyncMs) + '</td>' : '') +
+      (satBEnabled ? '<td class="grp-radio">' + fmtMs(satBSyncMs) + '</td>' : '') +
     '</tr>';
   }
 
   html += '</tbody></table>';
+  if (allDays.length > STATION_LOG_ROWS_STEP) {
+    html += '<div class="config-log-actions">';
+    if (visibleDays < allDays.length) {
+      var remaining = allDays.length - visibleDays;
+      var step = Math.min(STATION_LOG_ROWS_STEP, remaining);
+      html += '<button class="config-expand-btn" onclick="loadMoreStationLogRows(\'' + stationId + '\')">Load next ' + step + ' days ↓</button>';
+    }
+    if (visibleDays > STATION_LOG_ROWS_STEP) {
+      html += '<button class="config-expand-btn" style="margin-left:8px" onclick="resetStationLogRows(\'' + stationId + '\')">Show latest 15</button>';
+    }
+    html += '</div>';
+  }
   wrap.innerHTML = html;
   container.appendChild(wrap);
+}
+
+function loadMoreStationLogRows(stationId) {
+  var current = Number(_stationLogsVisibleDays[stationId]) || STATION_LOG_ROWS_STEP;
+  _stationLogsVisibleDays[stationId] = current + STATION_LOG_ROWS_STEP;
+  setStationRange(stationId, stationRanges[stationId] || 'week');
+}
+
+function resetStationLogRows(stationId) {
+  _stationLogsVisibleDays[stationId] = STATION_LOG_ROWS_STEP;
+  setStationRange(stationId, stationRanges[stationId] || 'week');
 }
 
 // ============================================================
 // CHART HELPERS
 // ============================================================
-function chartOpts(yLabel, yMin, yMax, range, stationId) {
+function chartOpts(yLabel, yMin, yMax, range, stationId, xMinMs, xMaxMs) {
   // X-axis time configuration depends on view range:
   //   day   → hour ticks showing HH:mm
   //   week  → day ticks showing dd MMM (one per day, 7 labels)
   //   month → day ticks showing dd MMM
   //   all   → day ticks showing dd MMM
-  var xTime, xMaxTicks;
+  var xTime, xMaxTicks, xAutoSkip;
   if (range === 'day') {
-    xTime = { tooltipFormat: 'dd MMM HH:mm', displayFormats: { hour: 'HH:mm', minute: 'HH:mm' } };
-    xMaxTicks = 8;
+    xTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'hour', round: 'hour', stepSize: 3, displayFormats: { hour: 'HH:mm', minute: 'HH:mm' } };
+    xMaxTicks = 9;
+    xAutoSkip = false;
   } else if (range === 'week') {
-    xTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
+    xTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'hour', stepSize: 12, displayFormats: { hour: 'dd MMM HH:mm' } };
     xMaxTicks = 8;
+    xAutoSkip = false;
   } else if (range === 'month') {
-    xTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
+    xTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'hour', stepSize: 12, displayFormats: { hour: 'dd MMM HH:mm' } };
     xMaxTicks = 10;
+    xAutoSkip = false;
   } else {
     xTime = { tooltipFormat: 'dd MMM HH:mm', unit: 'day', displayFormats: { day: 'dd MMM' } };
     xMaxTicks = 12;
+    xAutoSkip = true;
+  }
+  var xScaleMin = isFinite(xMinMs) ? xMinMs : undefined;
+  var xScaleMax = isFinite(xMaxMs) ? xMaxMs : undefined;
+  if ((range === 'week' || range === 'month') && isFinite(xMinMs) && isFinite(xMaxMs)) {
+    var minD = new Date(xMinMs);
+    var maxD = new Date(xMaxMs);
+    xScaleMin = Date.UTC(minD.getUTCFullYear(), minD.getUTCMonth(), minD.getUTCDate(), 0, 0, 0, 0);
+    xScaleMax = Date.UTC(maxD.getUTCFullYear(), maxD.getUTCMonth(), maxD.getUTCDate(), 23, 59, 59, 999);
+  }
+  function tickDate(v) {
+    if (v === null || v === undefined) return null;
+    var d = null;
+    if (typeof v === 'number' && isFinite(v)) d = new Date(v);
+    if (!d || isNaN(d.getTime())) {
+      var n = Number(v);
+      if (isFinite(n)) d = new Date(n);
+    }
+    if (!d || isNaN(d.getTime())) d = new Date(v);
+    return (d && !isNaN(d.getTime())) ? d : null;
   }
   // UTC timezone for Luxon adapter
   var adapters = { date: { zone: 'UTC' } };
@@ -1717,10 +3910,43 @@ function chartOpts(yLabel, yMin, yMax, range, stationId) {
     },
     scales: {
       x: { type: 'time', time: xTime, adapters: adapters,
-        ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: xMaxTicks }, grid: { color: '#1e293b' } },
+        min: xScaleMin,
+        max: xScaleMax,
+        ticks: {
+          color: '#64748b',
+          font: { size: 10 },
+          maxTicksLimit: xMaxTicks,
+          autoSkip: xAutoSkip,
+          callback: function(value, index, ticks) {
+            if (range !== 'week' && range !== 'month') return this.getLabelForValue(value);
+            var d = tickDate(value);
+            if (!d) return this.getLabelForValue(value);
+            var prev = (index > 0 && ticks && ticks[index - 1]) ? tickDate(ticks[index - 1].value) : null;
+            if (!prev || d.getUTCDate() !== prev.getUTCDate() || d.getUTCMonth() !== prev.getUTCMonth() || d.getUTCFullYear() !== prev.getUTCFullYear()) {
+              return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });
+            }
+            return d.getUTCHours() === 0
+              ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' })
+              : '';
+          }
+        },
+        grid: {
+          color: function(ctx) {
+            if ((range !== 'week' && range !== 'month') || !ctx.tick) return '#d6e3df';
+            var d = tickDate(ctx.tick.value);
+            if (!d) return '#d6e3df';
+            return d.getUTCHours() === 12 ? 'rgba(214,227,223,0.55)' : '#d6e3df';
+          },
+          lineWidth: function(ctx) {
+            if ((range !== 'week' && range !== 'month') || !ctx.tick) return 1;
+            var d = tickDate(ctx.tick.value);
+            if (!d) return 1;
+            return d.getUTCHours() === 12 ? 0.8 : 1;
+          }
+        } },
       y: { title: { display: true, text: yLabel, color: '#64748b', font: { size: 10 } },
         min: yMin, max: yMax,
-        ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e293b' } },
+        ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#d6e3df' } },
     },
   };
 }
@@ -1828,7 +4054,7 @@ async function fetchLiveAll() {
   var errors   = [];
   var totalNew = 0;
 
-  await refreshDeviceStatusMap();
+  await Promise.all([refreshDeviceStatusMap(), refreshDeviceConfigMap()]);
 
   for (var i = 0; i < STATIONS.length; i++) {
     var station = STATIONS[i];
@@ -1951,6 +4177,12 @@ function applySharedCacheToHealth(stationIds) {
   var loading = document.getElementById('loadingMsg');
   if (loading) loading.style.display = 'none';
 
+  if (!STATIONS.length) {
+    container.innerHTML = '<div class="loading-msg" style="display:block">No stations are enabled. Open Settings and enable at least one station.</div>';
+    document.getElementById('forecastPanel').style.display = 'none';
+    return;
+  }
+
   STATIONS.forEach(function(st) {
     var data = stationData[st.id];
     if (!data) return;
@@ -1961,7 +4193,11 @@ function applySharedCacheToHealth(stationIds) {
 onDashboardDataRefresh(function(msg) {
   try {
     var ids = Array.isArray(msg && msg.stationIds) ? msg.stationIds : [];
-    applySharedCacheToHealth(ids);
+    Promise.all([refreshDeviceStatusMap(), refreshDeviceConfigMap()]).then(function() {
+      applySharedCacheToHealth(ids);
+    }).catch(function() {
+      applySharedCacheToHealth(ids);
+    });
   } catch (e) {}
 });
 
@@ -1970,9 +4206,14 @@ onDashboardDataRefresh(function(msg) {
 // ============================================================
 (function() {
   var idx = 0;
-  refreshDeviceStatusMap();
+  var _metaReady = Promise.all([refreshDeviceStatusMap(), refreshDeviceConfigMap()]);
   function loadNext() {
-    if (idx >= STATIONS.length) return;
+    if (idx >= STATIONS.length) {
+      _metaReady.finally(function() {
+        onAllLoaded();
+      });
+      return;
+    }
     var station = STATIONS[idx];
     var configuredFolder = getDataFolder(station.configKey, station.defaultFolder);
     var defaultFolder = normalizeDataFolder(station.defaultFolder, station.defaultFolder);
@@ -1982,8 +4223,10 @@ onDashboardDataRefresh(function(msg) {
       idx++;
       if (idx < STATIONS.length) loadNext();
       else {
-        onAllLoaded();
-        refreshDiagnosticsAllBackground();
+        _metaReady.finally(function() {
+          onAllLoaded();
+          refreshDiagnosticsAllBackground();
+        });
       }
     }
 
@@ -2068,6 +4311,10 @@ onDashboardDataRefresh(function(msg) {
           <button class="btn btn-sm" data-mrange="month" onclick="setModalRange('month')">Month</button>
           <button class="btn btn-sm" data-mrange="all" onclick="setModalRange('all')">All</button>
         </div>
+        <div class="chart-modal-toggles" id="chartModalToggles">
+          <button class="btn btn-sm" id="chartModalCalcBtn" onclick="toggleModalCalculated()">Show Calculated</button>
+          <button class="btn btn-sm" id="chartModalEventBtn" onclick="toggleModalEvents()">Show Events</button>
+        </div>
         <span class="chart-modal-hint">Scroll = zoom &nbsp;&bull;&nbsp; Drag = pan &nbsp;&bull;&nbsp; Dbl-click = reset</span>
         <button class="chart-modal-close" onclick="closeChartModal({target:this})">&#10005; Close</button>
       </div>
@@ -2096,6 +4343,7 @@ onDashboardDataRefresh(function(msg) {
   }
   tickUTC();
   setInterval(tickUTC, 1000);
+  if (typeof bindModalCanvasReanchor === 'function') bindModalCanvasReanchor();
 })();
 </script>
 </body>
