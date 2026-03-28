@@ -466,9 +466,22 @@ foreach ($station in $stations) {
             $oldMeta = Get-Content $metaFile -Raw | ConvertFrom-Json
             if ($oldMeta.entries -eq $feeds.Count -and $oldMeta.lastEntryId -eq $metaLastEntryId) {
                 $dataChanged = $false
-                Write-Host "          No new data — skipping merged_data.js rewrite ($($feeds.Count) entries unchanged)"
+                Write-Host "          No new data - skipping merged_data.js rewrite ($($feeds.Count) entries unchanged)"
             }
         } catch { $dataChanged = $true }
+    }
+
+    # Force one-time canonical rewrite if legacy sat_a/sat_b keys are present.
+    if (-not $dataChanged -and (Test-Path $jsFile)) {
+        try {
+            $existingJs = Get-Content $jsFile -Raw
+            if ($existingJs -match 'sat_a_' -or $existingJs -match 'sat_b_') {
+                $dataChanged = $true
+                Write-Host "          Legacy satellite keys detected (sat_a/sat_b) - forcing schema rewrite"
+            }
+        } catch {
+            $dataChanged = $true
+        }
     }
 
     if ($dataChanged) {

@@ -661,8 +661,10 @@ function parseStationData(raw, station) {
       entry.sleepEnable = (f.sleep_enable === null || f.sleep_enable === undefined) ? null : (Number(f.sleep_enable) === 1);
       entry.espnowSyncPeriod_s = toNum(f.espnow_sync_period_s);
       entry.tsBulkFreqHours = toNum(f.bulk_freq_hours);
-      entry.sat1Installed = (f.sat_1_installed === null || f.sat_1_installed === undefined) ? null : (Number(f.sat_1_installed) === 1);
-      entry.sat2Installed = (f.sat_2_installed === null || f.sat_2_installed === undefined) ? null : (Number(f.sat_2_installed) === 1);
+      var sat1InstalledRaw = f.sat_1_installed;
+      var sat2InstalledRaw = f.sat_2_installed;
+      entry.sat1Installed = (sat1InstalledRaw === null || sat1InstalledRaw === undefined) ? null : (Number(sat1InstalledRaw) === 1);
+      entry.sat2Installed = (sat2InstalledRaw === null || sat2InstalledRaw === undefined) ? null : (Number(sat2InstalledRaw) === 1);
 
       entry.t0BatPct = toNum(f.battery_pct);
       entry.t0Temp1 = toNum(f.temp_1);
@@ -682,7 +684,8 @@ function parseStationData(raw, station) {
       entry.sat1Rssi = null;
       entry.sat1SampleId = null;
       entry.sat1SyncDrift = null;
-      entry.sat1FwVersion = f.sat_1_fw_ver != null ? String(f.sat_1_fw_ver) : null;
+      var sat1FwRaw = f.sat_1_fw_ver;
+      entry.sat1FwVersion = sat1FwRaw != null ? String(sat1FwRaw) : null;
       entry.sat1Temp1 = toNum(f.sat_1_temp_1);
       entry.sat1Hum1 = toNum(f.sat_1_humidity_1);
       entry.sat1Temp2 = toNum(f.sat_1_temp_2);
@@ -693,7 +696,8 @@ function parseStationData(raw, station) {
       entry.sat2Rssi = null;
       entry.sat2SampleId = null;
       entry.sat2SyncDrift = null;
-      entry.sat2FwVersion = f.sat_2_fw_ver != null ? String(f.sat_2_fw_ver) : null;
+      var sat2FwRaw = f.sat_2_fw_ver;
+      entry.sat2FwVersion = sat2FwRaw != null ? String(sat2FwRaw) : null;
       entry.sat2Temp1 = toNum(f.sat_2_temp_1);
       entry.sat2Hum1 = toNum(f.sat_2_humidity_1);
       entry.sat2Temp2 = toNum(f.sat_2_temp_2);
@@ -813,7 +817,12 @@ function parseStationData(raw, station) {
 
   entries.sort(function(a,b) { return a.timestamp - b.timestamp; });
   if (typeof filterEntryArrayByResetWindow === 'function') {
-    entries = filterEntryArrayByResetWindow(station.id, entries);
+    var filteredEntries = filterEntryArrayByResetWindow(station.id, entries);
+    if (filteredEntries.length > 0 || entries.length === 0) {
+      entries = filteredEntries;
+    } else {
+      console.warn('[Health] Reset window filtered all entries for ' + station.id + '; keeping unfiltered dataset');
+    }
   }
   return { entries: entries, raw: raw };
 }
@@ -4255,34 +4264,48 @@ function parseSupabaseData(rows, station) {
     entry.t0BuildDate = r.fw_date || null;
 
     // Slot 1 status (rssi, sample_id, sync_drift, fw_ver moved to sync_sessions)
-    entry.sat1BatV      = r.sat_1_battery_v !== null ? r.sat_1_battery_v : null;
-    entry.sat1BatPct    = r.sat_1_battery_pct !== null ? r.sat_1_battery_pct : null;
+    var sat1BatV = r.sat_1_battery_v;
+    var sat1BatPct = r.sat_1_battery_pct;
+    var sat1FlashPct = r.sat_1_flash_pct;
+    entry.sat1BatV      = sat1BatV !== null && sat1BatV !== undefined ? sat1BatV : null;
+    entry.sat1BatPct    = sat1BatPct !== null && sat1BatPct !== undefined ? sat1BatPct : null;
     entry.sat1Rssi      = null;
     entry.sat1SampleId  = null;
-    entry.sat1FlashPct  = r.sat_1_flash_pct !== null ? r.sat_1_flash_pct : null;
+    entry.sat1FlashPct  = sat1FlashPct !== null && sat1FlashPct !== undefined ? sat1FlashPct : null;
     entry.sat1SyncDrift = null;
     entry.sat1FwVersion = null;
 
     // Slot 1 sensors
-    entry.sat1Temp1 = r.sat_1_temp_1 !== null ? r.sat_1_temp_1 : null;
-    entry.sat1Hum1  = r.sat_1_humidity_1 !== null ? r.sat_1_humidity_1 : null;
-    entry.sat1Temp2 = r.sat_1_temp_2 !== null ? r.sat_1_temp_2 : null;
-    entry.sat1Hum2  = r.sat_1_humidity_2 !== null ? r.sat_1_humidity_2 : null;
+    var sat1Temp1 = r.sat_1_temp_1;
+    var sat1Hum1 = r.sat_1_humidity_1;
+    var sat1Temp2 = r.sat_1_temp_2;
+    var sat1Hum2 = r.sat_1_humidity_2;
+    entry.sat1Temp1 = sat1Temp1 !== null && sat1Temp1 !== undefined ? sat1Temp1 : null;
+    entry.sat1Hum1  = sat1Hum1 !== null && sat1Hum1 !== undefined ? sat1Hum1 : null;
+    entry.sat1Temp2 = sat1Temp2 !== null && sat1Temp2 !== undefined ? sat1Temp2 : null;
+    entry.sat1Hum2  = sat1Hum2 !== null && sat1Hum2 !== undefined ? sat1Hum2 : null;
 
     // Slot 2 status
-    entry.sat2BatV      = r.sat_2_battery_v !== null ? r.sat_2_battery_v : null;
-    entry.sat2BatPct    = r.sat_2_battery_pct !== null ? r.sat_2_battery_pct : null;
+    var sat2BatV = r.sat_2_battery_v;
+    var sat2BatPct = r.sat_2_battery_pct;
+    var sat2FlashPct = r.sat_2_flash_pct;
+    entry.sat2BatV      = sat2BatV !== null && sat2BatV !== undefined ? sat2BatV : null;
+    entry.sat2BatPct    = sat2BatPct !== null && sat2BatPct !== undefined ? sat2BatPct : null;
     entry.sat2Rssi      = null;
     entry.sat2SampleId  = null;
-    entry.sat2FlashPct  = r.sat_2_flash_pct !== null ? r.sat_2_flash_pct : null;
+    entry.sat2FlashPct  = sat2FlashPct !== null && sat2FlashPct !== undefined ? sat2FlashPct : null;
     entry.sat2SyncDrift = null;
     entry.sat2FwVersion = null;
 
     // Slot 2 sensors
-    entry.sat2Temp1 = r.sat_2_temp_1 !== null ? r.sat_2_temp_1 : null;
-    entry.sat2Hum1  = r.sat_2_humidity_1 !== null ? r.sat_2_humidity_1 : null;
-    entry.sat2Temp2 = r.sat_2_temp_2 !== null ? r.sat_2_temp_2 : null;
-    entry.sat2Hum2  = r.sat_2_humidity_2 !== null ? r.sat_2_humidity_2 : null;
+    var sat2Temp1 = r.sat_2_temp_1;
+    var sat2Hum1 = r.sat_2_humidity_1;
+    var sat2Temp2 = r.sat_2_temp_2;
+    var sat2Hum2 = r.sat_2_humidity_2;
+    entry.sat2Temp1 = sat2Temp1 !== null && sat2Temp1 !== undefined ? sat2Temp1 : null;
+    entry.sat2Hum1  = sat2Hum1 !== null && sat2Hum1 !== undefined ? sat2Hum1 : null;
+    entry.sat2Temp2 = sat2Temp2 !== null && sat2Temp2 !== undefined ? sat2Temp2 : null;
+    entry.sat2Hum2  = sat2Hum2 !== null && sat2Hum2 !== undefined ? sat2Hum2 : null;
 
     // System diagnostics (moved to upload_sessions in v2)
     entry._rawField8        = null;
@@ -4291,15 +4314,22 @@ function parseSupabaseData(rows, station) {
     entry.uploadOk          = null;
     entry.syncDrift         = null;
     entry.espnowSyncPeriod_s = null;
-    entry.sat1Installed     = r.sat_1_installed != null ? !!r.sat_1_installed : null;
-    entry.sat2Installed     = r.sat_2_installed != null ? !!r.sat_2_installed : null;
+    var sat1InstalledRaw = r.sat_1_installed;
+    var sat2InstalledRaw = r.sat_2_installed;
+    entry.sat1Installed     = sat1InstalledRaw != null ? !!sat1InstalledRaw : null;
+    entry.sat2Installed     = sat2InstalledRaw != null ? !!sat2InstalledRaw : null;
 
     entries.push(entry);
   }
 
   entries.sort(function(a, b) { return a.timestamp - b.timestamp; });
   if (typeof filterEntryArrayByResetWindow === 'function') {
-    entries = filterEntryArrayByResetWindow(station.id, entries);
+    var filteredEntries = filterEntryArrayByResetWindow(station.id, entries);
+    if (filteredEntries.length > 0 || entries.length === 0) {
+      entries = filteredEntries;
+    } else {
+      console.warn('[Health] Reset window filtered all live entries for ' + station.id + '; keeping unfiltered dataset');
+    }
   }
   return { entries: entries, raw: { feeds: rows } };
 }
