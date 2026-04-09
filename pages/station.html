@@ -1701,6 +1701,14 @@ async function fetchLiveData(silent) {
   }
 }
 
+function shouldAutoFetchLiveOnLoad() {
+  if (!state.allEntries || !state.allEntries.length) return true;
+  var latest = state.allEntries[state.allEntries.length - 1].timestamp;
+  if (!(latest instanceof Date) || isNaN(latest.getTime())) return true;
+  var ageHrs = (Date.now() - latest.getTime()) / 3600000;
+  return ageHrs > 6;
+}
+
 function refreshFromSharedCache(reason) {
   try {
     var raw = localStorage.getItem('seaweed_cache_' + TABLE_ID);
@@ -1710,6 +1718,25 @@ function refreshFromSharedCache(reason) {
 
     var parsed = normalizeCachedEntries(cached.allEntries);
     if (!parsed.length) return;
+
+    var cachedLatest = parsed[parsed.length - 1] && parsed[parsed.length - 1].timestamp
+      ? parsed[parsed.length - 1].timestamp.getTime()
+      : NaN;
+    var currentLatest = state.allEntries && state.allEntries.length && state.allEntries[state.allEntries.length - 1].timestamp
+      ? state.allEntries[state.allEntries.length - 1].timestamp.getTime()
+      : NaN;
+
+    // Ignore cache updates that would roll the page back behind already-loaded live data.
+    if (isFinite(currentLatest) && isFinite(cachedLatest)) {
+      if (cachedLatest < currentLatest) {
+        console.log('[Dashboard] Ignoring stale shared cache (' + TABLE_ID + '): cached latest is older than current state');
+        return;
+      }
+      if (cachedLatest === currentLatest && state.allEntries && parsed.length < state.allEntries.length) {
+        console.log('[Dashboard] Ignoring partial shared cache (' + TABLE_ID + '): cached snapshot is not richer than current state');
+        return;
+      }
+    }
 
     state.allEntries = parsed.sort(function(a, b) { return a.timestamp - b.timestamp; });
     state.channelInfo = cached.channelInfo || state.channelInfo || null;
@@ -1795,7 +1822,7 @@ function setTimeRange(range) {
   updatePeaksTable();
   updateTimeButtons();
   updateChartSubheads();
-  renderWeatherCharts();
+  fetchWeatherData();
   updateSensorCards();
 }
 
@@ -1804,7 +1831,7 @@ function setWeatherTimeRange(r) {
   document.querySelectorAll('[data-wxrange]').forEach(function(b) {
     b.classList.toggle('active', b.dataset.wxrange === r);
   });
-  if (r === 'forecast') { fetchForecastData(); } else { renderWeatherCharts(); }
+  if (r === 'forecast') { fetchForecastData(); } else { fetchWeatherData(); }
 }
 
 function applyDateRange() {
@@ -3180,12 +3207,62 @@ var weatherState = {
   tempPoints: [], humPoints: [],
   charts: { temp: null, hum: null, precip: null, uv: null },
   fetching: false,
+  fetchKey: null,
+  pendingFetchKey: null,
   forecast: null, forecastDaily: null, forecastFetching: false,
   sunEvents: [],
 };
 
+function mergeOpenMeteoSeries(parts) {
+  var validParts = (parts || []).filter(function(part) {
+    return part && Array.isArray(part.time) && part.time.length;
+  });
+  if (!validParts.length) return null;
+
+  var fieldSet = {};
+  validParts.forEach(function(part) {
+    Object.keys(part).forEach(function(key) {
+      if (key !== 'time' && key.charAt(0) !== '_') fieldSet[key] = true;
+    });
+  });
+
+  var byTime = {};
+  validParts.forEach(function(part) {
+    for (var i = 0; i < part.time.length; i++) {
+      var timeKey = part.time[i];
+      if (!timeKey) continue;
+      var row = byTime[timeKey] || { time: timeKey };
+      Object.keys(fieldSet).forEach(function(field) {
+        var values = part[field];
+        if (!Array.isArray(values) || i >= values.length) return;
+        if (values[i] !== undefined) row[field] = values[i];
+      });
+      byTime[timeKey] = row;
+    }
+  });
+
+  var times = Object.keys(byTime).sort();
+  var merged = { time: times };
+  Object.keys(fieldSet).forEach(function(field) {
+    merged[field] = times.map(function(timeKey) {
+      return byTime[timeKey][field] !== undefined ? byTime[timeKey][field] : null;
+    });
+  });
+  return merged;
+}
+
+function formatIsoDateUTC(date) {
+  return new Date(date.getTime()).toISOString().slice(0, 10);
+}
+
+function buildOpenMeteoUrl(apiBase, startStr, endStr) {
+  return apiBase + '?latitude=' + WEATHER_LOCATION.lat + '&longitude=' + WEATHER_LOCATION.lon +
+    '&start_date=' + startStr + '&end_date=' + endStr +
+    '&hourly=temperature_2m,relative_humidity_2m,precipitation,cloud_cover,weather_code,uv_index' +
+    '&daily=sunrise,sunset&timezone=auto';
+}
+
 async function fetchWeatherData() {
-  if (weatherState.fetching) return;
   if (!state.filteredEntries.length) return;
 
   if (window.WEATHER_CACHE && window.WEATHER_CACHE.hourly && window.WEATHER_CACHE.hourly.time) {
@@ -3211,28 +3288,75 @@ async function fetchWeatherData() {
   var endDate   = new Date(Math.min(last.getTime() + 86400000, Date.now()));
   var startStr = startDate.toISOString().slice(0, 10);
   var endStr   = endDate.toISOString().slice(0, 10);
-  var today = new Date().toISOString().slice(0, 10);
-  var apiBase = (endStr >= today) ? 'https://api.open-meteo.com/v1/forecast' : 'https://archive-api.open-meteo.com/v1/archive';
+  var requestKey = startStr + '|' + endStr;
 
-  var url = apiBase + '?latitude=' + WEATHER_LOCATION.lat + '&longitude=' + WEATHER_LOCATION.lon +
-    '&start_date=' + startStr + '&end_date=' + endStr +
-    '&hourly=temperature_2m,relative_humidity_2m,precipitation,cloud_cover,weather_code,uv_index' +
-    '&daily=sunrise,sunset&timezone=auto';
+  if (weatherState.fetching) {
+    if (weatherState.fetchKey !== requestKey) {
+      weatherState.pendingFetchKey = requestKey;
+    }
+    return;
+  }
+
+  if (weatherState.data && weatherState.data.time && weatherState.data.time.length) {
+    var existingStart = new Date(weatherState.data.time[0]).getTime();
+    var existingEnd = new Date(weatherState.data.time[weatherState.data.time.length - 1]).getTime();
+    if (existingStart <= startDate.getTime() && existingEnd >= endDate.getTime() - 3600000) {
+      renderWeatherCharts();
+      return;
+    }
+  }
+
+  var todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  var todayStr = formatIsoDateUTC(todayStart);
 
   weatherState.fetching = true;
+  weatherState.fetchKey = requestKey;
+  weatherState.pendingFetchKey = null;
   try {
-    var resp = await fetch(url);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    var json = await resp.json();
-    if (json.hourly && json.hourly.time) {
-      weatherState.data = json.hourly;
-      weatherState.data._timezone = json.timezone || '';
+    var requests = [];
+    var yesterday = new Date(todayStart.getTime() - 86400000);
+    var yesterdayStr = formatIsoDateUTC(yesterday);
+
+    if (startStr <= yesterdayStr) {
+      var archiveEndStr = endStr < todayStr ? endStr : yesterdayStr;
+      requests.push(fetch(buildOpenMeteoUrl('https://archive-api.open-meteo.com/v1/archive', startStr, archiveEndStr)));
+    }
+    if (endStr >= todayStr) {
+      var forecastStartStr = startStr > todayStr ? startStr : todayStr;
+      requests.push(fetch(buildOpenMeteoUrl('https://api.open-meteo.com/v1/forecast', forecastStartStr, endStr)));
+    }
+
+    if (!requests.length) requests.push(fetch(buildOpenMeteoUrl('https://archive-api.open-meteo.com/v1/archive', startStr, endStr)));
+
+    var responses = await Promise.all(requests);
+    var payloads = [];
+    for (var ri = 0; ri < responses.length; ri++) {
+      if (!responses[ri].ok) throw new Error('HTTP ' + responses[ri].status);
+      payloads.push(await responses[ri].json());
+    }
+
+    var mergedHourly = mergeOpenMeteoSeries(payloads.map(function(p) { return p.hourly; }));
+    var mergedDaily = mergeOpenMeteoSeries(payloads.map(function(p) { return p.daily; }));
+
+    if (mergedHourly && mergedHourly.time) {
+      weatherState.data = mergedHourly;
+      weatherState.data._timezone = (payloads[payloads.length - 1] && payloads[payloads.length - 1].timezone) || '';
       weatherState.data._location = WEATHER_LOCATION.name;
-      if (json.daily) weatherState.daily = json.daily;
+      if (mergedDaily) weatherState.daily = mergedDaily;
       renderWeatherCharts();
     }
   } catch (err) { console.warn('[Weather] Failed:', err); }
-  finally { weatherState.fetching = false; }
+  finally {
+    var completedKey = weatherState.fetchKey;
+    var pendingKey = weatherState.pendingFetchKey;
+    weatherState.fetching = false;
+    weatherState.fetchKey = null;
+    weatherState.pendingFetchKey = null;
+    if (pendingKey && pendingKey !== completedKey) {
+      fetchWeatherData();
+    }
+  }
 }
 
 async function fetchForecastData() {
@@ -3609,6 +3733,16 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   } catch (_e) {
     console.warn('[Dashboard] Sensor 3 backfill check failed:', _e);
+  }
+
+  // If the local snapshot is stale, immediately refresh from Supabase on page load.
+  try {
+    if (shouldAutoFetchLiveOnLoad()) {
+      console.log('[Dashboard] Stale startup data detected; triggering silent live refresh');
+      fetchLiveData(true);
+    }
+  } catch (_e2) {
+    console.warn('[Dashboard] Startup live refresh check failed:', _e2);
   }
 
   // Setup auto-refresh

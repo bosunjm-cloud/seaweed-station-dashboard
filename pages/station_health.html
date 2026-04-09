@@ -453,7 +453,7 @@ async function refreshDeviceConfigMap() {
     var hdrs = supabaseHeaders(supaCfg.key);
     var idList = ids.map(function(id) { return String(id).replace(/,/g, ''); }).join(',');
     var url = supaCfg.url + '/rest/v1/device_config' +
-              '?select=device_id,upload_interval_hours,sample_period_min,sat_sync_period_min,deploy_mode,sleep_enable,updated_at' +
+              '?select=device_id,upload_interval_hours,sample_period_min,sat_sync_period_hours,deploy_mode,sleep_enable,updated_at' +
               '&device_id=in.(' + encodeURIComponent(idList) + ')';
     var res = await fetchWithTimeout(url, 15000, { headers: hdrs });
     if (!res.ok) throw new Error('device_config HTTP ' + res.status);
@@ -1242,7 +1242,7 @@ function _buildConfigSnapshotFromUploadSession(row) {
     sleepEnable: row.applied_sleep_enable === true || row.applied_sleep_enable === false ? !!row.applied_sleep_enable : null,
     samplePeriod_s: row.applied_sample_period_min != null ? Number(row.applied_sample_period_min) * 60 : null,
     uploadIntervalHours: row.applied_upload_interval_hours != null ? Number(row.applied_upload_interval_hours) : null,
-    espnowSyncPeriod_s: row.applied_sat_sync_period_min != null ? Number(row.applied_sat_sync_period_min) * 60 : null,
+    espnowSyncPeriod_s: row.applied_sat_sync_period_hours != null ? Number(row.applied_sat_sync_period_hours) * 3600 : null,
     slotCount: row.applied_slot_count != null ? Number(row.applied_slot_count) : null,
     fwVersion: row.applied_fw_version || null
   };
@@ -1311,7 +1311,7 @@ function _buildConfigSnapshotFromDeviceConfigRow(row) {
     sleepEnable: row.sleep_enable === true || row.sleep_enable === false ? !!row.sleep_enable : null,
     samplePeriod_s: row.sample_period_min != null && isFinite(row.sample_period_min) ? Number(row.sample_period_min) * 60 : null,
     uploadIntervalHours: uih != null && isFinite(uih) ? Number(uih) : null,
-    espnowSyncPeriod_s: row.sat_sync_period_min != null && isFinite(row.sat_sync_period_min) ? Number(row.sat_sync_period_min) * 60 : null,
+    espnowSyncPeriod_s: row.sat_sync_period_hours != null && isFinite(row.sat_sync_period_hours) ? Number(row.sat_sync_period_hours) * 3600 : null,
     slotCount: slotCount,
     fwVersion: null
   };
