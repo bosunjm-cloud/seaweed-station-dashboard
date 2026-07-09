@@ -98,63 +98,61 @@ var SENSOR_MAPS = {
     ],
   },
   shangani: {
-    viewBox: '0 0 960 280',
-    label: 'Shangani sensor placement diagram',
-    svg: '<rect x="55" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
-      '<rect x="223" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
-      '<rect x="391" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
-      '<rect x="559" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
-      '<rect x="727" y="132" width="12" height="108" fill="#3a7d44" rx="3"/>' +
-      '<line x1="58" y1="132" x2="58" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
-      '<line x1="226" y1="132" x2="226" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
-      '<line x1="394" y1="132" x2="394" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
-      '<line x1="562" y1="132" x2="562" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
-      '<line x1="730" y1="132" x2="730" y2="240" stroke="#6fc47e" stroke-width="2" stroke-opacity="0.6"/>' +
-      '<rect x="55" y="132" width="684" height="8" fill="#3a7d44" rx="2"/>' +
-      '<rect x="55" y="144" width="684" height="8" fill="#3a7d44" rx="2"/>' +
-      '<line x1="55" y1="134" x2="739" y2="134" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>' +
-      '<line x1="55" y1="146" x2="739" y2="146" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>' +
-      '<rect x="55" y="194" width="684" height="8" fill="#3a7d44" rx="2"/>' +
-      '<rect x="55" y="206" width="684" height="8" fill="#3a7d44" rx="2"/>' +
-      '<line x1="55" y1="196" x2="739" y2="196" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>' +
-      '<line x1="55" y1="208" x2="739" y2="208" stroke="#6fc47e" stroke-width="1.5" stroke-opacity="0.6"/>' +
-      '<rect x="50" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="50" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
-      '<rect x="218" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="218" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
-      '<rect x="386" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="386" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
-      '<rect x="554" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="554" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
-      '<rect x="722" y="127" width="22" height="28" fill="#2d5e35" rx="3"/><rect x="722" y="189" width="22" height="28" fill="#2d5e35" rx="3"/>' +
-      '<line x1="30" y1="252" x2="755" y2="252" stroke="#888" stroke-width="2"/>' +
-      '<rect x="48" y="249" width="26" height="6" fill="#555" rx="1"/><rect x="216" y="249" width="26" height="6" fill="#555" rx="1"/>' +
-      '<rect x="384" y="249" width="26" height="6" fill="#555" rx="1"/><rect x="552" y="249" width="26" height="6" fill="#555" rx="1"/>' +
-      '<rect x="720" y="249" width="26" height="6" fill="#555" rx="1"/>' +
-      '<line x1="61" y1="240" x2="61" y2="255" stroke="#888" stroke-width="1.5"/>' +
-      '<line x1="229" y1="240" x2="229" y2="255" stroke="#888" stroke-width="1.5"/>' +
-      '<line x1="397" y1="240" x2="397" y2="255" stroke="#888" stroke-width="1.5"/>' +
-      '<line x1="565" y1="240" x2="565" y2="255" stroke="#888" stroke-width="1.5"/>' +
-      '<line x1="733" y1="240" x2="733" y2="255" stroke="#888" stroke-width="1.5"/>' +
-      '<rect x="85" y="74" width="120" height="36" fill="#7e22ce" fill-opacity="0.15" stroke="#a855f7" stroke-width="1.5" rx="5"/>' +
-      '<text x="145" y="88" text-anchor="middle" fill="#a855f7" font-size="12" font-weight="700">S4</text>' +
-      '<text x="145" y="103" text-anchor="middle" fill="#a855f7" font-size="10">Upper West</text>' +
-      '<rect x="421" y="74" width="120" height="36" fill="#15803d" fill-opacity="0.15" stroke="#22c55e" stroke-width="1.5" rx="5"/>' +
-      '<text x="481" y="88" text-anchor="middle" fill="#22c55e" font-size="12" font-weight="700">S2</text>' +
-      '<text x="481" y="103" text-anchor="middle" fill="#22c55e" font-size="10">Upper East</text>' +
-      '<rect x="85" y="220" width="120" height="36" fill="#0369a1" fill-opacity="0.15" stroke="#38bdf8" stroke-width="1.5" rx="5"/>' +
-      '<text x="145" y="234" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700">S1</text>' +
-      '<text x="145" y="249" text-anchor="middle" fill="#38bdf8" font-size="10">Lower West</text>' +
-      '<rect x="421" y="220" width="120" height="36" fill="#854d0e" fill-opacity="0.15" stroke="#eab308" stroke-width="1.5" rx="5"/>' +
-      '<text x="481" y="234" text-anchor="middle" fill="#eab308" font-size="12" font-weight="700">S3</text>' +
-      '<text x="481" y="249" text-anchor="middle" fill="#eab308" font-size="10">Lower East</text>' +
-      '<line x1="739" y1="138" x2="804" y2="138" stroke="#f97316" stroke-width="1.5" stroke-dasharray="6,4"/>' +
-      '<rect x="804" y="120" width="120" height="36" fill="#9a3412" fill-opacity="0.15" stroke="#f97316" stroke-width="1.5" rx="5"/>' +
-      '<text x="864" y="134" text-anchor="middle" fill="#f97316" font-size="12" font-weight="700">Control</text>' +
-      '<text x="864" y="149" text-anchor="middle" fill="#f97316" font-size="10">External Ref</text>' +
-      '<text x="397" y="270" text-anchor="middle" fill="#64748b" font-size="9">Green Metal Rack (5 posts)</text>',
+    viewBox: '0 0 900 300',
+    label: 'Shangani seaweed table sensor placement diagram',
+    svg: '<rect x="40" y="266" width="760" height="8" fill="#334155" rx="2"/>' +
+      '<rect x="78" y="24" width="16" height="242" fill="#107c41" rx="3"/>' +
+      '<rect x="238" y="24" width="16" height="242" fill="#107c41" rx="3"/>' +
+      '<rect x="398" y="24" width="16" height="242" fill="#107c41" rx="3"/>' +
+      '<rect x="558" y="24" width="16" height="242" fill="#107c41" rx="3"/>' +
+      '<rect x="718" y="24" width="16" height="242" fill="#107c41" rx="3"/>' +
+      '<line x1="86" y1="24" x2="726" y2="24" stroke="#21a366" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="86" y1="262" x2="72" y2="278" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="86" y1="262" x2="100" y2="278" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="246" y1="262" x2="232" y2="278" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="246" y1="262" x2="260" y2="278" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="406" y1="262" x2="392" y2="278" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="406" y1="262" x2="420" y2="278" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="566" y1="262" x2="552" y2="278" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="566" y1="262" x2="580" y2="278" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="726" y1="262" x2="712" y2="278" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<line x1="726" y1="262" x2="740" y2="278" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>' +
+      '<rect x="46" y="85" width="720" height="12" fill="#21a366" rx="2"/>' +
+      '<rect x="46" y="177" width="720" height="12" fill="#21a366" rx="2"/>' +
+      '<rect x="68" y="68" width="36" height="34" fill="#0f6b3a" rx="3"/>' +
+      '<rect x="228" y="68" width="36" height="34" fill="#0f6b3a" rx="3"/>' +
+      '<rect x="388" y="68" width="36" height="34" fill="#0f6b3a" rx="3"/>' +
+      '<rect x="548" y="68" width="36" height="34" fill="#0f6b3a" rx="3"/>' +
+      '<rect x="708" y="68" width="36" height="34" fill="#0f6b3a" rx="3"/>' +
+      '<rect x="68" y="160" width="36" height="34" fill="#0f6b3a" rx="3"/>' +
+      '<rect x="228" y="160" width="36" height="34" fill="#0f6b3a" rx="3"/>' +
+      '<rect x="388" y="160" width="36" height="34" fill="#0f6b3a" rx="3"/>' +
+      '<rect x="548" y="160" width="36" height="34" fill="#0f6b3a" rx="3"/>' +
+      '<rect x="708" y="160" width="36" height="34" fill="#0f6b3a" rx="3"/>' +
+      '<text x="166" y="74" font-family="sans-serif" font-size="22" font-weight="800" fill="#33c481" opacity="0.58" text-anchor="middle">B1</text>' +
+      '<text x="326" y="74" font-family="sans-serif" font-size="22" font-weight="800" fill="#33c481" opacity="0.58" text-anchor="middle">B2</text>' +
+      '<text x="486" y="74" font-family="sans-serif" font-size="22" font-weight="800" fill="#33c481" opacity="0.58" text-anchor="middle">B3</text>' +
+      '<text x="646" y="74" font-family="sans-serif" font-size="22" font-weight="800" fill="#33c481" opacity="0.58" text-anchor="middle">B4</text>' +
+      '<text x="166" y="154" font-family="sans-serif" font-size="22" font-weight="800" fill="#33c481" opacity="0.58" text-anchor="middle">B5</text>' +
+      '<text x="326" y="154" font-family="sans-serif" font-size="22" font-weight="800" fill="#33c481" opacity="0.58" text-anchor="middle">B6</text>' +
+      '<text x="486" y="154" font-family="sans-serif" font-size="22" font-weight="800" fill="#33c481" opacity="0.58" text-anchor="middle">B7</text>' +
+      '<text x="646" y="154" font-family="sans-serif" font-size="22" font-weight="800" fill="#33c481" opacity="0.58" text-anchor="middle">B8</text>' +
+      '<rect x="190" y="38" width="44" height="26" rx="4" fill="none" stroke="#ef4444" stroke-width="2"/>' +
+      '<text x="212" y="56" font-family="sans-serif" font-size="13" font-weight="700" fill="#ef4444" text-anchor="middle">S5</text>' +
+      '<rect x="578" y="38" width="44" height="26" rx="4" fill="none" stroke="#eab308" stroke-width="2"/>' +
+      '<text x="600" y="56" font-family="sans-serif" font-size="13" font-weight="700" fill="#eab308" text-anchor="middle">S3</text>' +
+      '<rect x="190" y="112" width="44" height="26" rx="4" fill="none" stroke="#a855f7" stroke-width="2"/>' +
+      '<text x="212" y="130" font-family="sans-serif" font-size="13" font-weight="700" fill="#a855f7" text-anchor="middle">S4</text>' +
+      '<rect x="578" y="112" width="44" height="26" rx="4" fill="none" stroke="#22c55e" stroke-width="2"/>' +
+      '<text x="600" y="130" font-family="sans-serif" font-size="13" font-weight="700" fill="#22c55e" text-anchor="middle">S2</text>' +
+      '<rect x="578" y="215" width="44" height="26" rx="4" fill="none" stroke="#38bdf8" stroke-width="2"/>' +
+      '<text x="600" y="233" font-family="sans-serif" font-size="13" font-weight="700" fill="#38bdf8" text-anchor="middle">S1</text>',
     legend: [
-      { color: '#38bdf8', label: 'S1 — Lower West' },
-      { color: '#22c55e', label: 'S2 — Upper East' },
-      { color: '#eab308', label: 'S3 — Lower East' },
-      { color: '#a855f7', label: 'S4 — Upper West' },
-      { color: '#f97316', label: 'Control — External Ref' },
+      { color: '#38bdf8', label: 'S1' },
+      { color: '#22c55e', label: 'S2' },
+      { color: '#eab308', label: 'S3' },
+      { color: '#a855f7', label: 'S4' },
+      { color: '#ef4444', label: 'S5' },
     ],
   },
   funzi: {
